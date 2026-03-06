@@ -1,0 +1,14 @@
+endpoints:
+  - slug: drugnames
+    base_url: https://dailymed.nlm.nih.gov/dailymed/services
+    path: /v2/drugnames
+    format: json
+    pagination: all
+    page_param: page
+    pagesize_param: pagesize
+    pagesize: 100
+
+  - slug: spl-detail
+    base_url: https://dailymed.nlm.nih.gov/dailymed/services
+    path: /v2/spls/{SETID}
+    format: json

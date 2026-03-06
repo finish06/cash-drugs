@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go run *)",
+      "Bash(go test *)",
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(go mod *)",
+      "Bash(golangci-lint *)",
+      "Bash(docker-compose *)",
+      "Bash(docker *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git branch *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git status)",
+      "Bash(gh pr *)",
+      "Bash(mkdir *)",
+      "Bash(ls *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean -f*)"
+    ]
+  },
+  "enabledPlugins": {
+    "add": true
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "cat > /dev/null; [ -f .add/config.json ] && printf '/\\033[38;2;8;145;178mADD\\033[0m:enabled'"
+  }
+}

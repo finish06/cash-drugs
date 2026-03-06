@@ -1,0 +1,36 @@
+# Go
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# ADD — ephemeral artifacts (don't commit)
+.add/away-logs/
+tests/screenshots/errors/
+
+# ADD — these SHOULD be committed (don't ignore)
+# .add/config.json
+# .add/learnings.md
+# .add/retros/
+# specs/
+# docs/plans/
+# tests/screenshots/{feature}/
