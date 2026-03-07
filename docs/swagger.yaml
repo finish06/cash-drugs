@@ -1,0 +1,145 @@
+basePath: /
+definitions:
+  github_com_finish06_drugs_internal_model.APIResponse:
+    properties:
+      data: {}
+      meta:
+        $ref: '#/definitions/github_com_finish06_drugs_internal_model.ResponseMeta'
+    type: object
+  github_com_finish06_drugs_internal_model.ErrorResponse:
+    properties:
+      error:
+        type: string
+      message:
+        type: string
+      slug:
+        type: string
+      upstream_status:
+        type: integer
+    type: object
+  github_com_finish06_drugs_internal_model.ResponseMeta:
+    properties:
+      fetched_at:
+        type: string
+      page_count:
+        type: integer
+      slug:
+        type: string
+      source_url:
+        type: string
+      stale:
+        type: boolean
+      stale_reason:
+        type: string
+    type: object
+  internal_handler.EndpointInfo:
+    properties:
+      format:
+        type: string
+      pagination:
+        type: boolean
+      params:
+        items:
+          type: string
+        type: array
+      path:
+        type: string
+      scheduled:
+        type: boolean
+      slug:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API cache/proxy — fetches from upstream REST APIs, stores in MongoDB,
+    serves cached data to internal consumers.
+  title: drugs API
+  version: 0.2.0
+paths:
+  /api/cache/{slug}:
+    get:
+      description: Returns cached upstream API data. Fetches from upstream if not
+        cached.
+      parameters:
+      - description: Endpoint slug from config
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Path parameter value (varies by endpoint)
+        in: query
+        name: SETID
+        type: string
+      - description: Force upstream refresh (true/false)
+        in: query
+        name: _force
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_finish06_drugs_internal_model.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_finish06_drugs_internal_model.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/github_com_finish06_drugs_internal_model.ErrorResponse'
+      summary: Get cached data for an endpoint
+      tags:
+      - cache
+  /api/endpoints:
+    get:
+      description: Returns all configured upstream API endpoints with their metadata.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_handler.EndpointInfo'
+            type: array
+      summary: List configured endpoints
+      tags:
+      - system
+  /health:
+    get:
+      description: Returns service health status including database connectivity.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Degraded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - system
+  /openapi.json:
+    get:
+      description: Returns the OpenAPI 3.0 JSON specification for this API.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+      summary: OpenAPI specification
+      tags:
+      - system
+swagger: "2.0"

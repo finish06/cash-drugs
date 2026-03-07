@@ -9,13 +9,22 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/finish06/drugs/docs"
 	"github.com/finish06/drugs/internal/cache"
 	"github.com/finish06/drugs/internal/config"
 	"github.com/finish06/drugs/internal/fetchlock"
 	"github.com/finish06/drugs/internal/handler"
 	"github.com/finish06/drugs/internal/scheduler"
 	"github.com/finish06/drugs/internal/upstream"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
+
+// @title        drugs API
+// @version      0.2.0
+// @description  API cache/proxy — fetches from upstream REST APIs, stores in MongoDB, serves cached data to internal consumers.
+
+// @host      localhost:8080
+// @BasePath  /
 
 func main() {
 	cfgPath := os.Getenv("CONFIG_PATH")
@@ -52,10 +61,14 @@ func main() {
 
 	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks))
 	healthHandler := handler.NewHealthHandler(repo)
+	endpointsHandler := handler.NewEndpointsHandler(endpoints)
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/cache/", cacheHandler)
+	mux.Handle("/api/endpoints", endpointsHandler)
 	mux.Handle("/health", healthHandler)
+	mux.Handle("/swagger/", httpSwagger.WrapHandler)
+	mux.HandleFunc("/openapi.json", handler.ServeOpenAPISpec)
 
 	addr := os.Getenv("LISTEN_ADDR")
 	if addr == "" {

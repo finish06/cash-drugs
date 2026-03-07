@@ -49,6 +49,18 @@ func NewCacheHandler(endpoints []config.Endpoint, repo cache.Repository, fetcher
 }
 
 // ServeHTTP handles incoming cache requests.
+//
+// @Summary      Get cached data for an endpoint
+// @Description  Returns cached upstream API data. Fetches from upstream if not cached.
+// @Tags         cache
+// @Produce      json
+// @Param        slug   path      string  true   "Endpoint slug from config"
+// @Param        SETID  query     string  false  "Path parameter value (varies by endpoint)"
+// @Param        _force query     string  false  "Force upstream refresh (true/false)"
+// @Success      200  {object}  model.APIResponse
+// @Failure      404  {object}  model.ErrorResponse
+// @Failure      502  {object}  model.ErrorResponse
+// @Router       /api/cache/{slug} [get]
 func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	slug := extractSlug(r.URL.Path)
 

@@ -83,9 +83,10 @@ Internal microservices frequently need data from external REST APIs. Each servic
 
 | Milestone | Goal | Target Maturity | Status | Success Criteria |
 |-----------|------|-----------------|--------|------------------|
-| M1: Config + Fetch + Store | Fetch from configured APIs and store in MongoDB | alpha | NOW | Configure endpoints, fetch responses, store in MongoDB, serve to consumers |
-| M2: Scheduling + Staleness | Scheduled refresh and stale-while-revalidate | beta | NEXT | Cron-based refresh, serve stale on upstream failure, TTL policies |
-| M3: Auth + Transforms | Upstream auth and response transforms | ga | LATER | API key/OAuth support, field mapping, response filtering |
+| M1: Config + Fetch + Store | Fetch from configured APIs and store in MongoDB | alpha | DONE | Configure endpoints, fetch responses, store in MongoDB, serve to consumers |
+| M2: Scheduling + Staleness | Scheduled refresh and stale-while-revalidate | beta | DONE | Cron-based refresh, serve stale on upstream failure, TTL policies |
+| M3: Documentation + Onboarding | Make the service easy to discover, understand, and consume | beta | NOW | OpenAPI spec, interactive docs, usage examples, onboarding guide |
+| M4: Auth + Transforms | Upstream auth and response transforms | ga | LATER | API key/OAuth support, field mapping, response filtering |
 
 ### Milestone Detail
 
@@ -106,12 +107,28 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [ ] Serve stale data when upstream is unavailable
 - [ ] Health check endpoint returns status
 
+#### M3: Documentation + Onboarding [NOW]
+**Goal:** Make the service easy for internal teams to discover, understand, and integrate with — no Slack messages or tribal knowledge needed
+**Appetite:** Small — documentation and API discoverability
+**Target maturity:** beta
+**Features:**
+- OpenAPI specification — auto-generated or hand-maintained spec served at `/api/docs`
+- Interactive API explorer — Swagger UI or similar for trying endpoints in-browser
+- Usage examples — curl commands, Go client snippets, common workflows
+- Endpoint discovery — `GET /api/endpoints` listing all configured slugs with metadata
+- Onboarding guide — README section or docs page explaining how to add a new upstream API
+**Success criteria:**
+- [ ] OpenAPI spec available at a well-known URL
+- [ ] Interactive docs let consumers explore and test endpoints
+- [ ] New team members can add an endpoint without reading source code
+- [ ] All configured endpoints discoverable via API
+
 ### Maturity Promotion Path
 
 | From | To | Requirements |
 |------|-----|-------------|
 | alpha → beta | Feature specs for scheduling, >50% test coverage, PR workflow, 2+ environments |
-| beta → ga | >80% coverage, full CI/CD, branch protection, release tags, monitoring |
+| beta → ga | >80% coverage, full CI/CD, branch protection, release tags, monitoring, API documentation |
 
 ## 7. Key Features
 

@@ -18,6 +18,14 @@ func NewHealthHandler(pinger cache.Pinger) *HealthHandler {
 }
 
 // ServeHTTP handles health check requests.
+//
+// @Summary      Health check
+// @Description  Returns service health status including database connectivity.
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  map[string]string  "OK"
+// @Failure      503  {object}  map[string]string  "Degraded"
+// @Router       /health [get]
 func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 

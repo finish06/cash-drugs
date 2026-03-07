@@ -2,11 +2,14 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 go build -o /drugs ./cmd/server
+RUN swag init -g cmd/server/main.go -o docs --parseDependency 2>/dev/null; \
+    CGO_ENABLED=0 go build -o /drugs ./cmd/server
 
 FROM alpine:3.21
 
