@@ -1,0 +1,72 @@
+{
+  "$schema": "https://github.com/MountainUnicorn/add/learnings.schema.json",
+  "version": "1.0.0",
+  "project": "drugs",
+  "entries": [
+    {
+      "id": "L-001",
+      "title": "DailyMed API param names use underscores, not camelCase",
+      "body": "DailyMed /v2/spls.json uses drug_name (underscore) not drugname. Discovered via live curl testing — API docs were ambiguous. Always test actual API params before committing config.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "technical",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-07",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-002",
+      "title": "Cache warm-up should check staleness before re-fetching",
+      "body": "Scheduler was re-fetching all paginated endpoints on every restart, wasting bandwidth. Added FetchedAt() to Repository interface for lightweight TTL check. Warm-up now skips endpoints with fresh data in MongoDB.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "architecture",
+      "severity": "high",
+      "source": "drugs",
+      "date": "2026-03-07",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-003",
+      "title": "Config-only endpoint expansion works well for DailyMed",
+      "body": "New search endpoints (spls-by-name, spls-by-class, drugclasses) added purely through config.yaml with {PARAM} substitution. No code changes needed. This validates the core architecture of config-driven API caching.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "architecture",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-07",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-004",
+      "title": "Integration tests require Docker MongoDB for 80%+ coverage",
+      "body": "Unit tests alone reach 70.6% due to cache/mongo.go at 25.7%. With Docker MongoDB (port 27018, tmpfs), coverage reaches 81.0%. CI workflow includes MongoDB service container. Always run make test-integration for accurate coverage.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "technical",
+      "severity": "high",
+      "source": "drugs",
+      "date": "2026-03-07",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-005",
+      "title": "log/slog logging philosophy: INFO=what runs, DEBUG=each step",
+      "body": "INFO logs should indicate what code path is executing (fetch started, server starting). DEBUG logs should show each step within that path (request method/path/status/duration, cache hit/miss). This keeps INFO useful in production and DEBUG useful for troubleshooting.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "technical",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-07",
+      "classified_by": "human",
+      "checkpoint_type": "retro"
+    }
+  ]
+}

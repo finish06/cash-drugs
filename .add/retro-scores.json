@@ -1,0 +1,15 @@
+{
+  "$schema": "https://github.com/MountainUnicorn/add/retro-scores.schema.json",
+  "version": "1.0.0",
+  "project": "drugs",
+  "entries": [
+    {
+      "date": "2026-03-07",
+      "collab_score": 8.0,
+      "add_effectiveness": 4.5,
+      "swarm_effectiveness": 3.0,
+      "retro_file": ".add/retros/retro-2026-03-07.md",
+      "context": "mixed"
+    }
+  ]
+}

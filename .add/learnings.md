@@ -1,36 +1,25 @@
 # Project Learnings — drugs
 
 > **Tier 3: Project-Specific Knowledge**
->
-> This file is maintained automatically by ADD agents. Entries are added at checkpoints
-> (after verify, TDD cycles, deployments, away sessions) and reviewed during retrospectives.
->
-> This is one of three knowledge tiers agents read before starting work:
-> 1. **Tier 1: Plugin-Global** (`knowledge/global.md`) — universal ADD best practices
-> 2. **Tier 2: User-Local** (`~/.claude/add/library.md`) — your cross-project wisdom
-> 3. **Tier 3: Project-Specific** (this file) — discoveries specific to this project
->
-> **Agents:** Read ALL three tiers before starting any task.
-> **Humans:** Review with `/add:retro --agent-summary` or during full `/add:retro`.
+> Generated from `.add/learnings.json` — do not edit directly.
+> Agents read JSON for filtering; this file is for human review.
 
-## Technical Discoveries
-<!-- Things learned about the tech stack, libraries, APIs, infrastructure -->
-<!-- Format: - {date}: {discovery}. Source: {how we learned this}. -->
+## Architecture
+- **[high] Cache warm-up should check staleness before re-fetching** (L-002, 2026-03-07)
+  Scheduler was re-fetching all paginated endpoints on every restart, wasting bandwidth. Added FetchedAt() to Repository interface for lightweight TTL check. Warm-up now skips endpoints with fresh data in MongoDB.
 
-## Architecture Decisions
-<!-- Decisions made and their rationale -->
-<!-- Format: - {date}: Chose {X} over {Y} because {reason}. -->
+- **[medium] Config-only endpoint expansion works well for DailyMed** (L-003, 2026-03-07)
+  New search endpoints (spls-by-name, spls-by-class, drugclasses) added purely through config.yaml with {PARAM} substitution. No code changes needed. This validates the core architecture of config-driven API caching.
 
-## What Worked
-<!-- Patterns, approaches, tools that proved effective -->
+## Technical
+- **[medium] DailyMed API param names use underscores, not camelCase** (L-001, 2026-03-07)
+  DailyMed /v2/spls.json uses drug_name (underscore) not drugname. Discovered via live curl testing — API docs were ambiguous. Always test actual API params before committing config.
 
-## What Didn't Work
-<!-- Patterns, approaches, tools that caused problems -->
+- **[high] Integration tests require Docker MongoDB for 80%+ coverage** (L-004, 2026-03-07)
+  Unit tests alone reach 70.6% due to cache/mongo.go at 25.7%. With Docker MongoDB (port 27018, tmpfs), coverage reaches 81.0%. CI workflow includes MongoDB service container. Always run make test-integration for accurate coverage.
 
-## Agent Checkpoints
-<!-- Automatic entries from verification, TDD cycles, deploys, away sessions -->
-<!-- These are processed and archived during /add:retro -->
+- **[medium] log/slog logging philosophy: INFO=what runs, DEBUG=each step** (L-005, 2026-03-07)
+  INFO logs should indicate what code path is executing (fetch started, server starting). DEBUG logs should show each step within that path (request method/path/status/duration, cache hit/miss). This keeps INFO useful in production and DEBUG useful for troubleshooting.
 
-## Profile Update Candidates
-<!-- Cross-project patterns flagged for promotion to ~/.claude/add/profile.md -->
-<!-- Only promoted during /add:retro with human confirmation -->
+---
+*5 entries. Last updated: 2026-03-07. Source: .add/learnings.json*
