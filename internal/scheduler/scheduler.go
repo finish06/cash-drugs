@@ -34,7 +34,7 @@ func New(endpoints []config.Endpoint, fetcher upstream.Fetcher, repo cache.Repos
 	}
 }
 
-// Start warms the cache for all scheduled endpoints, then starts the cron scheduler.
+// Start registers cron jobs, starts the scheduler, and warms the cache in the background.
 func (s *Scheduler) Start(ctx context.Context) {
 	scheduled := s.schedulableEndpoints()
 
@@ -42,17 +42,6 @@ func (s *Scheduler) Start(ctx context.Context) {
 		log.Println("Scheduler: no endpoints to schedule")
 		return
 	}
-
-	// Warm cache immediately
-	var wg sync.WaitGroup
-	for _, ep := range scheduled {
-		wg.Add(1)
-		go func(ep config.Endpoint) {
-			defer wg.Done()
-			s.fetchEndpoint(ep)
-		}(ep)
-	}
-	wg.Wait()
 
 	// Register cron jobs
 	for _, ep := range scheduled {
@@ -65,6 +54,20 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 	s.cron.Start()
 	log.Printf("Scheduler: started with %d endpoint(s)", len(scheduled))
+
+	// Warm cache in background (non-blocking)
+	go func() {
+		var wg sync.WaitGroup
+		for _, ep := range scheduled {
+			wg.Add(1)
+			go func(ep config.Endpoint) {
+				defer wg.Done()
+				s.fetchEndpoint(ep)
+			}(ep)
+		}
+		wg.Wait()
+		log.Printf("Scheduler: cache warming complete for %d endpoint(s)", len(scheduled))
+	}()
 }
 
 // Stop gracefully shuts down the scheduler.
@@ -105,7 +108,7 @@ func (s *Scheduler) schedulableEndpoints() []config.Endpoint {
 		if ep.Refresh == "" {
 			continue
 		}
-		if len(config.ExtractPathParams(ep.Path)) > 0 {
+		if len(config.ExtractAllParams(ep)) > 0 {
 			log.Printf("Scheduler: warning — endpoint '%s' has path parameters and cannot be scheduled", ep.Slug)
 			continue
 		}

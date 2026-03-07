@@ -12,5 +12,23 @@ endpoints:
 
   - slug: spl-detail
     base_url: https://dailymed.nlm.nih.gov/dailymed/services
-    path: /v2/spls/{SETID}
+    path: /v2/spls.json
     format: json
+    query_params:
+      setid: "{SETID}"
+
+  - slug: spls
+    base_url: https://dailymed.nlm.nih.gov/dailymed/services
+    path: /v2/spls.json
+    format: json
+    pagination: all
+    page_param: page
+    pagesize_param: pagesize
+    pagesize: 100
+    refresh: "0 */6 * * *"
+    ttl: "6h"
+
+  - slug: spl-xml
+    base_url: https://dailymed.nlm.nih.gov/dailymed/services
+    path: /v2/spls/{SETID}.xml
+    format: raw

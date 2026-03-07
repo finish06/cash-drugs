@@ -250,6 +250,74 @@ endpoints:
 	}
 }
 
+// AC-012: Raw format is valid
+func TestAC012_RawFormatValid(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: spl-xml
+    base_url: http://example.com
+    path: /v2/spls/{SETID}.xml
+    format: raw
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("expected no error for format 'raw', got %v", err)
+	}
+	if endpoints[0].Format != "raw" {
+		t.Errorf("expected format 'raw', got '%s'", endpoints[0].Format)
+	}
+}
+
+// AC-021: ExtractAllParams gets params from both path and query_params
+func TestAC021_ExtractAllParams(t *testing.T) {
+	ep := config.Endpoint{
+		Path: "/v2/spls/{SETID}",
+		QueryParams: map[string]string{
+			"foo": "{BAR}",
+		},
+	}
+
+	params := config.ExtractAllParams(ep)
+	if len(params) != 2 {
+		t.Fatalf("expected 2 params, got %d: %v", len(params), params)
+	}
+
+	found := map[string]bool{}
+	for _, p := range params {
+		found[p] = true
+	}
+	if !found["SETID"] {
+		t.Error("expected SETID in params")
+	}
+	if !found["BAR"] {
+		t.Error("expected BAR in params")
+	}
+}
+
+// AC-021: ExtractAllParams deduplicates params appearing in both path and query
+func TestAC021_ExtractAllParamsDedup(t *testing.T) {
+	ep := config.Endpoint{
+		Path: "/v2/spls/{SETID}",
+		QueryParams: map[string]string{
+			"setid": "{SETID}",
+		},
+	}
+
+	params := config.ExtractAllParams(ep)
+	if len(params) != 1 {
+		t.Errorf("expected 1 deduplicated param, got %d: %v", len(params), params)
+	}
+}
+
+// AC-016: Query param substitution
+func TestAC016_SubstitutePathParamsInValues(t *testing.T) {
+	result := config.SubstitutePathParams("{SETID}", map[string]string{"SETID": "abc-123"})
+	if result != "abc-123" {
+		t.Errorf("expected 'abc-123', got '%s'", result)
+	}
+}
+
 // Helper functions
 
 const validConfig = `

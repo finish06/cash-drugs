@@ -324,6 +324,135 @@ func TestAC003_PathParamFromQueryString(t *testing.T) {
 	}
 }
 
+// AC-018: Raw/XML responses served with upstream content type (no JSON envelope)
+func TestAC018_RawResponseServedDirectly(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "spl-xml",
+		BaseURL: "http://example.com",
+		Path:    "/v2/spls/{SETID}.xml",
+		Format:  "raw",
+	}
+	config.ApplyDefaults(&ep)
+
+	xmlBody := `<document><title>Test SPL</title></document>`
+	cached := &model.CachedResponse{
+		Slug:        "spl-xml",
+		CacheKey:    "spl-xml:SETID=abc-123",
+		Data:        xmlBody,
+		ContentType: "application/xml",
+		FetchedAt:   time.Now(),
+		SourceURL:   "http://example.com/v2/spls/abc-123.xml",
+		PageCount:   1,
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/spl-xml?SETID=abc-123", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "application/xml" {
+		t.Errorf("expected Content-Type 'application/xml', got '%s'", ct)
+	}
+	if w.Body.String() != xmlBody {
+		t.Errorf("expected raw XML body, got '%s'", w.Body.String())
+	}
+}
+
+// AC-018: Raw stale response includes stale headers
+func TestAC018_RawStaleResponseHeaders(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:        "spl-xml",
+		BaseURL:     "http://example.com",
+		Path:        "/v2/spls/{SETID}.xml",
+		Format:      "raw",
+		TTL:         "1s",
+		TTLDuration: 1 * time.Second,
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:        "spl-xml",
+		CacheKey:    "spl-xml:SETID=abc-123",
+		Data:        "<doc/>",
+		ContentType: "application/xml",
+		FetchedAt:   time.Now().Add(-1 * time.Hour), // stale
+		SourceURL:   "http://example.com/v2/spls/abc-123.xml",
+		PageCount:   1,
+	}
+
+	fl := handler.NewFetchLocks()
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{err: fmt.Errorf("fail")},
+		handler.WithFetchLocks(fl),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/spl-xml?SETID=abc-123", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if w.Header().Get("X-Cache-Stale") != "true" {
+		t.Error("expected X-Cache-Stale header for stale raw response")
+	}
+}
+
+// AC-016: Handler extracts params from query_params {PARAM} placeholders
+func TestAC016_HandlerExtractsQueryParamPlaceholders(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "spl-detail",
+		BaseURL: "http://example.com",
+		Path:    "/v2/spls.json",
+		Format:  "json",
+		QueryParams: map[string]string{
+			"setid": "{SETID}",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "spl-detail",
+			CacheKey:  "spl-detail:SETID=abc-123",
+			Data:      map[string]interface{}{"spl": "data"},
+			FetchedAt: time.Now(),
+			SourceURL: "http://example.com/v2/spls.json",
+			PageCount: 1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/spl-detail?SETID=abc-123", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if !fetcher.fetchCalled {
+		t.Error("expected fetch to be called")
+	}
+	if fetcher.lastParams["SETID"] != "abc-123" {
+		t.Errorf("expected SETID=abc-123 from query_params placeholder, got %v", fetcher.lastParams)
+	}
+}
+
 // --- Mock implementations ---
 
 type mockCacheRepo struct {

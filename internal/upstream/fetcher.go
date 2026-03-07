@@ -36,23 +36,34 @@ func Fetch(ep config.Endpoint, params map[string]string) (*model.CachedResponse,
 }
 
 // Fetch retrieves data from an upstream API endpoint, handling pagination.
+// Returns a CachedResponse with Pages populated for multi-page results.
 func (f *HTTPFetcher) Fetch(ep config.Endpoint, params map[string]string) (*model.CachedResponse, error) {
+	if ep.Format == "xml" || ep.Format == "raw" {
+		return f.fetchRaw(ep, params)
+	}
+	return f.fetchJSON(ep, params)
+}
+
+func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*model.CachedResponse, error) {
 	path := config.SubstitutePathParams(ep.Path, params)
 	maxPages, fetchAll := config.ParsePagination(ep)
 
-	var allData []interface{}
+	var allPages []model.PageData
 	pageCount := 0
 
 	for page := 1; ; page++ {
-		reqURL := buildURL(ep, path, page)
+		reqURL := buildURL(ep, path, page, params)
 
-		data, parsed, err := f.fetchPage(reqURL)
+		data, parsed, err := f.fetchJSONPage(reqURL)
 		if err != nil {
 			return nil, err
 		}
 
 		pageCount++
-		allData = append(allData, data...)
+		allPages = append(allPages, model.PageData{
+			Page: pageCount,
+			Data: data,
+		})
 
 		if !fetchAll && pageCount >= maxPages {
 			break
@@ -67,22 +78,73 @@ func (f *HTTPFetcher) Fetch(ep config.Endpoint, params map[string]string) (*mode
 	sourceURL := ep.BaseURL + path
 	now := time.Now()
 
+	// Combine all page data into a single slice for the response
+	var allData []interface{}
+	for _, p := range allPages {
+		allData = append(allData, p.Data...)
+	}
+
 	return &model.CachedResponse{
 		Slug:        ep.Slug,
 		Params:      params,
 		CacheKey:    cacheKey,
 		Data:        allData,
-		ContentType: "application/" + ep.Format,
+		ContentType: "application/json",
 		FetchedAt:   now,
 		SourceURL:   sourceURL,
 		HTTPStatus:  200,
 		PageCount:   pageCount,
+		Pages:       allPages,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}, nil
 }
 
-func (f *HTTPFetcher) fetchPage(reqURL string) ([]interface{}, map[string]interface{}, error) {
+func (f *HTTPFetcher) fetchRaw(ep config.Endpoint, params map[string]string) (*model.CachedResponse, error) {
+	path := config.SubstitutePathParams(ep.Path, params)
+	reqURL := buildURL(ep, path, 1, params)
+
+	resp, err := f.Client.Get(reqURL)
+	if err != nil {
+		return nil, fmt.Errorf("upstream request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("upstream returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read upstream response: %w", err)
+	}
+
+	// Use upstream's content type, fall back to octet-stream
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	cacheKey := cache.BuildCacheKey(ep.Slug, params)
+	sourceURL := ep.BaseURL + path
+	now := time.Now()
+
+	return &model.CachedResponse{
+		Slug:        ep.Slug,
+		Params:      params,
+		CacheKey:    cacheKey,
+		Data:        string(body),
+		ContentType: contentType,
+		FetchedAt:   now,
+		SourceURL:   sourceURL,
+		HTTPStatus:  200,
+		PageCount:   1,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}, nil
+}
+
+func (f *HTTPFetcher) fetchJSONPage(reqURL string) ([]interface{}, map[string]interface{}, error) {
 	resp, err := f.Client.Get(reqURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("upstream request failed: %w", err)
@@ -126,12 +188,13 @@ func hasMorePages(parsed map[string]interface{}, currentPage int) bool {
 	return currentPage < int(totalPages)
 }
 
-func buildURL(ep config.Endpoint, path string, page int) string {
+func buildURL(ep config.Endpoint, path string, page int, params map[string]string) string {
 	u := ep.BaseURL + path
 
 	q := url.Values{}
 	for k, v := range ep.QueryParams {
-		q.Set(k, v)
+		// Substitute {PARAM} placeholders in query param values
+		q.Set(k, config.SubstitutePathParams(v, params))
 	}
 
 	maxPages, fetchAll := config.ParsePagination(ep)

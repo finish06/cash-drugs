@@ -32,6 +32,12 @@ As an internal microservice developer, I want a single cached endpoint for upstr
 | AC-013 | Consumer requests for endpoints not defined in config return 404 | Must |
 | AC-014 | Consumer-facing URL pattern mirrors the configured slug (e.g., `GET /api/cache/{slug}`) | Should |
 | AC-015 | Config file ships with seed entries for DailyMed endpoints (`/v2/drugnames`, `/v2/spls`) for validation | Should |
+| AC-016 | Config entries support `{PARAM}` placeholders in query_params values, substituted at request time (e.g., `query_params: { setid: "{SETID}" }`) | Must |
+| AC-017 | Config entries support `format: raw` to store upstream response body as-is with the upstream's content type | Must |
+| AC-018 | Raw/XML responses are served directly with the upstream's content type (no JSON envelope) | Must |
+| AC-019 | Multi-page responses are stored as separate MongoDB documents per page to avoid the 16MB document limit | Must |
+| AC-020 | On read, per-page documents are reassembled into a single combined response transparently | Must |
+| AC-021 | `ExtractAllParams` extracts parameter names from both path and query_params values | Must |
 
 ## 3. User Test Cases
 
@@ -139,7 +145,7 @@ As an internal microservice developer, I want a single cached endpoint for upstr
 | slug | string | Yes | Unique identifier used in consumer-facing URL (e.g., `drugnames`) |
 | base_url | string | Yes | Upstream API base URL (e.g., `https://dailymed.nlm.nih.gov/dailymed/services`) |
 | path | string | Yes | Endpoint path, may contain `{param}` placeholders (e.g., `/v2/drugnames` or `/v2/spls/{SETID}`) |
-| format | string | Yes | Response format: `json` or `xml` |
+| format | string | Yes | Response format: `json`, `xml`, or `raw` |
 | query_params | map[string]string | No | Default query parameters to include on every request |
 | pagination | string or int | No | Pagination strategy: `"all"` to fetch every page, integer for max pages (default: `1` — no pagination) |
 | page_param | string | No | Query parameter name for page number (default: `page`) |
@@ -153,7 +159,8 @@ As an internal microservice developer, I want a single cached endpoint for upstr
 | _id | ObjectID | Yes | MongoDB auto-generated ID |
 | slug | string | Yes | Endpoint slug from config |
 | params | map[string]string | No | Path parameter values used for this cached entry (e.g., `{"SETID": "abc-123"}`) |
-| cache_key | string | Yes | Composite key: `slug` or `slug:param1=val1:param2=val2` for uniqueness |
+| cache_key | string | Yes | Composite key: `slug` or `slug:param1=val1:param2=val2` for uniqueness. Per-page docs use `slug:page:N` |
+| page | int | No | Page number for per-page storage (0 for single-document or combined view) |
 | data | interface{} | Yes | Raw aggregated upstream response body |
 | content_type | string | Yes | MIME type of the response (`application/json` or `application/xml`) |
 | fetched_at | time.Time | Yes | Timestamp of last successful upstream fetch |
@@ -228,7 +235,7 @@ N/A — no UI. This is a backend API service.
 | Config file doesn't exist at startup | Fail to start with clear error: "config file not found at {path}" |
 | Config has duplicate slugs | Fail to start with error identifying the duplicates |
 | Upstream returns redirect (3xx) | Follow redirects (Go http.Client default behavior) |
-| Very large aggregated response (100+ pages) | No size limit in v1. Log a warning if aggregated response exceeds 50MB. |
+| Very large aggregated response (100+ pages) | Each page stored as a separate MongoDB document to avoid the 16MB limit. Reassembled on read. |
 
 ## 8. Dependencies
 

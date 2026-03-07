@@ -69,32 +69,109 @@ func NewMongoRepository(uri string, timeout time.Duration) (*MongoRepository, er
 	return repo, nil
 }
 
-// Get retrieves a cached response by cache key. Returns nil if not found.
+// Get retrieves a cached response by cache key. For multi-page responses,
+// reassembles all pages into a single combined Data slice.
 func (r *MongoRepository) Get(cacheKey string) (*model.CachedResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 
-	filter := bson.M{"cache_key": cacheKey}
-	var result model.CachedResponse
+	// Find all documents matching this cache key prefix (pages stored as cacheKey:page:N)
+	pageFilter := bson.M{"cache_key": bson.M{
+		"$regex": "^" + escapeRegex(cacheKey) + "(:|$)",
+	}}
 
-	err := r.collection.FindOne(ctx, filter).Decode(&result)
+	cursor, err := r.collection.Find(ctx, pageFilter, options.Find().SetSort(bson.D{{Key: "page", Value: 1}}))
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to get cached response: %w", err)
+		return nil, fmt.Errorf("failed to query cached responses: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var docs []model.CachedResponse
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("failed to decode cached responses: %w", err)
 	}
 
-	return &result, nil
+	if len(docs) == 0 {
+		return nil, nil
+	}
+
+	// Single document (non-paginated or raw) — return as-is
+	if len(docs) == 1 && docs[0].Page == 0 {
+		return &docs[0], nil
+	}
+
+	// Multi-page: reassemble all page data into combined response
+	base := docs[0]
+	var allData []interface{}
+	for _, doc := range docs {
+		if arr, ok := doc.Data.(bson.A); ok {
+			for _, item := range arr {
+				allData = append(allData, item)
+			}
+		} else if arr, ok := doc.Data.([]interface{}); ok {
+			allData = append(allData, arr...)
+		}
+	}
+
+	base.Data = allData
+	base.Page = 0 // combined view
+	return &base, nil
 }
 
-// Upsert inserts or updates a cached response by cache key.
-// Sets created_at on insert, updated_at on every write.
+// Upsert inserts or updates a cached response. For multi-page responses (Pages populated),
+// stores each page as a separate document to avoid MongoDB's 16MB limit.
 func (r *MongoRepository) Upsert(resp *model.CachedResponse) error {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 
 	now := time.Now()
+
+	// Multi-page: store each page separately
+	if len(resp.Pages) > 1 {
+		// Delete any stale pages beyond current page count
+		staleFilter := bson.M{
+			"cache_key": bson.M{
+				"$regex": "^" + escapeRegex(resp.CacheKey) + ":page:",
+			},
+			"page": bson.M{"$gt": len(resp.Pages)},
+		}
+		r.collection.DeleteMany(ctx, staleFilter)
+
+		// Also delete any old single-document version
+		r.collection.DeleteOne(ctx, bson.M{"cache_key": resp.CacheKey})
+
+		// Upsert each page
+		for _, page := range resp.Pages {
+			pageKey := fmt.Sprintf("%s:page:%d", resp.CacheKey, page.Page)
+			filter := bson.M{"cache_key": pageKey}
+			update := bson.M{
+				"$set": bson.M{
+					"slug":         resp.Slug,
+					"params":       resp.Params,
+					"cache_key":    pageKey,
+					"page":         page.Page,
+					"page_count":   resp.PageCount,
+					"data":         page.Data,
+					"content_type": resp.ContentType,
+					"fetched_at":   resp.FetchedAt,
+					"source_url":   resp.SourceURL,
+					"http_status":  resp.HTTPStatus,
+					"updated_at":   now,
+				},
+				"$setOnInsert": bson.M{
+					"created_at": now,
+				},
+			}
+
+			opts := options.UpdateOne().SetUpsert(true)
+			if _, err := r.collection.UpdateOne(ctx, filter, update, opts); err != nil {
+				return fmt.Errorf("failed to upsert page %d for %s: %w", page.Page, resp.Slug, err)
+			}
+		}
+		return nil
+	}
+
+	// Single document (non-paginated, raw, or single-page)
 	filter := bson.M{"cache_key": resp.CacheKey}
 	update := bson.M{
 		"$set": bson.M{
@@ -153,4 +230,20 @@ func (r *MongoRepository) ensureIndexes(ctx context.Context) error {
 
 	_, err := r.collection.Indexes().CreateOne(ctx, indexModel)
 	return err
+}
+
+// escapeRegex escapes special regex characters in a string for use in MongoDB $regex.
+func escapeRegex(s string) string {
+	special := []byte(`\.+*?^${}()|[]`)
+	result := make([]byte, 0, len(s)*2)
+	for i := 0; i < len(s); i++ {
+		for _, c := range special {
+			if s[i] == c {
+				result = append(result, '\\')
+				break
+			}
+		}
+		result = append(result, s[i])
+	}
+	return string(result)
 }

@@ -66,8 +66,8 @@ func Load(path string) ([]Endpoint, error) {
 		if ep.Format == "" {
 			return nil, fmt.Errorf("endpoint '%s': missing required field 'format'", ep.Slug)
 		}
-		if ep.Format != "json" && ep.Format != "xml" {
-			return nil, fmt.Errorf("endpoint '%s': invalid format '%s' (must be 'json' or 'xml')", ep.Slug, ep.Format)
+		if ep.Format != "json" && ep.Format != "xml" && ep.Format != "raw" {
+			return nil, fmt.Errorf("endpoint '%s': invalid format '%s' (must be 'json', 'xml', or 'raw')", ep.Slug, ep.Format)
 		}
 		if slugsSeen[ep.Slug] {
 			return nil, fmt.Errorf("duplicate slug '%s' in config", ep.Slug)
@@ -147,6 +147,28 @@ func ExtractPathParams(path string) []string {
 	params := make([]string, 0, len(matches))
 	for _, m := range matches {
 		params = append(params, m[1])
+	}
+	return params
+}
+
+// ExtractAllParams returns parameter names from both path and query_params values.
+func ExtractAllParams(ep Endpoint) []string {
+	seen := make(map[string]bool)
+	var params []string
+
+	for _, p := range ExtractPathParams(ep.Path) {
+		if !seen[p] {
+			seen[p] = true
+			params = append(params, p)
+		}
+	}
+	for _, v := range ep.QueryParams {
+		for _, p := range ExtractPathParams(v) {
+			if !seen[p] {
+				seen[p] = true
+				params = append(params, p)
+			}
+		}
 	}
 	return params
 }

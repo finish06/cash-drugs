@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -141,6 +142,23 @@ func (h *CacheHandler) backgroundRevalidate(ep config.Endpoint, params map[strin
 }
 
 func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stale bool, staleReason string) {
+	// Non-JSON responses: serve raw body directly with original content type
+	if cached.ContentType != "" && cached.ContentType != "application/json" {
+		w.Header().Set("Content-Type", cached.ContentType)
+		if stale {
+			w.Header().Set("X-Cache-Stale", "true")
+			if staleReason != "" {
+				w.Header().Set("X-Cache-Stale-Reason", staleReason)
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		if xmlStr, ok := cached.Data.(string); ok {
+			fmt.Fprint(w, xmlStr)
+		}
+		return
+	}
+
+	// JSON responses: wrap in APIResponse envelope
 	resp := model.APIResponse{
 		Data: cached.Data,
 		Meta: model.ResponseMeta{
@@ -170,7 +188,7 @@ func extractSlug(path string) string {
 }
 
 func extractPathParams(ep config.Endpoint, r *http.Request) map[string]string {
-	paramNames := config.ExtractPathParams(ep.Path)
+	paramNames := config.ExtractAllParams(ep)
 	if len(paramNames) == 0 {
 		return nil
 	}
