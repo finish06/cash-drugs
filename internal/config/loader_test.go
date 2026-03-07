@@ -440,6 +440,23 @@ endpoints:
 	}
 }
 
+// AC-004: LoadConfig with nonexistent file returns error
+func TestAC004_LoadConfigFileNotFound(t *testing.T) {
+	_, err := config.LoadConfig("/nonexistent/config.yaml")
+	if err == nil {
+		t.Fatal("expected error for missing config file")
+	}
+}
+
+// AC-004: LoadConfig with invalid YAML returns error
+func TestAC004_LoadConfigInvalidYAML(t *testing.T) {
+	cfgPath := writeTestConfig(t, `{{{invalid yaml`)
+	_, err := config.LoadConfig(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
 // AC-004: Missing log_level returns empty string (caller applies default)
 func TestAC004_MissingLogLevelReturnsEmpty(t *testing.T) {
 	cfgPath := writeTestConfig(t, `

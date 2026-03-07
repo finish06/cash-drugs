@@ -170,6 +170,15 @@ func TestEdge_EmptyFormatDefaultsToJSON(t *testing.T) {
 	}
 }
 
+// AC-007: Setup with nil writer defaults to stderr (doesn't panic)
+func TestAC007_SetupNilWriterNoPanic(t *testing.T) {
+	// Should not panic; writes to os.Stderr
+	logger := logging.Setup(slog.LevelError, "json", nil)
+	if logger == nil {
+		t.Fatal("expected non-nil logger")
+	}
+}
+
 // Edge case: invalid LOG_FORMAT defaults to JSON
 func TestEdge_InvalidFormatDefaultsToJSON(t *testing.T) {
 	var buf bytes.Buffer
