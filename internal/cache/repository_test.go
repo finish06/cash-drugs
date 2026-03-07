@@ -3,7 +3,7 @@ package cache_test
 import (
 	"testing"
 
-	"github.com/finish06/drugs/internal/cache"
+	"github.com/finish06/cash-drugs/internal/cache"
 )
 
 // AC-007: Build cache key from slug only

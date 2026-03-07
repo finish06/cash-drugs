@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/finish06/drugs/internal/cache"
-	"github.com/finish06/drugs/internal/config"
-	"github.com/finish06/drugs/internal/model"
-	"github.com/finish06/drugs/internal/upstream"
+	"github.com/finish06/cash-drugs/internal/cache"
+	"github.com/finish06/cash-drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/model"
+	"github.com/finish06/cash-drugs/internal/upstream"
 )
 
 // CacheHandler handles GET /api/cache/{slug} requests.

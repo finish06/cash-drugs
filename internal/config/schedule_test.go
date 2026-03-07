@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/finish06/drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/config"
 )
 
 // AC-001: Config supports optional refresh field with cron expression

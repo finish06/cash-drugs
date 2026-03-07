@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/finish06/drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/config"
 )
 
 // AC-001: Service loads upstream API definitions from a YAML config file at startup

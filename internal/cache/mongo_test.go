@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/finish06/drugs/internal/cache"
-	"github.com/finish06/drugs/internal/model"
+	"github.com/finish06/cash-drugs/internal/cache"
+	"github.com/finish06/cash-drugs/internal/model"
 )
 
 func getTestMongoURI(t *testing.T) string {

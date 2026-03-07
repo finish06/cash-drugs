@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/finish06/drugs/internal/model"
+	"github.com/finish06/cash-drugs/internal/model"
 )
 
 // Repository defines the interface for cache storage operations.

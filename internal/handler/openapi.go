@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/finish06/drugs/docs"
+	"github.com/finish06/cash-drugs/docs"
 )
 
 // ServeOpenAPISpec serves the generated OpenAPI spec as JSON.

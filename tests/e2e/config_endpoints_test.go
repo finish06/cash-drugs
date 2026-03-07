@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/finish06/drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/config"
 )
 
 // TestAC013_AllConfigEndpointsAgainstRealAPIs validates every endpoint in

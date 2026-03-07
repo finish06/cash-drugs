@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/finish06/drugs/internal/handler"
+	"github.com/finish06/cash-drugs/internal/handler"
 )
 
 // AC-001: GET /openapi.json returns valid OpenAPI JSON

@@ -9,9 +9,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/finish06/drugs/internal/cache"
-	"github.com/finish06/drugs/internal/config"
-	"github.com/finish06/drugs/internal/model"
+	"github.com/finish06/cash-drugs/internal/cache"
+	"github.com/finish06/cash-drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/model"
 )
 
 // Fetcher defines the interface for upstream API fetching.

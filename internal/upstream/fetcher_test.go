@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/finish06/drugs/internal/config"
-	"github.com/finish06/drugs/internal/upstream"
+	"github.com/finish06/cash-drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/upstream"
 )
 
 // AC-004: On consumer request, fetch from upstream API

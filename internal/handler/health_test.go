@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/finish06/drugs/internal/handler"
+	"github.com/finish06/cash-drugs/internal/handler"
 )
 
 // AC-008: Health check returns 200 when MongoDB is connected

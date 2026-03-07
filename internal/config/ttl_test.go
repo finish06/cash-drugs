@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/finish06/drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/config"
 )
 
 // AC-001: Endpoints support optional TTL field with Go duration string

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/finish06/drugs/internal/logging"
+	"github.com/finish06/cash-drugs/internal/logging"
 )
 
 // AC-002: Default log level is warn when no configuration is provided

@@ -1,4 +1,4 @@
-module github.com/finish06/drugs
+module github.com/finish06/cash-drugs
 
 go 1.24.3
 

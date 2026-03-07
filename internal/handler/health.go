@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/finish06/drugs/internal/cache"
+	"github.com/finish06/cash-drugs/internal/cache"
 )
 
 // HealthHandler handles GET /health requests.

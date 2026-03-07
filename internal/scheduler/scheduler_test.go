@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/finish06/drugs/internal/config"
-	"github.com/finish06/drugs/internal/fetchlock"
-	"github.com/finish06/drugs/internal/model"
-	"github.com/finish06/drugs/internal/scheduler"
+	"github.com/finish06/cash-drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/fetchlock"
+	"github.com/finish06/cash-drugs/internal/model"
+	"github.com/finish06/cash-drugs/internal/scheduler"
 )
 
 // AC-003: Scheduler starts background goroutines for scheduled endpoints

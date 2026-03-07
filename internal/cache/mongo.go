@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/finish06/drugs/internal/model"
+	"github.com/finish06/cash-drugs/internal/model"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"

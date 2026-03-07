@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/finish06/drugs/internal/config"
-	"github.com/finish06/drugs/internal/handler"
+	"github.com/finish06/cash-drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/handler"
 )
 
 // M3: Endpoint discovery returns all configured slugs

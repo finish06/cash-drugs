@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/finish06/drugs/internal/cache"
-	"github.com/finish06/drugs/internal/config"
-	"github.com/finish06/drugs/internal/fetchlock"
-	"github.com/finish06/drugs/internal/upstream"
+	"github.com/finish06/cash-drugs/internal/cache"
+	"github.com/finish06/cash-drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/fetchlock"
+	"github.com/finish06/cash-drugs/internal/upstream"
 	"github.com/robfig/cron/v3"
 )
 

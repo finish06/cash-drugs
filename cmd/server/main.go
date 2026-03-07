@@ -10,18 +10,18 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/finish06/drugs/docs"
-	"github.com/finish06/drugs/internal/cache"
-	"github.com/finish06/drugs/internal/config"
-	"github.com/finish06/drugs/internal/fetchlock"
-	"github.com/finish06/drugs/internal/handler"
-	"github.com/finish06/drugs/internal/logging"
-	"github.com/finish06/drugs/internal/scheduler"
-	"github.com/finish06/drugs/internal/upstream"
+	_ "github.com/finish06/cash-drugs/docs"
+	"github.com/finish06/cash-drugs/internal/cache"
+	"github.com/finish06/cash-drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/fetchlock"
+	"github.com/finish06/cash-drugs/internal/handler"
+	"github.com/finish06/cash-drugs/internal/logging"
+	"github.com/finish06/cash-drugs/internal/scheduler"
+	"github.com/finish06/cash-drugs/internal/upstream"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
-// @title        drugs API
+// @title        cash-drugs API
 // @version      0.5.0
 // @description  API cache/proxy — fetches from upstream REST APIs, stores in MongoDB, serves cached data to internal consumers.
 

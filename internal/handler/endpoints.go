@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/finish06/drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/config"
 )
 
 // EndpointInfo describes a configured endpoint for the discovery API.

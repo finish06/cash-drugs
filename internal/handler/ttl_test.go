@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/finish06/drugs/internal/config"
-	"github.com/finish06/drugs/internal/handler"
-	"github.com/finish06/drugs/internal/model"
+	"github.com/finish06/cash-drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/handler"
+	"github.com/finish06/cash-drugs/internal/model"
 )
 
 // AC-004: Fresh cache within TTL returns stale=false

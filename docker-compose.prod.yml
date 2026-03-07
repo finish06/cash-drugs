@@ -1,0 +1,24 @@
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - /mnt/mongo:/data/db
+    restart: unless-stopped
+
+  drugs:
+    image: dockerhub.calebdunn.tech/finish06/cash-drugs:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/drugs
+      - CONFIG_PATH=/config.yaml
+      - LISTEN_ADDR=:8080
+      - LOG_LEVEL=info
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+
