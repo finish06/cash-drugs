@@ -29,8 +29,32 @@
                     },
                     {
                         "type": "string",
-                        "description": "Path parameter value (varies by endpoint)",
+                        "description": "SPL set ID (for spl-detail, spl-xml)",
                         "name": "SETID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Drug name (for spls-by-name)",
+                        "name": "DRUGNAME",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Drug class (for spls-by-class)",
+                        "name": "DRUG_CLASS",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Brand name (for fda-ndc-by-name, fda-drugsfda-by-name)",
+                        "name": "BRAND_NAME",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Drug name (for fda-labels-by-name, fda-events-by-drug)",
+                        "name": "DRUG_NAME",
                         "in": "query"
                     },
                     {

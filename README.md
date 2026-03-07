@@ -67,6 +67,46 @@ endpoints:
 
 drugs walks every page automatically and stores them as separate MongoDB documents (no 16MB limit). Consumers get one combined response.
 
+### Offset pagination (skip/limit APIs)
+
+Some APIs use offset-based pagination (e.g., FDA openFDA). Set `pagination_style: offset`:
+
+```yaml
+  - slug: fda-enforcement
+    base_url: https://api.fda.gov
+    path: /drug/enforcement.json
+    format: json
+    pagination_style: offset
+    pagination: all
+    pagesize: 100
+    data_key: results
+    total_key: meta.results.total
+    refresh: "0 3 * * *"
+    ttl: "24h"
+```
+
+The fetcher sends `skip=0&limit=100`, `skip=100&limit=100`, etc. If the API caps skip (e.g., FDA's 25K limit), drugs stops gracefully and stores whatever was fetched.
+
+### Custom response structure
+
+APIs return data in different JSON keys. Use `data_key` and `total_key` to tell drugs where to find items and totals:
+
+```yaml
+  - slug: fda-ndc-by-name
+    base_url: https://api.fda.gov
+    path: /drug/ndc.json
+    format: json
+    pagination_style: offset
+    data_key: results              # Items are in "results", not "data"
+    total_key: meta.results.total  # Total count at nested dot-path
+    query_params:
+      search: "brand_name:\"{BRAND_NAME}\""
+```
+
+→ `GET /api/cache/fda-ndc-by-name?BRAND_NAME=aspirin`
+
+`total_key` supports dot-notation for nested paths (e.g., `meta.results.total` traverses `response.meta.results.total`).
+
 ### Scheduled refresh
 
 ```yaml
@@ -174,9 +214,12 @@ json.NewDecoder(resp.Body).Decode(&result)
 | `format` | yes | — | `json`, `xml`, or `raw` |
 | `query_params` | no | — | Static or `{PARAM}` query parameters |
 | `pagination` | no | `1` | `"all"` or max page count |
-| `page_param` | no | `page` | Query param for page number |
-| `pagesize_param` | no | `pagesize` | Query param for page size |
-| `pagesize` | no | `100` | Items per page |
+| `pagination_style` | no | `page` | `page` (page/pagesize) or `offset` (skip/limit) |
+| `page_param` | no | `page` | Query param for page number (page style only) |
+| `pagesize_param` | no | `pagesize` | Query param for page size (page style only) |
+| `pagesize` | no | `100` | Items per page (or limit for offset style) |
+| `data_key` | no | `data` | JSON key containing the items array |
+| `total_key` | no | `metadata.total_pages` | Dot-path to total count (pages or items) |
 | `refresh` | no | — | Cron expression for background refresh |
 | `ttl` | no | — | Go duration (`1h`, `30m`) for staleness |
 | `log_level` | no | `warn` | Log level: `debug`, `info`, `warn`, `error` |

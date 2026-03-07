@@ -67,9 +67,25 @@ paths:
         name: slug
         required: true
         type: string
-      - description: Path parameter value (varies by endpoint)
+      - description: SPL set ID (for spl-detail, spl-xml)
         in: query
         name: SETID
+        type: string
+      - description: Drug name (for spls-by-name)
+        in: query
+        name: DRUGNAME
+        type: string
+      - description: Drug class (for spls-by-class)
+        in: query
+        name: DRUG_CLASS
+        type: string
+      - description: Brand name (for fda-ndc-by-name, fda-drugsfda-by-name)
+        in: query
+        name: BRAND_NAME
+        type: string
+      - description: Drug name (for fda-labels-by-name, fda-events-by-drug)
+        in: query
+        name: DRUG_NAME
         type: string
       - description: Force upstream refresh (true/false)
         in: query
