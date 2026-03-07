@@ -32,8 +32,8 @@ type Endpoint struct {
 
 // AppConfig holds top-level application configuration beyond endpoints.
 type AppConfig struct {
-	LogLevel  string     `yaml:"log_level"`
-	Endpoints []Endpoint `yaml:"endpoints"`
+	LogLevel  string         `yaml:"log_level"`
+	Endpoints []Endpoint     `yaml:"endpoints"`
 	Database  databaseConfig `yaml:"database"`
 }
 
