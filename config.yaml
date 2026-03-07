@@ -67,3 +67,73 @@ endpoints:
     base_url: https://dailymed.nlm.nih.gov/dailymed/services
     path: /v2/spls/{SETID}.xml
     format: raw
+
+  # FDA openFDA Drug Endpoints
+
+  - slug: fda-enforcement
+    base_url: https://api.fda.gov
+    path: /drug/enforcement.json
+    format: json
+    pagination_style: offset
+    pagination: all
+    pagesize: 100
+    data_key: results
+    total_key: meta.results.total
+    refresh: "0 3 * * *"
+    ttl: "24h"
+
+  - slug: fda-shortages
+    base_url: https://api.fda.gov
+    path: /drug/shortages.json
+    format: json
+    pagination_style: offset
+    pagination: all
+    pagesize: 100
+    data_key: results
+    total_key: meta.results.total
+    refresh: "0 3 * * *"
+    ttl: "24h"
+
+  - slug: fda-ndc-by-name
+    base_url: https://api.fda.gov
+    path: /drug/ndc.json
+    format: json
+    pagination_style: offset
+    pagesize: 100
+    data_key: results
+    total_key: meta.results.total
+    query_params:
+      search: "brand_name:\"{BRAND_NAME}\""
+
+  - slug: fda-drugsfda-by-name
+    base_url: https://api.fda.gov
+    path: /drug/drugsfda.json
+    format: json
+    pagination_style: offset
+    pagesize: 100
+    data_key: results
+    total_key: meta.results.total
+    query_params:
+      search: "openfda.brand_name:\"{BRAND_NAME}\""
+
+  - slug: fda-labels-by-name
+    base_url: https://api.fda.gov
+    path: /drug/label.json
+    format: json
+    pagination_style: offset
+    pagesize: 100
+    data_key: results
+    total_key: meta.results.total
+    query_params:
+      search: "openfda.brand_name:\"{DRUG_NAME}\""
+
+  - slug: fda-events-by-drug
+    base_url: https://api.fda.gov
+    path: /drug/event.json
+    format: json
+    pagination_style: offset
+    pagesize: 100
+    data_key: results
+    total_key: meta.results.total
+    query_params:
+      search: "patient.drug.openfda.brand_name:\"{DRUG_NAME}\""

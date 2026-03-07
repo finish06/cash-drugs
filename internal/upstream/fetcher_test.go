@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/finish06/drugs/internal/config"
@@ -500,5 +501,350 @@ func TestAC004_URLConstructionWithQueryParams(t *testing.T) {
 	// Should include the query param
 	if receivedQuery == "" {
 		t.Error("expected query parameters in request")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FDA API Integration — RED phase tests (new fields: PaginationStyle, DataKey, TotalKey)
+// These tests reference struct fields and behaviors that DO NOT EXIST YET.
+// They are expected to fail at compile time until the GREEN phase implements them.
+// ---------------------------------------------------------------------------
+
+// AC-002: Offset pagination sends skip & limit query params
+func TestFDA_AC002_OffsetPaginationSendsSkipLimit(t *testing.T) {
+	var requests []url.Values
+	totalItems := 25
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Query())
+
+		// Generate items for this page based on skip/limit
+		items := []interface{}{}
+		for i := 0; i < 10 && len(items) < 10; i++ {
+			items = append(items, map[string]interface{}{"id": i})
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": items,
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": totalItems,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:            "fda-drugs",
+		BaseURL:         server.URL,
+		Path:            "/drug/label.json",
+		Format:          "json",
+		PaginationStyle: "offset",
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		Pagination:      "all",
+		Pagesize:        10,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Should have made 3 requests: skip=0, skip=10, skip=20
+	if len(requests) != 3 {
+		t.Fatalf("expected 3 requests, got %d", len(requests))
+	}
+
+	expectedSkips := []string{"0", "10", "20"}
+	for i, expected := range expectedSkips {
+		got := requests[i].Get("skip")
+		if got != expected {
+			t.Errorf("request %d: expected skip=%s, got skip=%s", i, expected, got)
+		}
+		limit := requests[i].Get("limit")
+		if limit != "10" {
+			t.Errorf("request %d: expected limit=10, got limit=%s", i, limit)
+		}
+	}
+
+	if result.PageCount != 3 {
+		t.Errorf("expected page_count=3, got %d", result.PageCount)
+	}
+}
+
+// AC-003: Configurable data_key extracts items from the correct response key
+func TestFDA_AC003_ConfigurableDataKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{
+				map[string]interface{}{"name": "aspirin"},
+			},
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": 1,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:     "fda-drugs",
+		BaseURL:  server.URL,
+		Path:     "/drug/label.json",
+		Format:   "json",
+		DataKey:  "results",
+		TotalKey: "meta.results.total",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Data should come from "results" key, not "data"
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	if len(allData) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(allData))
+	}
+
+	item, ok := allData[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be map, got %T", allData[0])
+	}
+	if item["name"] != "aspirin" {
+		t.Errorf("expected name=aspirin, got %v", item["name"])
+	}
+}
+
+// AC-004/AC-016: Configurable total_key with dot-notation traversal for nested totals
+func TestFDA_AC004_AC016_ConfigurableTotalKeyDotNotation(t *testing.T) {
+	requestCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{
+				map[string]interface{}{"id": requestCount},
+			},
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": 3,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:            "fda-drugs",
+		BaseURL:         server.URL,
+		Path:            "/drug/label.json",
+		Format:          "json",
+		PaginationStyle: "offset",
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		Pagination:      "all",
+		Pagesize:        1,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// With total=3 and pagesize=1, fetcher should make exactly 3 requests
+	if requestCount != 3 {
+		t.Errorf("expected 3 upstream requests, got %d", requestCount)
+	}
+	if result.PageCount != 3 {
+		t.Errorf("expected page_count=3, got %d", result.PageCount)
+	}
+}
+
+// AC-005: Backward compatibility — page-based pagination still works when no PaginationStyle is set
+func TestFDA_AC005_BackwardCompatPagePagination(t *testing.T) {
+	var requests []url.Values
+	pageCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Query())
+		pageCount++
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []interface{}{
+				map[string]interface{}{"item": pageCount},
+			},
+			"metadata": map[string]interface{}{
+				"total_pages":  2,
+				"current_page": pageCount,
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:       "dailymed-spls",
+		BaseURL:    server.URL,
+		Path:       "/api",
+		Format:     "json",
+		Pagination: "all",
+		// No PaginationStyle, DataKey, or TotalKey set — should use defaults
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Should use page/pagesize params (not skip/limit)
+	for i, q := range requests {
+		if q.Get("skip") != "" {
+			t.Errorf("request %d: should NOT have skip param for page-based pagination", i)
+		}
+		if q.Get("limit") != "" {
+			t.Errorf("request %d: should NOT have limit param for page-based pagination", i)
+		}
+		if q.Get("page") == "" {
+			t.Errorf("request %d: expected page param for page-based pagination", i)
+		}
+	}
+
+	// Should read data from "data" key (default)
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	if len(allData) != 2 {
+		t.Errorf("expected 2 combined items from 2 pages, got %d", len(allData))
+	}
+
+	if result.PageCount != 2 {
+		t.Errorf("expected page_count=2, got %d", result.PageCount)
+	}
+}
+
+// AC-012: Graceful skip/limit handling — fetcher stops on error and returns partial data
+func TestFDA_AC012_GracefulSkipLimitHandling(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		skip := q.Get("skip")
+		// Simulate FDA's behavior: error when skip >= 100 (simulating 25K cap at small scale)
+		if skip == "100" || skip == "150" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": map[string]interface{}{
+					"code":    "BAD_REQUEST",
+					"message": "Skip exceeds maximum allowed value",
+				},
+			})
+			return
+		}
+
+		items := []interface{}{}
+		for i := 0; i < 50; i++ {
+			items = append(items, map[string]interface{}{"id": i})
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": items,
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": 200,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:            "fda-drugs",
+		BaseURL:         server.URL,
+		Path:            "/drug/label.json",
+		Format:          "json",
+		PaginationStyle: "offset",
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		Pagination:      "all",
+		Pagesize:        50,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	// Should NOT crash — should return partial data gracefully
+	if err != nil {
+		t.Fatalf("expected graceful handling (no error), got %v", err)
+	}
+
+	// Should have fetched pages for skip=0 and skip=50 successfully (2 pages)
+	// skip=100 returns error, so pagination should stop
+	if result.PageCount != 2 {
+		t.Errorf("expected page_count=2 (partial data before error), got %d", result.PageCount)
+	}
+
+	// Should have data from the successful pages
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	if len(allData) != 100 {
+		t.Errorf("expected 100 items from 2 successful pages, got %d", len(allData))
+	}
+}
+
+// AC-017: Offset skip calculation is (page-1) * pagesize
+func TestFDA_AC017_OffsetSkipCalculation(t *testing.T) {
+	var receivedSkips []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedSkips = append(receivedSkips, r.URL.Query().Get("skip"))
+
+		items := []interface{}{map[string]interface{}{"id": 1}}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": items,
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": 75,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:            "fda-drugs",
+		BaseURL:         server.URL,
+		Path:            "/drug/label.json",
+		Format:          "json",
+		PaginationStyle: "offset",
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		Pagination:      3,
+		Pagesize:        25,
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(receivedSkips) != 3 {
+		t.Fatalf("expected 3 requests, got %d", len(receivedSkips))
+	}
+
+	expectedSkips := []string{"0", "25", "50"}
+	for i, expected := range expectedSkips {
+		if receivedSkips[i] != expected {
+			t.Errorf("request %d: expected skip=%s, got skip=%s", i, expected, receivedSkips[i])
+		}
 	}
 }

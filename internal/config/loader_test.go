@@ -476,6 +476,170 @@ endpoints:
 	}
 }
 
+// FDA API Integration — New config fields (RED phase: these tests WILL FAIL)
+
+// TestFDA_AC001_PaginationStyleField: pagination_style parses into PaginationStyle field
+func TestFDA_AC001_PaginationStyleField(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: fda-drugs
+    base_url: https://api.fda.gov
+    path: /drug/label.json
+    format: json
+    pagination_style: offset
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if endpoints[0].PaginationStyle != "offset" {
+		t.Errorf("expected PaginationStyle='offset', got '%s'", endpoints[0].PaginationStyle)
+	}
+}
+
+// TestFDA_AC001_PaginationStyleDefault: missing pagination_style defaults to "page"
+func TestFDA_AC001_PaginationStyleDefault(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: fda-drugs
+    base_url: https://api.fda.gov
+    path: /drug/label.json
+    format: json
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if endpoints[0].PaginationStyle != "page" {
+		t.Errorf("expected default PaginationStyle='page', got '%s'", endpoints[0].PaginationStyle)
+	}
+}
+
+// TestFDA_AC001_PaginationStyleValidation: invalid pagination_style returns error
+func TestFDA_AC001_PaginationStyleValidation(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: fda-drugs
+    base_url: https://api.fda.gov
+    path: /drug/label.json
+    format: json
+    pagination_style: invalid_value
+`)
+
+	_, err := config.Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid pagination_style 'invalid_value'")
+	}
+}
+
+// TestFDA_AC003_DataKeyField: data_key parses into DataKey field
+func TestFDA_AC003_DataKeyField(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: fda-drugs
+    base_url: https://api.fda.gov
+    path: /drug/label.json
+    format: json
+    data_key: results
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if endpoints[0].DataKey != "results" {
+		t.Errorf("expected DataKey='results', got '%s'", endpoints[0].DataKey)
+	}
+}
+
+// TestFDA_AC003_DataKeyDefault: missing data_key defaults to "data"
+func TestFDA_AC003_DataKeyDefault(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: fda-drugs
+    base_url: https://api.fda.gov
+    path: /drug/label.json
+    format: json
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if endpoints[0].DataKey != "data" {
+		t.Errorf("expected default DataKey='data', got '%s'", endpoints[0].DataKey)
+	}
+}
+
+// TestFDA_AC004_TotalKeyField: total_key parses into TotalKey field
+func TestFDA_AC004_TotalKeyField(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: fda-drugs
+    base_url: https://api.fda.gov
+    path: /drug/label.json
+    format: json
+    total_key: meta.results.total
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if endpoints[0].TotalKey != "meta.results.total" {
+		t.Errorf("expected TotalKey='meta.results.total', got '%s'", endpoints[0].TotalKey)
+	}
+}
+
+// TestFDA_AC004_TotalKeyDefault: missing total_key defaults to "metadata.total_pages"
+func TestFDA_AC004_TotalKeyDefault(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: fda-drugs
+    base_url: https://api.fda.gov
+    path: /drug/label.json
+    format: json
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if endpoints[0].TotalKey != "metadata.total_pages" {
+		t.Errorf("expected default TotalKey='metadata.total_pages', got '%s'", endpoints[0].TotalKey)
+	}
+}
+
+// TestFDA_AC005_ExistingDailyMedEndpointsUnchanged: existing config backward compat
+func TestFDA_AC005_ExistingDailyMedEndpointsUnchanged(t *testing.T) {
+	cfgPath := writeTestConfig(t, validConfig)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, ep := range endpoints {
+		if ep.PaginationStyle != "page" {
+			t.Errorf("endpoint '%s': expected default PaginationStyle='page', got '%s'", ep.Slug, ep.PaginationStyle)
+		}
+		if ep.DataKey != "data" {
+			t.Errorf("endpoint '%s': expected default DataKey='data', got '%s'", ep.Slug, ep.DataKey)
+		}
+		if ep.TotalKey != "metadata.total_pages" {
+			t.Errorf("endpoint '%s': expected default TotalKey='metadata.total_pages', got '%s'", ep.Slug, ep.TotalKey)
+		}
+	}
+}
+
 // Helper functions
 
 const validConfig = `

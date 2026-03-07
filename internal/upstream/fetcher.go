@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -47,6 +48,7 @@ func (f *HTTPFetcher) Fetch(ep config.Endpoint, params map[string]string) (*mode
 func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*model.CachedResponse, error) {
 	path := config.SubstitutePathParams(ep.Path, params)
 	maxPages, fetchAll := config.ParsePagination(ep)
+	isOffset := ep.PaginationStyle == "offset"
 
 	var allPages []model.PageData
 	pageCount := 0
@@ -54,8 +56,14 @@ func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*
 	for page := 1; ; page++ {
 		reqURL := buildURL(ep, path, page, params)
 
-		data, parsed, err := f.fetchJSONPage(reqURL)
+		data, parsed, err := f.fetchJSONPage(reqURL, ep.DataKey)
 		if err != nil {
+			// For offset pagination, gracefully stop on error and return partial data
+			if isOffset && pageCount > 0 {
+				slog.Warn("offset pagination stopped due to error, returning partial data",
+					"slug", ep.Slug, "pages_fetched", pageCount, "error", err)
+				break
+			}
 			return nil, err
 		}
 
@@ -69,7 +77,7 @@ func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*
 			break
 		}
 
-		if !hasMorePages(parsed, page) {
+		if !hasMorePages(parsed, page, ep.TotalKey, isOffset, ep.Pagesize) {
 			break
 		}
 	}
@@ -144,7 +152,7 @@ func (f *HTTPFetcher) fetchRaw(ep config.Endpoint, params map[string]string) (*m
 	}, nil
 }
 
-func (f *HTTPFetcher) fetchJSONPage(reqURL string) ([]interface{}, map[string]interface{}, error) {
+func (f *HTTPFetcher) fetchJSONPage(reqURL string, dataKey string) ([]interface{}, map[string]interface{}, error) {
 	resp, err := f.Client.Get(reqURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("upstream request failed: %w", err)
@@ -166,7 +174,7 @@ func (f *HTTPFetcher) fetchJSONPage(reqURL string) ([]interface{}, map[string]in
 	}
 
 	var items []interface{}
-	if data, ok := parsed["data"]; ok {
+	if data, ok := parsed[dataKey]; ok {
 		if arr, ok := data.([]interface{}); ok {
 			items = arr
 		} else {
@@ -179,13 +187,21 @@ func (f *HTTPFetcher) fetchJSONPage(reqURL string) ([]interface{}, map[string]in
 	return items, parsed, nil
 }
 
-func hasMorePages(parsed map[string]interface{}, currentPage int) bool {
-	metadata, ok := parsed["metadata"].(map[string]interface{})
+func hasMorePages(parsed map[string]interface{}, currentPage int, totalKey string, isOffset bool, pagesize int) bool {
+	val, ok := resolveByDotPath(parsed, totalKey)
 	if !ok {
 		return false
 	}
-	totalPages, _ := metadata["total_pages"].(float64)
-	return currentPage < int(totalPages)
+	total, ok := val.(float64)
+	if !ok {
+		return false
+	}
+	if isOffset {
+		// For offset pagination, check if skip + pagesize < total
+		skip := (currentPage) * pagesize // currentPage is 1-based, next page skip
+		return skip < int(total)
+	}
+	return currentPage < int(total)
 }
 
 func buildURL(ep config.Endpoint, path string, page int, params map[string]string) string {
@@ -199,8 +215,14 @@ func buildURL(ep config.Endpoint, path string, page int, params map[string]strin
 
 	maxPages, fetchAll := config.ParsePagination(ep)
 	if fetchAll || maxPages > 1 {
-		q.Set(ep.PageParam, fmt.Sprintf("%d", page))
-		q.Set(ep.PagesizeParam, fmt.Sprintf("%d", ep.Pagesize))
+		if ep.PaginationStyle == "offset" {
+			skip := (page - 1) * ep.Pagesize
+			q.Set("skip", fmt.Sprintf("%d", skip))
+			q.Set("limit", fmt.Sprintf("%d", ep.Pagesize))
+		} else {
+			q.Set(ep.PageParam, fmt.Sprintf("%d", page))
+			q.Set(ep.PagesizeParam, fmt.Sprintf("%d", ep.Pagesize))
+		}
 	}
 
 	if len(q) > 0 {

@@ -67,6 +67,19 @@
       "date": "2026-03-07",
       "classified_by": "human",
       "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-006",
+      "title": "FDA API integration: generic fetcher approach validated with 3 config fields",
+      "body": "Adding PaginationStyle, DataKey, TotalKey to config.Endpoint with backward-compatible defaults enabled FDA API support with zero changes to existing DailyMed behavior. Dot-path traversal for TotalKey handles nested JSON (meta.results.total). Graceful skip-limit stop returns partial data. E2E tests against all 13 config endpoints in 3.5s.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "architecture",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-07",
+      "classified_by": "agent",
+      "checkpoint_type": "post-tdd"
     }
   ]
 }

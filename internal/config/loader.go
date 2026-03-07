@@ -13,18 +13,21 @@ import (
 
 // Endpoint represents a configured upstream API endpoint.
 type Endpoint struct {
-	Slug          string            `yaml:"slug"`
-	BaseURL       string            `yaml:"base_url"`
-	Path          string            `yaml:"path"`
-	Format        string            `yaml:"format"`
-	QueryParams   map[string]string `yaml:"query_params"`
-	Pagination    interface{}       `yaml:"pagination"`
-	PageParam     string            `yaml:"page_param"`
-	PagesizeParam string            `yaml:"pagesize_param"`
-	Pagesize      int               `yaml:"pagesize"`
-	Refresh       string            `yaml:"refresh"`
-	TTL           string            `yaml:"ttl"`
-	TTLDuration   time.Duration     `yaml:"-"` // computed from TTL at load time
+	Slug            string            `yaml:"slug"`
+	BaseURL         string            `yaml:"base_url"`
+	Path            string            `yaml:"path"`
+	Format          string            `yaml:"format"`
+	QueryParams     map[string]string `yaml:"query_params"`
+	Pagination      interface{}       `yaml:"pagination"`
+	PaginationStyle string            `yaml:"pagination_style"`
+	PageParam       string            `yaml:"page_param"`
+	PagesizeParam   string            `yaml:"pagesize_param"`
+	Pagesize        int               `yaml:"pagesize"`
+	DataKey         string            `yaml:"data_key"`
+	TotalKey        string            `yaml:"total_key"`
+	Refresh         string            `yaml:"refresh"`
+	TTL             string            `yaml:"ttl"`
+	TTLDuration     time.Duration     `yaml:"-"` // computed from TTL at load time
 }
 
 // AppConfig holds top-level application configuration beyond endpoints.
@@ -78,6 +81,10 @@ func Load(path string) ([]Endpoint, error) {
 		}
 		slugsSeen[ep.Slug] = true
 
+		if ep.PaginationStyle != "" && ep.PaginationStyle != "page" && ep.PaginationStyle != "offset" {
+			return nil, fmt.Errorf("endpoint '%s': invalid pagination_style '%s' (must be 'page' or 'offset')", ep.Slug, ep.PaginationStyle)
+		}
+
 		if ep.Refresh != "" {
 			parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 			if _, err := parser.Parse(ep.Refresh); err != nil {
@@ -101,6 +108,9 @@ func Load(path string) ([]Endpoint, error) {
 
 // ApplyDefaults sets default values for optional fields.
 func ApplyDefaults(ep *Endpoint) {
+	if ep.PaginationStyle == "" {
+		ep.PaginationStyle = "page"
+	}
 	if ep.PageParam == "" {
 		ep.PageParam = "page"
 	}
@@ -109,6 +119,12 @@ func ApplyDefaults(ep *Endpoint) {
 	}
 	if ep.Pagesize == 0 {
 		ep.Pagesize = 100
+	}
+	if ep.DataKey == "" {
+		ep.DataKey = "data"
+	}
+	if ep.TotalKey == "" {
+		ep.TotalKey = "metadata.total_pages"
 	}
 }
 
