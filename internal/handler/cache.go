@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -13,22 +14,37 @@ import (
 
 // CacheHandler handles GET /api/cache/{slug} requests.
 type CacheHandler struct {
-	endpoints map[string]config.Endpoint
-	repo      cache.Repository
-	fetcher   upstream.Fetcher
+	endpoints  map[string]config.Endpoint
+	repo       cache.Repository
+	fetcher    upstream.Fetcher
+	fetchLocks *FetchLocks
+}
+
+// Option configures a CacheHandler.
+type Option func(*CacheHandler)
+
+// WithFetchLocks sets the shared fetch locks for deduplication with the scheduler.
+func WithFetchLocks(fl *FetchLocks) Option {
+	return func(h *CacheHandler) {
+		h.fetchLocks = fl
+	}
 }
 
 // NewCacheHandler creates a new CacheHandler.
-func NewCacheHandler(endpoints []config.Endpoint, repo cache.Repository, fetcher upstream.Fetcher) *CacheHandler {
+func NewCacheHandler(endpoints []config.Endpoint, repo cache.Repository, fetcher upstream.Fetcher, opts ...Option) *CacheHandler {
 	epMap := make(map[string]config.Endpoint, len(endpoints))
 	for _, ep := range endpoints {
 		epMap[ep.Slug] = ep
 	}
-	return &CacheHandler{
+	h := &CacheHandler{
 		endpoints: epMap,
 		repo:      repo,
 		fetcher:   fetcher,
 	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 // ServeHTTP handles incoming cache requests.
@@ -59,7 +75,14 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !forceRefresh {
 		cached, err := h.repo.Get(cacheKey)
 		if err == nil && cached != nil {
-			respondWithCached(w, cached, false)
+			// Check TTL staleness
+			if config.IsStale(ep, cached.FetchedAt) {
+				// Serve stale immediately, trigger background revalidation
+				respondWithCached(w, cached, true, "ttl_expired")
+				h.backgroundRevalidate(ep, pathParams)
+				return
+			}
+			respondWithCached(w, cached, false, "")
 			return
 		}
 	}
@@ -70,7 +93,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Try stale cache fallback
 		cached, cacheErr := h.repo.Get(cacheKey)
 		if cacheErr == nil && cached != nil {
-			respondWithCached(w, cached, true)
+			respondWithCached(w, cached, true, "upstream unavailable")
 			return
 		}
 
@@ -88,10 +111,36 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.repo.Upsert(result)
 
 	// Return fresh result
-	respondWithCached(w, result, false)
+	respondWithCached(w, result, false, "")
 }
 
-func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stale bool) {
+// backgroundRevalidate spawns a goroutine to refresh the cache in the background.
+func (h *CacheHandler) backgroundRevalidate(ep config.Endpoint, params map[string]string) {
+	if h.fetchLocks == nil {
+		return
+	}
+
+	go func() {
+		mu := h.fetchLocks.Get(ep.Slug)
+		if !mu.TryLock() {
+			log.Printf("Handler: skipping background revalidation for %s — fetch already in progress", ep.Slug)
+			return
+		}
+		defer mu.Unlock()
+
+		result, err := h.fetcher.Fetch(ep, params)
+		if err != nil {
+			log.Printf("Handler: background revalidation failed for %s: %v", ep.Slug, err)
+			return
+		}
+
+		if err := h.repo.Upsert(result); err != nil {
+			log.Printf("Handler: background upsert failed for %s: %v", ep.Slug, err)
+		}
+	}()
+}
+
+func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stale bool, staleReason string) {
 	resp := model.APIResponse{
 		Data: cached.Data,
 		Meta: model.ResponseMeta{
@@ -102,8 +151,8 @@ func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stal
 			Stale:     stale,
 		},
 	}
-	if stale {
-		resp.Meta.StaleReason = "upstream unavailable"
+	if stale && staleReason != "" {
+		resp.Meta.StaleReason = staleReason
 	}
 
 	w.Header().Set("Content-Type", "application/json")

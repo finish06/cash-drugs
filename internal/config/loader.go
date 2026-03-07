@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v3"
@@ -22,6 +23,8 @@ type Endpoint struct {
 	PagesizeParam string            `yaml:"pagesize_param"`
 	Pagesize      int               `yaml:"pagesize"`
 	Refresh       string            `yaml:"refresh"`
+	TTL           string            `yaml:"ttl"`
+	TTLDuration   time.Duration     `yaml:"-"` // computed from TTL at load time
 }
 
 type configFile struct {
@@ -76,6 +79,14 @@ func Load(path string) ([]Endpoint, error) {
 			if _, err := parser.Parse(ep.Refresh); err != nil {
 				return nil, fmt.Errorf("endpoint '%s': invalid cron expression '%s': %w", ep.Slug, ep.Refresh, err)
 			}
+		}
+
+		if ep.TTL != "" {
+			d, err := time.ParseDuration(ep.TTL)
+			if err != nil {
+				return nil, fmt.Errorf("endpoint '%s': invalid ttl '%s': %w", ep.Slug, ep.TTL, err)
+			}
+			cfg.Endpoints[i].TTLDuration = d
 		}
 
 		ApplyDefaults(&cfg.Endpoints[i])

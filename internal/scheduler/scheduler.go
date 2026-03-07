@@ -8,6 +8,7 @@ import (
 
 	"github.com/finish06/drugs/internal/cache"
 	"github.com/finish06/drugs/internal/config"
+	"github.com/finish06/drugs/internal/fetchlock"
 	"github.com/finish06/drugs/internal/upstream"
 	"github.com/robfig/cron/v3"
 )
@@ -18,18 +19,18 @@ type Scheduler struct {
 	fetcher   upstream.Fetcher
 	repo      cache.Repository
 	cron      *cron.Cron
-	running   map[string]*sync.Mutex // per-slug overlap protection
+	locks     *fetchlock.Map
 }
 
 // New creates a Scheduler for the given endpoints.
 // Only endpoints with a non-empty Refresh field and no path parameters are scheduled.
-func New(endpoints []config.Endpoint, fetcher upstream.Fetcher, repo cache.Repository) *Scheduler {
+func New(endpoints []config.Endpoint, fetcher upstream.Fetcher, repo cache.Repository, locks *fetchlock.Map) *Scheduler {
 	return &Scheduler{
 		endpoints: endpoints,
 		fetcher:   fetcher,
 		repo:      repo,
 		cron:      cron.New(),
-		running:   make(map[string]*sync.Mutex),
+		locks:     locks,
 	}
 }
 
@@ -55,7 +56,6 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 	// Register cron jobs
 	for _, ep := range scheduled {
-		s.running[ep.Slug] = &sync.Mutex{}
 		ep := ep // capture loop variable
 		s.cron.AddFunc(ep.Refresh, func() {
 			s.fetchEndpoint(ep)
@@ -75,14 +75,12 @@ func (s *Scheduler) Stop() {
 }
 
 func (s *Scheduler) fetchEndpoint(ep config.Endpoint) {
-	mu, ok := s.running[ep.Slug]
-	if ok {
-		if !mu.TryLock() {
-			log.Printf("Scheduler: skipping %s — previous fetch still running", ep.Slug)
-			return
-		}
-		defer mu.Unlock()
+	mu := s.locks.Get(ep.Slug)
+	if !mu.TryLock() {
+		log.Printf("Scheduler: skipping %s — previous fetch still running", ep.Slug)
+		return
 	}
+	defer mu.Unlock()
 
 	start := time.Now()
 	result, err := s.fetcher.Fetch(ep, nil)

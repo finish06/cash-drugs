@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/finish06/drugs/internal/config"
+	"github.com/finish06/drugs/internal/fetchlock"
 	"github.com/finish06/drugs/internal/model"
 	"github.com/finish06/drugs/internal/scheduler"
 )
@@ -22,7 +23,7 @@ func TestAC003_SchedulerStartsForScheduledEndpoints(t *testing.T) {
 	}
 	config.ApplyDefaults(&endpoints[0])
 
-	s := scheduler.New(endpoints, fetcher, repo)
+	s := scheduler.New(endpoints, fetcher, repo, fetchlock.New())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -47,7 +48,7 @@ func TestAC004_CacheWarmingOnStartup(t *testing.T) {
 	}
 	config.ApplyDefaults(&endpoints[0])
 
-	s := scheduler.New(endpoints, fetcher, repo)
+	s := scheduler.New(endpoints, fetcher, repo, fetchlock.New())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -72,7 +73,7 @@ func TestAC002_OnDemandEndpointsNotScheduled(t *testing.T) {
 	}
 	config.ApplyDefaults(&endpoints[0])
 
-	s := scheduler.New(endpoints, fetcher, repo)
+	s := scheduler.New(endpoints, fetcher, repo, fetchlock.New())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -96,7 +97,7 @@ func TestAC006_ParameterizedEndpointsExcluded(t *testing.T) {
 	}
 	config.ApplyDefaults(&endpoints[0])
 
-	s := scheduler.New(endpoints, fetcher, repo)
+	s := scheduler.New(endpoints, fetcher, repo, fetchlock.New())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -120,7 +121,7 @@ func TestAC005_ScheduledFetchAlwaysUpserts(t *testing.T) {
 	}
 	config.ApplyDefaults(&endpoints[0])
 
-	s := scheduler.New(endpoints, fetcher, repo)
+	s := scheduler.New(endpoints, fetcher, repo, fetchlock.New())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -144,7 +145,7 @@ func TestAC007_FailedFetchPreservesCache(t *testing.T) {
 	}
 	config.ApplyDefaults(&endpoints[0])
 
-	s := scheduler.New(endpoints, fetcher, repo)
+	s := scheduler.New(endpoints, fetcher, repo, fetchlock.New())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -173,7 +174,7 @@ func TestAC008_GracefulShutdown(t *testing.T) {
 	}
 	config.ApplyDefaults(&endpoints[0])
 
-	s := scheduler.New(endpoints, fetcher, repo)
+	s := scheduler.New(endpoints, fetcher, repo, fetchlock.New())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

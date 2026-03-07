@@ -11,6 +11,7 @@ import (
 
 	"github.com/finish06/drugs/internal/cache"
 	"github.com/finish06/drugs/internal/config"
+	"github.com/finish06/drugs/internal/fetchlock"
 	"github.com/finish06/drugs/internal/handler"
 	"github.com/finish06/drugs/internal/scheduler"
 	"github.com/finish06/drugs/internal/upstream"
@@ -42,11 +43,14 @@ func main() {
 
 	fetcher := upstream.NewHTTPFetcher()
 
+	// Shared fetch locks for deduplication between scheduler and handler
+	locks := fetchlock.New()
+
 	// Start background scheduler
-	sched := scheduler.New(endpoints, fetcher, repo)
+	sched := scheduler.New(endpoints, fetcher, repo, locks)
 	sched.Start(context.Background())
 
-	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher)
+	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks))
 	healthHandler := handler.NewHealthHandler(repo)
 
 	mux := http.NewServeMux()

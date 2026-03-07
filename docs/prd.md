@@ -36,7 +36,6 @@ Internal microservices frequently need data from external REST APIs. Each servic
 
 ### Out of Scope (v1)
 
-- TTL / cache expiry policies
 - Upstream API authentication (OAuth, API keys, etc.)
 - Response transformation / field mapping
 - Rate limiting
