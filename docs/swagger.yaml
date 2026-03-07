@@ -55,7 +55,7 @@ info:
   description: API cache/proxy — fetches from upstream REST APIs, stores in MongoDB,
     serves cached data to internal consumers.
   title: drugs API
-  version: 0.2.0
+  version: 0.5.0
 paths:
   /api/cache/{slug}:
     get:

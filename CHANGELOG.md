@@ -7,6 +7,27 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-03-07 — FDA API Integration
+
+### Added
+- FDA openFDA drug API support via 6 new config.yaml endpoints
+- Offset pagination (`pagination_style: offset`) — sends `skip=N&limit=N` for FDA-style APIs
+- Configurable JSON response parsing: `data_key` (default: `data`) and `total_key` (default: `metadata.total_pages`)
+- Dot-notation path traversal for nested total keys (e.g., `meta.results.total`)
+- Graceful handling of FDA skip/limit cap — returns partial data instead of failing
+- FDA Enforcement recalls endpoint (daily prefetch)
+- FDA Drug Shortages endpoint (daily prefetch)
+- FDA NDC lookup by brand name (on-demand)
+- FDA Drugs@FDA lookup by brand name (on-demand)
+- FDA Drug Labels search (on-demand)
+- FDA Adverse Events search by drug name (on-demand)
+- E2E test suite validating all 13 config.yaml endpoints against live APIs
+- Swagger/OpenAPI docs updated with FDA query parameters
+
+### Changed
+- Fetcher now branches on `pagination_style` for URL building and page detection
+- `hasMorePages` uses `resolveByDotPath` for configurable total key extraction
+
 ## [0.4.0] — 2026-03-07 — Structured Logging
 
 ### Added
