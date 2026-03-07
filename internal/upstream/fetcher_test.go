@@ -332,6 +332,147 @@ func TestAC019_MultiPageFetchPopulatesPages(t *testing.T) {
 	}
 }
 
+// fetchRaw: empty Content-Type defaults to application/octet-stream
+func TestFetchRaw_EmptyContentType_DefaultsToOctetStream(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Explicitly set Content-Type to empty to override Go's sniffing,
+		// then delete it so the header is absent.
+		w.Header()["Content-Type"] = nil
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("some binary data"))
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-raw",
+		BaseURL: server.URL,
+		Path:    "/data",
+		Format:  "raw",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.ContentType != "application/octet-stream" {
+		t.Errorf("expected content type 'application/octet-stream', got '%s'", result.ContentType)
+	}
+	if result.Data != "some binary data" {
+		t.Errorf("expected raw body, got %v", result.Data)
+	}
+}
+
+// fetchRaw: upstream returns 4xx/5xx error
+func TestFetchRaw_UpstreamError(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+	}{
+		{"400 Bad Request", http.StatusBadRequest},
+		{"404 Not Found", http.StatusNotFound},
+		{"500 Internal Server Error", http.StatusInternalServerError},
+		{"503 Service Unavailable", http.StatusServiceUnavailable},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.statusCode)
+			}))
+			defer server.Close()
+
+			ep := config.Endpoint{
+				Slug:    "test-raw",
+				BaseURL: server.URL,
+				Path:    "/data",
+				Format:  "raw",
+			}
+			config.ApplyDefaults(&ep)
+
+			_, err := upstream.Fetch(ep, nil)
+			if err == nil {
+				t.Fatalf("expected error for status %d, got nil", tc.statusCode)
+			}
+		})
+	}
+}
+
+// fetchJSONPage: response has no "data" key wraps entire response as single item
+func TestFetchJSONPage_NoDataKey_WrapsResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []string{"a", "b"},
+			"total":   2,
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-nodata",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	// The entire response map should be wrapped as a single item
+	if len(allData) != 1 {
+		t.Errorf("expected 1 item (wrapped response), got %d", len(allData))
+	}
+	// The single item should be a map containing "results" and "total"
+	item, ok := allData[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be map[string]interface{}, got %T", allData[0])
+	}
+	if _, exists := item["results"]; !exists {
+		t.Error("expected wrapped response to contain 'results' key")
+	}
+}
+
+// hasMorePages: missing metadata should stop pagination
+func TestHasMorePages_MissingMetadata_StopsPagination(t *testing.T) {
+	pageCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pageCount++
+		// Return data without any metadata field
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []string{fmt.Sprintf("item-%d", pageCount)},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:       "test-nometa",
+		BaseURL:    server.URL,
+		Path:       "/api",
+		Format:     "json",
+		Pagination: "all",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	// Without metadata, hasMorePages returns false, so only 1 page should be fetched
+	if result.PageCount != 1 {
+		t.Errorf("expected 1 page (no metadata to indicate more), got %d", result.PageCount)
+	}
+	if pageCount != 1 {
+		t.Errorf("expected 1 upstream request, got %d", pageCount)
+	}
+}
+
 // AC-004: URL construction with query params
 func TestAC004_URLConstructionWithQueryParams(t *testing.T) {
 	var receivedQuery string

@@ -318,6 +318,108 @@ func TestAC016_SubstitutePathParamsInValues(t *testing.T) {
 	}
 }
 
+// ParsePagination: float64 value (YAML parses numbers as float64)
+func TestParsePagination_Float64(t *testing.T) {
+	ep := config.Endpoint{
+		Pagination: float64(5),
+	}
+	maxPages, fetchAll := config.ParsePagination(ep)
+	if fetchAll {
+		t.Error("expected fetchAll=false for float64 pagination")
+	}
+	if maxPages != 5 {
+		t.Errorf("expected maxPages=5, got %d", maxPages)
+	}
+}
+
+// ParsePagination: zero or negative number defaults to 1
+func TestParsePagination_ZeroOrNegative(t *testing.T) {
+	tests := []struct {
+		name  string
+		value interface{}
+	}{
+		{"zero int", int(0)},
+		{"negative int", int(-3)},
+		{"zero float64", float64(0)},
+		{"negative float64", float64(-2.5)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ep := config.Endpoint{
+				Pagination: tc.value,
+			}
+			maxPages, fetchAll := config.ParsePagination(ep)
+			if fetchAll {
+				t.Error("expected fetchAll=false for zero/negative pagination")
+			}
+			if maxPages != 1 {
+				t.Errorf("expected maxPages=1 (default), got %d", maxPages)
+			}
+		})
+	}
+}
+
+// ParsePagination: unknown type defaults to 1 page
+func TestParsePagination_UnknownType(t *testing.T) {
+	ep := config.Endpoint{
+		Pagination: []string{"unexpected"},
+	}
+	maxPages, fetchAll := config.ParsePagination(ep)
+	if fetchAll {
+		t.Error("expected fetchAll=false for unknown type")
+	}
+	if maxPages != 1 {
+		t.Errorf("expected maxPages=1 (default), got %d", maxPages)
+	}
+}
+
+// Load: xml format should be accepted
+func TestLoad_XmlFormatAccepted(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: xml-endpoint
+    base_url: http://example.com
+    path: /api/data
+    format: xml
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("expected no error for format 'xml', got %v", err)
+	}
+	if endpoints[0].Format != "xml" {
+		t.Errorf("expected format 'xml', got '%s'", endpoints[0].Format)
+	}
+}
+
+// SubstitutePathParams: multiple params
+func TestSubstitutePathParams_MultipleParams(t *testing.T) {
+	path := "/v2/{TYPE}/items/{ID}/details/{FORMAT}"
+	params := map[string]string{
+		"TYPE":   "drugs",
+		"ID":     "12345",
+		"FORMAT": "json",
+	}
+	result := config.SubstitutePathParams(path, params)
+	expected := "/v2/drugs/items/12345/details/json"
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+// SubstitutePathParams: no matching params returns path unchanged
+func TestSubstitutePathParams_NoMatchingParams(t *testing.T) {
+	path := "/v2/spls/{SETID}"
+	params := map[string]string{
+		"OTHER": "value",
+	}
+	result := config.SubstitutePathParams(path, params)
+	if result != path {
+		t.Errorf("expected path unchanged '%s', got '%s'", path, result)
+	}
+}
+
 // Helper functions
 
 const validConfig = `

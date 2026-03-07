@@ -37,3 +37,70 @@ func TestAC007_CacheKeyMultipleParamsDeterministic(t *testing.T) {
 		t.Errorf("expected '%s', got '%s'", expected, key1)
 	}
 }
+
+// BuildCacheKey edge case: empty slug with no params
+func TestBuildCacheKey_EmptySlug(t *testing.T) {
+	key := cache.BuildCacheKey("", nil)
+	if key != "" {
+		t.Errorf("expected empty string for empty slug with nil params, got %q", key)
+	}
+}
+
+// BuildCacheKey edge case: empty slug with params
+func TestBuildCacheKey_EmptySlugWithParams(t *testing.T) {
+	params := map[string]string{"key": "val"}
+	key := cache.BuildCacheKey("", params)
+	expected := ":key=val"
+	if key != expected {
+		t.Errorf("expected %q, got %q", expected, key)
+	}
+}
+
+// BuildCacheKey edge case: single param
+func TestBuildCacheKey_SingleParam(t *testing.T) {
+	params := map[string]string{"SETID": "abc-123"}
+	key := cache.BuildCacheKey("my-slug", params)
+	expected := "my-slug:SETID=abc-123"
+	if key != expected {
+		t.Errorf("expected %q, got %q", expected, key)
+	}
+}
+
+// BuildCacheKey edge case: params with special characters (regex metacharacters)
+func TestBuildCacheKey_ParamsWithSpecialChars(t *testing.T) {
+	params := map[string]string{"q": "foo.bar+baz*"}
+	key := cache.BuildCacheKey("search", params)
+	// BuildCacheKey does not escape; it stores raw values
+	expected := "search:q=foo.bar+baz*"
+	if key != expected {
+		t.Errorf("expected %q, got %q", expected, key)
+	}
+}
+
+// BuildCacheKey edge case: params are sorted alphabetically regardless of insertion order
+func TestBuildCacheKey_ParamsSortedAlphabetically(t *testing.T) {
+	params := map[string]string{"zebra": "z", "alpha": "a", "middle": "m"}
+	key := cache.BuildCacheKey("slug", params)
+	expected := "slug:alpha=a:middle=m:zebra=z"
+	if key != expected {
+		t.Errorf("expected %q, got %q", expected, key)
+	}
+}
+
+// BuildCacheKey edge case: empty map (not nil) behaves same as nil
+func TestBuildCacheKey_EmptyMap(t *testing.T) {
+	key := cache.BuildCacheKey("slug", map[string]string{})
+	if key != "slug" {
+		t.Errorf("expected 'slug' for empty map, got %q", key)
+	}
+}
+
+// BuildCacheKey edge case: param values containing colons and equals signs
+func TestBuildCacheKey_ParamsWithDelimiterChars(t *testing.T) {
+	params := map[string]string{"url": "http://example.com:8080/path?q=1"}
+	key := cache.BuildCacheKey("api", params)
+	expected := "api:url=http://example.com:8080/path?q=1"
+	if key != expected {
+		t.Errorf("expected %q, got %q", expected, key)
+	}
+}
