@@ -85,12 +85,12 @@ Internal microservices frequently need data from external REST APIs. Each servic
 |-----------|------|-----------------|--------|------------------|
 | M1: Config + Fetch + Store | Fetch from configured APIs and store in MongoDB | alpha | DONE | Configure endpoints, fetch responses, store in MongoDB, serve to consumers |
 | M2: Scheduling + Staleness | Scheduled refresh and stale-while-revalidate | beta | DONE | Cron-based refresh, serve stale on upstream failure, TTL policies |
-| M3: Documentation + Onboarding | Make the service easy to discover, understand, and consume | beta | NOW | OpenAPI spec, interactive docs, usage examples, onboarding guide |
+| M3: Documentation + Onboarding | Make the service easy to discover, understand, and consume | beta | DONE | OpenAPI spec, interactive docs, usage examples, onboarding guide |
 | M4: Auth + Transforms | Upstream auth and response transforms | ga | LATER | API key/OAuth support, field mapping, response filtering |
 
 ### Milestone Detail
 
-#### M1: Config + Fetch + Store [NOW]
+#### M1: Config + Fetch + Store [DONE]
 **Goal:** End-to-end flow — configure an API endpoint, fetch its data, store in MongoDB, serve to internal consumers
 **Appetite:** Small — focused core functionality
 **Target maturity:** alpha
@@ -107,7 +107,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [ ] Serve stale data when upstream is unavailable
 - [ ] Health check endpoint returns status
 
-#### M3: Documentation + Onboarding [NOW]
+#### M3: Documentation + Onboarding [DONE]
 **Goal:** Make the service easy for internal teams to discover, understand, and integrate with — no Slack messages or tribal knowledge needed
 **Appetite:** Small — documentation and API discoverability
 **Target maturity:** beta
