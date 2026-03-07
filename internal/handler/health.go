@@ -9,12 +9,25 @@ import (
 
 // HealthHandler handles GET /health requests.
 type HealthHandler struct {
-	pinger cache.Pinger
+	pinger  cache.Pinger
+	version string
+}
+
+// HealthOption configures a HealthHandler.
+type HealthOption func(*HealthHandler)
+
+// WithVersion sets the version reported by the health endpoint.
+func WithVersion(v string) HealthOption {
+	return func(h *HealthHandler) { h.version = v }
 }
 
 // NewHealthHandler creates a new HealthHandler.
-func NewHealthHandler(pinger cache.Pinger) *HealthHandler {
-	return &HealthHandler{pinger: pinger}
+func NewHealthHandler(pinger cache.Pinger, opts ...HealthOption) *HealthHandler {
+	h := &HealthHandler{pinger: pinger, version: "dev"}
+	for _, o := range opts {
+		o(h)
+	}
+	return h
 }
 
 // ServeHTTP handles health check requests.
@@ -33,15 +46,17 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(map[string]string{
-			"status": "degraded",
-			"db":     "disconnected",
+			"status":  "degraded",
+			"db":      "disconnected",
+			"version": h.version,
 		})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
-		"db":     "connected",
+		"status":  "ok",
+		"db":      "connected",
+		"version": h.version,
 	})
 }

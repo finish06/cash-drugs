@@ -28,6 +28,9 @@ import (
 // @host      localhost:8080
 // @BasePath  /
 
+// version is set at build time via -ldflags "-X main.version=v0.5.0".
+var version = "dev"
+
 func main() {
 	cfgPath := os.Getenv("CONFIG_PATH")
 	if cfgPath == "" {
@@ -84,7 +87,7 @@ func main() {
 	sched.Start(context.Background())
 
 	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks))
-	healthHandler := handler.NewHealthHandler(repo)
+	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
 	endpointsHandler := handler.NewEndpointsHandler(endpoints)
 
 	mux := http.NewServeMux()
