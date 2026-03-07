@@ -55,7 +55,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	s.cron.Start()
 	slog.Info("scheduler started", "component", "scheduler", "endpoints", len(scheduled))
 
-	// Warm cache in background (non-blocking)
+	// Warm cache in background — skip endpoints with fresh data in MongoDB
 	go func() {
 		slog.Info("cache warm started", "component", "scheduler", "endpoints", len(scheduled))
 		var wg sync.WaitGroup
@@ -63,6 +63,12 @@ func (s *Scheduler) Start(ctx context.Context) {
 			wg.Add(1)
 			go func(ep config.Endpoint) {
 				defer wg.Done()
+				cacheKey := cache.BuildCacheKey(ep.Slug, nil)
+				fetchedAt, found, err := s.repo.FetchedAt(cacheKey)
+				if err == nil && found && !config.IsStale(ep, fetchedAt) {
+					slog.Info("cache still fresh — skipping fetch", "component", "scheduler", "slug", ep.Slug, "fetched_at", fetchedAt)
+					return
+				}
 				s.fetchEndpoint(ep)
 			}(ep)
 		}

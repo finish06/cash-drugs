@@ -8,10 +8,10 @@
     "author": "calebdunn"
   },
   "maturity": {
-    "level": "alpha",
-    "promoted_from": null,
-    "promoted_date": null,
-    "next_promotion_criteria": "Feature specs, 50%+ test coverage, PR workflow, 2+ environments configured, TDD evidence"
+    "level": "beta",
+    "promoted_from": "alpha",
+    "promoted_date": "2026-03-07",
+    "next_promotion_criteria": "30+ days production stability, SLAs defined, defect rate below threshold, full CI/CD pipeline"
   },
   "architecture": {
     "languages": [

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/finish06/drugs/internal/model"
 )
@@ -12,6 +13,7 @@ import (
 type Repository interface {
 	Get(cacheKey string) (*model.CachedResponse, error)
 	Upsert(resp *model.CachedResponse) error
+	FetchedAt(cacheKey string) (time.Time, bool, error)
 }
 
 // BuildCacheKey constructs a deterministic cache key from slug and optional params.

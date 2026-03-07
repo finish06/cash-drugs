@@ -30,6 +30,39 @@ endpoints:
     refresh: "0 */6 * * *"
     ttl: "6h"
 
+  - slug: spls-by-name
+    base_url: https://dailymed.nlm.nih.gov/dailymed/services
+    path: /v2/spls.json
+    format: json
+    pagination: all
+    page_param: page
+    pagesize_param: pagesize
+    pagesize: 100
+    query_params:
+      drug_name: "{DRUGNAME}"
+
+  - slug: spls-by-class
+    base_url: https://dailymed.nlm.nih.gov/dailymed/services
+    path: /v2/spls.json
+    format: json
+    pagination: all
+    page_param: page
+    pagesize_param: pagesize
+    pagesize: 100
+    query_params:
+      drug_class: "{DRUG_CLASS}"
+
+  - slug: drugclasses
+    base_url: https://dailymed.nlm.nih.gov/dailymed/services
+    path: /v2/drugclasses.json
+    format: json
+    pagination: all
+    page_param: page
+    pagesize_param: pagesize
+    pagesize: 100
+    refresh: "0 */6 * * *"
+    ttl: "6h"
+
   - slug: spl-xml
     base_url: https://dailymed.nlm.nih.gov/dailymed/services
     path: /v2/spls/{SETID}.xml

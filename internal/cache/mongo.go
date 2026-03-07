@@ -200,6 +200,31 @@ func (r *MongoRepository) Upsert(resp *model.CachedResponse) error {
 	return nil
 }
 
+// FetchedAt returns the fetched_at timestamp for the first page of a cache key.
+// Returns (time, true, nil) if found, (zero, false, nil) if not found.
+func (r *MongoRepository) FetchedAt(cacheKey string) (time.Time, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+
+	// Look for exact key or first page
+	filter := bson.M{"cache_key": bson.M{
+		"$regex": "^" + escapeRegex(cacheKey) + "(:|$)",
+	}}
+
+	opts := options.FindOne().SetProjection(bson.M{"fetched_at": 1})
+	var result struct {
+		FetchedAt time.Time `bson:"fetched_at"`
+	}
+	err := r.collection.FindOne(ctx, filter, opts).Decode(&result)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return time.Time{}, false, nil
+		}
+		return time.Time{}, false, fmt.Errorf("failed to check fetched_at: %w", err)
+	}
+	return result.FetchedAt, true, nil
+}
+
 // Ping checks MongoDB connectivity.
 func (r *MongoRepository) Ping() error {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)

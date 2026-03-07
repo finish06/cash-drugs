@@ -471,6 +471,13 @@ func (m *mockCacheRepo) Upsert(resp *model.CachedResponse) error {
 	return nil
 }
 
+func (m *mockCacheRepo) FetchedAt(cacheKey string) (time.Time, bool, error) {
+	if m.cached != nil {
+		return m.cached.FetchedAt, true, nil
+	}
+	return time.Time{}, false, nil
+}
+
 type mockFetcher struct {
 	result      *model.CachedResponse
 	err         error

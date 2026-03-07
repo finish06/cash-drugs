@@ -240,3 +240,7 @@ func (m *mockRepo) Upsert(resp *model.CachedResponse) error {
 	m.upsertCount.Add(1)
 	return nil
 }
+
+func (m *mockRepo) FetchedAt(cacheKey string) (time.Time, bool, error) {
+	return time.Time{}, false, nil
+}
