@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -136,19 +136,19 @@ func (h *CacheHandler) backgroundRevalidate(ep config.Endpoint, params map[strin
 	go func() {
 		mu := h.fetchLocks.Get(ep.Slug)
 		if !mu.TryLock() {
-			log.Printf("Handler: skipping background revalidation for %s — fetch already in progress", ep.Slug)
+			slog.Debug("skipping background revalidation — fetch already in progress", "component", "handler", "slug", ep.Slug)
 			return
 		}
 		defer mu.Unlock()
 
 		result, err := h.fetcher.Fetch(ep, params)
 		if err != nil {
-			log.Printf("Handler: background revalidation failed for %s: %v", ep.Slug, err)
+			slog.Error("background revalidation failed", "component", "handler", "slug", ep.Slug, "error", err)
 			return
 		}
 
 		if err := h.repo.Upsert(result); err != nil {
-			log.Printf("Handler: background upsert failed for %s: %v", ep.Slug, err)
+			slog.Error("background upsert failed", "component", "handler", "slug", ep.Slug, "error", err)
 		}
 	}()
 }

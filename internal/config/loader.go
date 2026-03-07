@@ -27,10 +27,14 @@ type Endpoint struct {
 	TTLDuration   time.Duration     `yaml:"-"` // computed from TTL at load time
 }
 
-type configFile struct {
-	Endpoints []Endpoint     `yaml:"endpoints"`
+// AppConfig holds top-level application configuration beyond endpoints.
+type AppConfig struct {
+	LogLevel  string     `yaml:"log_level"`
+	Endpoints []Endpoint `yaml:"endpoints"`
 	Database  databaseConfig `yaml:"database"`
 }
+
+type configFile = AppConfig
 
 type databaseConfig struct {
 	URI string `yaml:"uri"`
@@ -180,6 +184,21 @@ func SubstitutePathParams(path string, params map[string]string) string {
 		result = strings.ReplaceAll(result, "{"+key+"}", value)
 	}
 	return result
+}
+
+// LoadConfig reads the full application config including top-level settings.
+func LoadConfig(path string) (*AppConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("config file not found at %s: %w", path, err)
+	}
+
+	var cfg AppConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid YAML in config file: %w", err)
+	}
+
+	return &cfg, nil
 }
 
 // ResolveMongoURI determines the MongoDB connection URI.

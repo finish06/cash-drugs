@@ -1,3 +1,5 @@
+log_level: warn
+
 endpoints:
   - slug: drugnames
     base_url: https://dailymed.nlm.nih.gov/dailymed/services

@@ -420,6 +420,45 @@ func TestSubstitutePathParams_NoMatchingParams(t *testing.T) {
 	}
 }
 
+// AC-004: log_level in config.yaml is parsed
+func TestAC004_LogLevelFromConfig(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+log_level: debug
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if appCfg.LogLevel != "debug" {
+		t.Errorf("expected log_level 'debug', got '%s'", appCfg.LogLevel)
+	}
+}
+
+// AC-004: Missing log_level returns empty string (caller applies default)
+func TestAC004_MissingLogLevelReturnsEmpty(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if appCfg.LogLevel != "" {
+		t.Errorf("expected empty log_level, got '%s'", appCfg.LogLevel)
+	}
+}
+
 // Helper functions
 
 const validConfig = `

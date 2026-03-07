@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -39,7 +39,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	scheduled := s.schedulableEndpoints()
 
 	if len(scheduled) == 0 {
-		log.Println("Scheduler: no endpoints to schedule")
+		slog.Info("no endpoints to schedule", "component", "scheduler")
 		return
 	}
 
@@ -49,14 +49,15 @@ func (s *Scheduler) Start(ctx context.Context) {
 		s.cron.AddFunc(ep.Refresh, func() {
 			s.fetchEndpoint(ep)
 		})
-		log.Printf("Scheduler: registered %s with cron '%s'", ep.Slug, ep.Refresh)
+		slog.Info("endpoint registered", "component", "scheduler", "slug", ep.Slug, "cron", ep.Refresh)
 	}
 
 	s.cron.Start()
-	log.Printf("Scheduler: started with %d endpoint(s)", len(scheduled))
+	slog.Info("scheduler started", "component", "scheduler", "endpoints", len(scheduled))
 
 	// Warm cache in background (non-blocking)
 	go func() {
+		slog.Info("cache warm started", "component", "scheduler", "endpoints", len(scheduled))
 		var wg sync.WaitGroup
 		for _, ep := range scheduled {
 			wg.Add(1)
@@ -66,7 +67,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 			}(ep)
 		}
 		wg.Wait()
-		log.Printf("Scheduler: cache warming complete for %d endpoint(s)", len(scheduled))
+		slog.Info("cache warm complete", "component", "scheduler", "endpoints", len(scheduled))
 	}()
 }
 
@@ -74,32 +75,33 @@ func (s *Scheduler) Start(ctx context.Context) {
 func (s *Scheduler) Stop() {
 	ctx := s.cron.Stop()
 	<-ctx.Done()
-	log.Println("Scheduler stopped")
+	slog.Info("scheduler stopped", "component", "scheduler")
 }
 
 func (s *Scheduler) fetchEndpoint(ep config.Endpoint) {
 	mu := s.locks.Get(ep.Slug)
 	if !mu.TryLock() {
-		log.Printf("Scheduler: skipping %s — previous fetch still running", ep.Slug)
+		slog.Debug("skipping fetch — previous fetch still running", "component", "scheduler", "slug", ep.Slug)
 		return
 	}
 	defer mu.Unlock()
 
+	slog.Info("fetch started", "component", "scheduler", "slug", ep.Slug)
 	start := time.Now()
 	result, err := s.fetcher.Fetch(ep, nil)
 	duration := time.Since(start)
 
 	if err != nil {
-		log.Printf("Scheduler: fetch failed for %s (%v) — preserving existing cache", ep.Slug, duration)
+		slog.Error("fetch failed — preserving existing cache", "component", "scheduler", "slug", ep.Slug, "duration", duration, "error", err)
 		return
 	}
 
 	if err := s.repo.Upsert(result); err != nil {
-		log.Printf("Scheduler: cache upsert failed for %s: %v", ep.Slug, err)
+		slog.Error("cache upsert failed", "component", "scheduler", "slug", ep.Slug, "error", err)
 		return
 	}
 
-	log.Printf("Scheduler: refreshed %s (%v, %d pages)", ep.Slug, duration, result.PageCount)
+	slog.Info("fetch completed", "component", "scheduler", "slug", ep.Slug, "duration", duration, "pages", result.PageCount)
 }
 
 func (s *Scheduler) schedulableEndpoints() []config.Endpoint {
@@ -109,7 +111,7 @@ func (s *Scheduler) schedulableEndpoints() []config.Endpoint {
 			continue
 		}
 		if len(config.ExtractAllParams(ep)) > 0 {
-			log.Printf("Scheduler: warning — endpoint '%s' has path parameters and cannot be scheduled", ep.Slug)
+			slog.Warn("endpoint has path parameters and cannot be scheduled", "component", "scheduler", "slug", ep.Slug)
 			continue
 		}
 		result = append(result, ep)
