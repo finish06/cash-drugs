@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/finish06/drugs/internal/cache"
 	"github.com/finish06/drugs/internal/config"
@@ -62,10 +63,12 @@ func NewCacheHandler(endpoints []config.Endpoint, repo cache.Repository, fetcher
 // @Failure      502  {object}  model.ErrorResponse
 // @Router       /api/cache/{slug} [get]
 func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	slug := extractSlug(r.URL.Path)
 
 	ep, ok := h.endpoints[slug]
 	if !ok {
+		slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "status", 404, "duration", time.Since(start))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(model.ErrorResponse{
@@ -90,27 +93,38 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err == nil && cached != nil {
 			// Check TTL staleness
 			if config.IsStale(ep, cached.FetchedAt) {
-				// Serve stale immediately, trigger background revalidation
+				slog.Debug("cache hit (stale)", "component", "handler", "slug", slug, "reason", "ttl_expired")
 				respondWithCached(w, cached, true, "ttl_expired")
 				h.backgroundRevalidate(ep, pathParams)
+				slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "stale", "duration", time.Since(start))
 				return
 			}
+			slog.Debug("cache hit", "component", "handler", "slug", slug)
 			respondWithCached(w, cached, false, "")
+			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "hit", "duration", time.Since(start))
 			return
 		}
 	}
 
+	slog.Debug("cache miss", "component", "handler", "slug", slug)
+
 	// Fetch from upstream
+	slog.Info("fetch started", "component", "handler", "slug", slug)
 	result, fetchErr := h.fetcher.Fetch(ep, pathParams)
 	if fetchErr != nil {
+		slog.Error("upstream fetch failed", "component", "handler", "slug", slug, "error", fetchErr)
+
 		// Try stale cache fallback
 		cached, cacheErr := h.repo.Get(cacheKey)
 		if cacheErr == nil && cached != nil {
+			slog.Warn("serving stale cache — upstream unavailable", "component", "handler", "slug", slug)
 			respondWithCached(w, cached, true, "upstream unavailable")
+			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "stale", "duration", time.Since(start))
 			return
 		}
 
 		// No cache, return 502
+		slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 502, "cache", "miss", "duration", time.Since(start))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
 		json.NewEncoder(w).Encode(model.ErrorResponse{
@@ -120,11 +134,16 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("fetch completed", "component", "handler", "slug", slug, "pages", result.PageCount)
+
 	// Store in cache
-	h.repo.Upsert(result)
+	if err := h.repo.Upsert(result); err != nil {
+		slog.Error("cache upsert failed", "component", "handler", "slug", slug, "error", err)
+	}
 
 	// Return fresh result
 	respondWithCached(w, result, false, "")
+	slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "miss", "duration", time.Since(start))
 }
 
 // backgroundRevalidate spawns a goroutine to refresh the cache in the background.

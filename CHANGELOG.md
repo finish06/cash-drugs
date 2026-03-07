@@ -7,6 +7,23 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-03-07 — Structured Logging
+
+### Added
+- Structured logging via `log/slog` (Go stdlib) replacing all `log.*` calls
+- Configurable log level: `LOG_LEVEL` env var or `log_level` in config.yaml (default: `warn`)
+- Configurable output format: `LOG_FORMAT=json` (default) or `LOG_FORMAT=text`
+- `component` field on all log entries (`server`, `handler`, `scheduler`, `cache`)
+- INFO-level: server start/stop, endpoint registered, fetch started/completed, cache warm
+- DEBUG-level: skip reasons, background revalidation, request details
+- ERROR-level: fetch failures, MongoDB errors, upsert failures
+- WARN-level: unschedulable endpoints
+- `config.LoadConfig()` for reading top-level app settings beyond endpoints
+
+### Changed
+- All packages now use `log/slog` — zero `log.Printf`/`log.Fatalf` in production code
+- `cmd/server/main.go` initializes logger before any other work; exits with clear error on invalid log level
+
 ## [0.3.0] — 2026-03-07 — M3: Documentation + Onboarding
 
 ### Added
