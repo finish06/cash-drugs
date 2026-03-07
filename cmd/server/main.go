@@ -12,6 +12,7 @@ import (
 	"github.com/finish06/drugs/internal/cache"
 	"github.com/finish06/drugs/internal/config"
 	"github.com/finish06/drugs/internal/handler"
+	"github.com/finish06/drugs/internal/scheduler"
 	"github.com/finish06/drugs/internal/upstream"
 )
 
@@ -40,6 +41,11 @@ func main() {
 	defer repo.Close(context.Background())
 
 	fetcher := upstream.NewHTTPFetcher()
+
+	// Start background scheduler
+	sched := scheduler.New(endpoints, fetcher, repo)
+	sched.Start(context.Background())
+
 	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher)
 	healthHandler := handler.NewHealthHandler(repo)
 
@@ -59,6 +65,7 @@ func main() {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
 		log.Println("Shutting down...")
+		sched.Stop()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		srv.Shutdown(ctx)

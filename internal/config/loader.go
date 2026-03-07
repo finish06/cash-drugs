@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,6 +21,7 @@ type Endpoint struct {
 	PageParam     string            `yaml:"page_param"`
 	PagesizeParam string            `yaml:"pagesize_param"`
 	Pagesize      int               `yaml:"pagesize"`
+	Refresh       string            `yaml:"refresh"`
 }
 
 type configFile struct {
@@ -68,6 +70,13 @@ func Load(path string) ([]Endpoint, error) {
 			return nil, fmt.Errorf("duplicate slug '%s' in config", ep.Slug)
 		}
 		slugsSeen[ep.Slug] = true
+
+		if ep.Refresh != "" {
+			parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+			if _, err := parser.Parse(ep.Refresh); err != nil {
+				return nil, fmt.Errorf("endpoint '%s': invalid cron expression '%s': %w", ep.Slug, ep.Refresh, err)
+			}
+		}
 
 		ApplyDefaults(&cfg.Endpoints[i])
 	}

@@ -7,6 +7,7 @@ endpoints:
     page_param: page
     pagesize_param: pagesize
     pagesize: 100
+    refresh: "0 */6 * * *"
 
   - slug: spl-detail
     base_url: https://dailymed.nlm.nih.gov/dailymed/services

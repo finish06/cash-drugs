@@ -4,6 +4,8 @@ go 1.24.3
 
 require gopkg.in/yaml.v3 v3.0.1
 
+require github.com/robfig/cron/v3 v3.0.1
+
 require (
 	github.com/klauspost/compress v1.17.6 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
