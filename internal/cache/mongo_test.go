@@ -240,3 +240,236 @@ func TestAC012_ConfigurableTimeout(t *testing.T) {
 		t.Errorf("expected timeout 1s, got %v", repo.Timeout())
 	}
 }
+
+// Ping: returns nil when connected
+func TestPing_Success(t *testing.T) {
+	skipIfNoMongo(t)
+	uri := getTestMongoURI(t)
+
+	repo, err := cache.NewMongoRepository(uri, 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to create MongoRepository: %v", err)
+	}
+	defer repo.Close(context.Background())
+
+	if err := repo.Ping(); err != nil {
+		t.Errorf("expected ping to succeed, got %v", err)
+	}
+}
+
+// Multi-page: Upsert stores pages separately and Get reassembles them
+func TestMultiPage_UpsertAndGetReassembly(t *testing.T) {
+	skipIfNoMongo(t)
+	uri := getTestMongoURI(t)
+
+	repo, err := cache.NewMongoRepository(uri, 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to create MongoRepository: %v", err)
+	}
+	defer repo.Close(context.Background())
+
+	testKey := "test-multipage-" + time.Now().Format(time.RFC3339Nano)
+	now := time.Now().Truncate(time.Millisecond)
+
+	doc := &model.CachedResponse{
+		Slug:        "multipage-test",
+		CacheKey:    testKey,
+		ContentType: "application/json",
+		FetchedAt:   now,
+		SourceURL:   "http://example.com/api",
+		HTTPStatus:  200,
+		PageCount:   3,
+		Pages: []model.PageData{
+			{Page: 1, Data: []interface{}{"a1", "a2"}},
+			{Page: 2, Data: []interface{}{"b1", "b2"}},
+			{Page: 3, Data: []interface{}{"c1"}},
+		},
+	}
+
+	if err := repo.Upsert(doc); err != nil {
+		t.Fatalf("failed to upsert multi-page: %v", err)
+	}
+
+	result, err := repo.Get(testKey)
+	if err != nil {
+		t.Fatalf("unexpected error on Get: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result, got nil")
+	}
+
+	// Should reassemble all pages into combined data
+	arr, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected []interface{}, got %T", result.Data)
+	}
+	if len(arr) != 5 {
+		t.Errorf("expected 5 combined items, got %d", len(arr))
+	}
+	if result.Slug != "multipage-test" {
+		t.Errorf("expected slug 'multipage-test', got '%s'", result.Slug)
+	}
+}
+
+// Multi-page: Upsert cleans up stale pages when page count decreases
+func TestMultiPage_UpsertCleansStalePages(t *testing.T) {
+	skipIfNoMongo(t)
+	uri := getTestMongoURI(t)
+
+	repo, err := cache.NewMongoRepository(uri, 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to create MongoRepository: %v", err)
+	}
+	defer repo.Close(context.Background())
+
+	testKey := "test-stale-" + time.Now().Format(time.RFC3339Nano)
+	now := time.Now().Truncate(time.Millisecond)
+
+	// First: upsert 3 pages
+	doc := &model.CachedResponse{
+		Slug:        "stale-test",
+		CacheKey:    testKey,
+		ContentType: "application/json",
+		FetchedAt:   now,
+		SourceURL:   "http://example.com/api",
+		HTTPStatus:  200,
+		PageCount:   3,
+		Pages: []model.PageData{
+			{Page: 1, Data: []interface{}{"a"}},
+			{Page: 2, Data: []interface{}{"b"}},
+			{Page: 3, Data: []interface{}{"c"}},
+		},
+	}
+
+	if err := repo.Upsert(doc); err != nil {
+		t.Fatalf("failed to upsert 3 pages: %v", err)
+	}
+
+	// Then: upsert only 2 pages (page 3 should be cleaned up)
+	doc.PageCount = 2
+	doc.Pages = []model.PageData{
+		{Page: 1, Data: []interface{}{"x"}},
+		{Page: 2, Data: []interface{}{"y"}},
+	}
+
+	if err := repo.Upsert(doc); err != nil {
+		t.Fatalf("failed to upsert 2 pages: %v", err)
+	}
+
+	result, err := repo.Get(testKey)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	arr, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected []interface{}, got %T", result.Data)
+	}
+	if len(arr) != 2 {
+		t.Errorf("expected 2 items after stale cleanup, got %d", len(arr))
+	}
+}
+
+// Multi-page: Upsert cleans up old single-document version when switching to multi-page
+func TestMultiPage_UpsertCleansSingleDocVersion(t *testing.T) {
+	skipIfNoMongo(t)
+	uri := getTestMongoURI(t)
+
+	repo, err := cache.NewMongoRepository(uri, 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to create MongoRepository: %v", err)
+	}
+	defer repo.Close(context.Background())
+
+	testKey := "test-single-to-multi-" + time.Now().Format(time.RFC3339Nano)
+	now := time.Now().Truncate(time.Millisecond)
+
+	// First: upsert as single document
+	single := &model.CachedResponse{
+		Slug:        "convert-test",
+		CacheKey:    testKey,
+		Data:        map[string]interface{}{"old": "data"},
+		ContentType: "application/json",
+		FetchedAt:   now,
+		SourceURL:   "http://example.com/api",
+		HTTPStatus:  200,
+		PageCount:   1,
+	}
+
+	if err := repo.Upsert(single); err != nil {
+		t.Fatalf("failed to upsert single doc: %v", err)
+	}
+
+	// Then: upsert as multi-page (should clean up the single doc)
+	multi := &model.CachedResponse{
+		Slug:        "convert-test",
+		CacheKey:    testKey,
+		ContentType: "application/json",
+		FetchedAt:   now,
+		SourceURL:   "http://example.com/api",
+		HTTPStatus:  200,
+		PageCount:   2,
+		Pages: []model.PageData{
+			{Page: 1, Data: []interface{}{"new1"}},
+			{Page: 2, Data: []interface{}{"new2"}},
+		},
+	}
+
+	if err := repo.Upsert(multi); err != nil {
+		t.Fatalf("failed to upsert multi-page: %v", err)
+	}
+
+	result, err := repo.Get(testKey)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	arr, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected []interface{}, got %T", result.Data)
+	}
+	// Should only have the 2 new items, not the old single-doc data
+	if len(arr) != 2 {
+		t.Errorf("expected 2 items, got %d", len(arr))
+	}
+}
+
+// Get: single document with page=0 returns as-is (no reassembly)
+func TestGet_SingleDocReturnsAsIs(t *testing.T) {
+	skipIfNoMongo(t)
+	uri := getTestMongoURI(t)
+
+	repo, err := cache.NewMongoRepository(uri, 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to create MongoRepository: %v", err)
+	}
+	defer repo.Close(context.Background())
+
+	testKey := "test-single-asis-" + time.Now().Format(time.RFC3339Nano)
+	now := time.Now().Truncate(time.Millisecond)
+
+	doc := &model.CachedResponse{
+		Slug:        "raw-test",
+		CacheKey:    testKey,
+		Data:        "raw xml content here",
+		ContentType: "application/xml",
+		FetchedAt:   now,
+		SourceURL:   "http://example.com/data.xml",
+		HTTPStatus:  200,
+		PageCount:   1,
+	}
+
+	if err := repo.Upsert(doc); err != nil {
+		t.Fatalf("failed to upsert: %v", err)
+	}
+
+	result, err := repo.Get(testKey)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Raw/single doc should return Data as-is (string), not reassembled
+	if s, ok := result.Data.(string); !ok || s != "raw xml content here" {
+		t.Errorf("expected raw string data, got %T: %v", result.Data, result.Data)
+	}
+}
