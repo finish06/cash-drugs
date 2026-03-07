@@ -7,6 +7,16 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-03-07 — M3: Documentation + Onboarding
+
+### Added
+- OpenAPI spec generated from swaggo/swag annotations, served at `GET /openapi.json`
+- Swagger UI at `GET /swagger/` for interactive API exploration
+- Endpoint discovery API: `GET /api/endpoints` lists all configured slugs with params, pagination, and schedule info
+- Comprehensive README with usage examples, Go client snippet, and configuration reference
+- Onboarding guide for adding new upstream APIs (config.yaml examples for every pattern)
+- Dockerfile updated to generate OpenAPI spec during build
+
 ## [0.2.0] — 2026-03-07 — M2: Scheduling + Staleness
 
 ### Added
