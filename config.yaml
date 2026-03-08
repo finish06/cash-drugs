@@ -107,18 +107,7 @@ endpoints:
       - "generic_name:\"{GENERIC_NAME}\""
       - "product_ndc:\"{NDC}\""
 
-  - slug: fda-drugsfda-by-name
-    base_url: https://api.fda.gov
-    path: /drug/drugsfda.json
-    format: json
-    pagination_style: offset
-    pagesize: 100
-    data_key: results
-    total_key: meta.results.total
-    query_params:
-      search: "openfda.brand_name:\"{BRAND_NAME}\""
-
-  - slug: fda-labels-by-name
+  - slug: fda-label
     base_url: https://api.fda.gov
     path: /drug/label.json
     format: json
@@ -126,16 +115,7 @@ endpoints:
     pagesize: 100
     data_key: results
     total_key: meta.results.total
-    query_params:
-      search: "openfda.brand_name:\"{DRUG_NAME}\""
-
-  - slug: fda-events-by-drug
-    base_url: https://api.fda.gov
-    path: /drug/event.json
-    format: json
-    pagination_style: offset
-    pagesize: 100
-    data_key: results
-    total_key: meta.results.total
-    query_params:
-      search: "patient.drug.openfda.brand_name:\"{DRUG_NAME}\""
+    search_params:
+      - "openfda.brand_name:\"{BRAND_NAME}\""
+      - "openfda.generic_name:\"{GENERIC_NAME}\""
+      - "openfda.product_ndc:\"{NDC}\""
