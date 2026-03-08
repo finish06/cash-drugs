@@ -1,4 +1,4 @@
-# drugs
+# cash-drugs
 
 Go microservice API cache/proxy — queries configurable REST APIs and stores responses in MongoDB for retrieval by other internal microservices.
 
@@ -21,6 +21,7 @@ Document hierarchy: PRD → Spec → Plan → User Test Cases → Automated Test
 | HTTP Framework | net/http (stdlib) | — |
 | Database | MongoDB | latest |
 | Containers | Docker Compose | — |
+| Registry | dockerhub.calebdunn.tech | registry:2 |
 
 ## Commands
 
@@ -28,11 +29,9 @@ Document hierarchy: PRD → Spec → Plan → User Test Cases → Automated Test
 ```
 docker-compose up                # Start local dev
 go run ./cmd/server              # Run server directly
-go test ./...                    # Run all tests
-go test ./... -short             # Run unit tests only
-go test ./... -run Integration   # Run integration tests
-go test ./tests/e2e/...          # Run e2e tests
-golangci-lint run ./...          # Lint check
+make test-unit                   # Run unit tests only
+make test-integration            # Run all tests (starts MongoDB via Docker)
+make test-coverage               # Run tests with coverage report
 go vet ./...                     # Vet check
 ```
 
@@ -51,32 +50,45 @@ go vet ./...                     # Vet check
 
 ### Key Directories
 ```
-drugs/
+cash-drugs/
 ├── .add/                  # ADD methodology config & learnings
 ├── .claude/               # Claude Code settings & rules
 ├── specs/                 # Feature specifications
 ├── docs/
 │   ├── prd.md             # Product Requirements Document
 │   ├── plans/             # Implementation plans
-│   └── milestones/        # Milestone tracking
+│   └── swagger.*          # OpenAPI/Swagger docs
 ├── tests/
-│   ├── unit/              # Unit tests
-│   ├── integration/       # Integration tests
 │   └── e2e/               # End-to-end tests
-├── cmd/                   # Application entrypoints
-├── internal/              # Private application code
-├── pkg/                   # Public library code
-├── docker-compose.yml     # Local development environment
-├── Dockerfile             # Container build
-└── go.mod                 # Go module definition
+├── cmd/
+│   └── server/            # Application entrypoint
+├── internal/
+│   ├── cache/             # MongoDB cache layer
+│   ├── config/            # YAML config loader
+│   ├── handler/           # HTTP handlers
+│   ├── upstream/          # Upstream API fetcher
+│   ├── scheduler/         # Cron-based refresh
+│   ├── fetchlock/         # Dedup concurrent fetches
+│   ├── logging/           # Structured logging setup
+│   └── model/             # Response models
+├── docker-compose.yml          # Local development
+├── docker-compose.prod.yml     # Production (pulls from registry)
+├── docker-compose.test.yml     # Test MongoDB
+├── Dockerfile                  # Multi-stage alpine build
+├── Makefile                    # Test commands
+└── go.mod                      # github.com/finish06/cash-drugs
 ```
 
 ### Environments
 
 - **Local:** Docker Compose (http://localhost:8080)
-- **Dev:** Homelab (TBD)
-- **Staging:** Homelab (TBD)
-- **Production:** Homelab (TBD)
+- **Production:** Homelab, pulls from `dockerhub.calebdunn.tech/finish06/cash-drugs`
+
+### CI/CD
+
+- Push to `main` → tests → publish `:beta` image
+- Push git tag `v*` → tests → publish `:vX.Y.Z` + `:latest`
+- Registry: `dockerhub.calebdunn.tech/finish06/cash-drugs`
 
 ## Quality Gates
 
@@ -89,7 +101,7 @@ All gates defined in `.add/config.json`. Run `/add:verify` to check.
 
 ## Source Control
 
-- **Git host:** GitHub
+- **Repo:** github.com/finish06/cash-drugs
 - **Branching:** Feature branches off `main`
 - **Commits:** Conventional commits (feat:, fix:, test:, refactor:, docs:)
 - **CI/CD:** GitHub Actions
