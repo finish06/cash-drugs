@@ -2,7 +2,7 @@
     "swagger": "2.0",
     "info": {
         "description": "API cache/proxy — fetches from upstream REST APIs, stores in MongoDB, serves cached data to internal consumers.",
-        "title": "drugs API",
+        "title": "cash-drugs API",
         "contact": {},
         "version": "0.5.0"
     },
@@ -29,32 +29,8 @@
                     },
                     {
                         "type": "string",
-                        "description": "SPL set ID (for spl-detail, spl-xml)",
+                        "description": "Path parameter value (varies by endpoint)",
                         "name": "SETID",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Drug name (for spls-by-name)",
-                        "name": "DRUGNAME",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Drug class (for spls-by-class)",
-                        "name": "DRUG_CLASS",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Brand name (for fda-ndc-by-name, fda-drugsfda-by-name)",
-                        "name": "BRAND_NAME",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Drug name (for fda-labels-by-name, fda-events-by-drug)",
-                        "name": "DRUG_NAME",
                         "in": "query"
                     },
                     {
@@ -68,19 +44,19 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_finish06_drugs_internal_model.APIResponse"
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_finish06_drugs_internal_model.ErrorResponse"
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/github_com_finish06_drugs_internal_model.ErrorResponse"
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
                         }
                     }
                 }
@@ -163,16 +139,16 @@
         }
     },
     "definitions": {
-        "github_com_finish06_drugs_internal_model.APIResponse": {
+        "github_com_finish06_cash-drugs_internal_model.APIResponse": {
             "type": "object",
             "properties": {
                 "data": {},
                 "meta": {
-                    "$ref": "#/definitions/github_com_finish06_drugs_internal_model.ResponseMeta"
+                    "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ResponseMeta"
                 }
             }
         },
-        "github_com_finish06_drugs_internal_model.ErrorResponse": {
+        "github_com_finish06_cash-drugs_internal_model.ErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {
@@ -189,7 +165,7 @@
                 }
             }
         },
-        "github_com_finish06_drugs_internal_model.ResponseMeta": {
+        "github_com_finish06_cash-drugs_internal_model.ResponseMeta": {
             "type": "object",
             "properties": {
                 "fetched_at": {

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/finish06/cash-drugs/internal/cache"
@@ -209,8 +210,27 @@ func buildURL(ep config.Endpoint, path string, page int, params map[string]strin
 
 	q := url.Values{}
 	for k, v := range ep.QueryParams {
-		// Substitute {PARAM} placeholders in query param values
-		q.Set(k, config.SubstitutePathParams(v, params))
+		substituted := config.SubstitutePathParams(v, params)
+		// Skip query params with unresolved {PLACEHOLDER} values
+		if strings.Contains(substituted, "{") && strings.Contains(substituted, "}") {
+			continue
+		}
+		q.Set(k, substituted)
+	}
+
+	// Build search param from search_params: resolve each clause, skip unresolved, join with +
+	if len(ep.SearchParams) > 0 {
+		var clauses []string
+		for _, clause := range ep.SearchParams {
+			resolved := config.SubstitutePathParams(clause, params)
+			if strings.Contains(resolved, "{") && strings.Contains(resolved, "}") {
+				continue
+			}
+			clauses = append(clauses, resolved)
+		}
+		if len(clauses) > 0 {
+			q.Set("search", strings.Join(clauses, "+"))
+		}
 	}
 
 	maxPages, fetchAll := config.ParsePagination(ep)

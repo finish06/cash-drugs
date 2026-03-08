@@ -50,19 +50,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_finish06_drugs_internal_model.APIResponse"
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.APIResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_finish06_drugs_internal_model.ErrorResponse"
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/github_com_finish06_drugs_internal_model.ErrorResponse"
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
                         }
                     }
                 }
@@ -145,16 +145,16 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_finish06_drugs_internal_model.APIResponse": {
+        "github_com_finish06_cash-drugs_internal_model.APIResponse": {
             "type": "object",
             "properties": {
                 "data": {},
                 "meta": {
-                    "$ref": "#/definitions/github_com_finish06_drugs_internal_model.ResponseMeta"
+                    "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ResponseMeta"
                 }
             }
         },
-        "github_com_finish06_drugs_internal_model.ErrorResponse": {
+        "github_com_finish06_cash-drugs_internal_model.ErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {
@@ -171,7 +171,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_finish06_drugs_internal_model.ResponseMeta": {
+        "github_com_finish06_cash-drugs_internal_model.ResponseMeta": {
             "type": "object",
             "properties": {
                 "fetched_at": {
@@ -225,11 +225,11 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.2.0",
+	Version:          "0.5.0",
 	Host:             "localhost:8080",
 	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "drugs API",
+	Title:            "cash-drugs API",
 	Description:      "API cache/proxy — fetches from upstream REST APIs, stores in MongoDB, serves cached data to internal consumers.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,

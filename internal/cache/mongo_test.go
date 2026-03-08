@@ -434,6 +434,153 @@ func TestMultiPage_UpsertCleansSingleDocVersion(t *testing.T) {
 	}
 }
 
+// FetchedAt: returns timestamp for existing cache key
+func TestFetchedAt_ReturnsTimestampWhenFound(t *testing.T) {
+	skipIfNoMongo(t)
+	uri := getTestMongoURI(t)
+
+	repo, err := cache.NewMongoRepository(uri, 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to create MongoRepository: %v", err)
+	}
+	defer repo.Close(context.Background())
+
+	testKey := "test-fetchedat-" + time.Now().Format(time.RFC3339Nano)
+	now := time.Now().Truncate(time.Millisecond)
+
+	doc := &model.CachedResponse{
+		Slug:        "test",
+		CacheKey:    testKey,
+		Data:        map[string]interface{}{"items": []interface{}{"drug1"}},
+		ContentType: "application/json",
+		FetchedAt:   now,
+		SourceURL:   "http://example.com/api",
+		HTTPStatus:  200,
+		PageCount:   1,
+	}
+
+	if err := repo.Upsert(doc); err != nil {
+		t.Fatalf("failed to upsert: %v", err)
+	}
+
+	fetchedAt, found, err := repo.FetchedAt(testKey)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !found {
+		t.Fatal("expected found=true for existing key")
+	}
+	if fetchedAt.Sub(now).Abs() > time.Second {
+		t.Errorf("expected fetched_at ~%v, got %v", now, fetchedAt)
+	}
+}
+
+// FetchedAt: returns false for non-existent key
+func TestFetchedAt_ReturnsFalseWhenNotFound(t *testing.T) {
+	skipIfNoMongo(t)
+	uri := getTestMongoURI(t)
+
+	repo, err := cache.NewMongoRepository(uri, 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to create MongoRepository: %v", err)
+	}
+	defer repo.Close(context.Background())
+
+	_, found, err := repo.FetchedAt("nonexistent-" + time.Now().Format(time.RFC3339Nano))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if found {
+		t.Error("expected found=false for non-existent key")
+	}
+}
+
+// FetchedAt: works with multi-page cache keys
+func TestFetchedAt_WorksWithMultiPageKeys(t *testing.T) {
+	skipIfNoMongo(t)
+	uri := getTestMongoURI(t)
+
+	repo, err := cache.NewMongoRepository(uri, 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to create MongoRepository: %v", err)
+	}
+	defer repo.Close(context.Background())
+
+	testKey := "test-fetchedat-multi-" + time.Now().Format(time.RFC3339Nano)
+	now := time.Now().Truncate(time.Millisecond)
+
+	doc := &model.CachedResponse{
+		Slug:        "test",
+		CacheKey:    testKey,
+		ContentType: "application/json",
+		FetchedAt:   now,
+		SourceURL:   "http://example.com/api",
+		HTTPStatus:  200,
+		PageCount:   2,
+		Pages: []model.PageData{
+			{Page: 1, Data: []interface{}{"a"}},
+			{Page: 2, Data: []interface{}{"b"}},
+		},
+	}
+
+	if err := repo.Upsert(doc); err != nil {
+		t.Fatalf("failed to upsert: %v", err)
+	}
+
+	fetchedAt, found, err := repo.FetchedAt(testKey)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !found {
+		t.Fatal("expected found=true for multi-page key")
+	}
+	if fetchedAt.Sub(now).Abs() > time.Second {
+		t.Errorf("expected fetched_at ~%v, got %v", now, fetchedAt)
+	}
+}
+
+// Upsert: single-page with params uses correct cache key
+func TestUpsert_SinglePageWithParams(t *testing.T) {
+	skipIfNoMongo(t)
+	uri := getTestMongoURI(t)
+
+	repo, err := cache.NewMongoRepository(uri, 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to create MongoRepository: %v", err)
+	}
+	defer repo.Close(context.Background())
+
+	testKey := "test-params-" + time.Now().Format(time.RFC3339Nano)
+	now := time.Now().Truncate(time.Millisecond)
+
+	doc := &model.CachedResponse{
+		Slug:        "test-params",
+		CacheKey:    testKey,
+		Params:      map[string]string{"BRAND_NAME": "Tylenol"},
+		Data:        []interface{}{map[string]interface{}{"ndc": "12345"}},
+		ContentType: "application/json",
+		FetchedAt:   now,
+		SourceURL:   "http://example.com/api",
+		HTTPStatus:  200,
+		PageCount:   1,
+	}
+
+	if err := repo.Upsert(doc); err != nil {
+		t.Fatalf("failed to upsert: %v", err)
+	}
+
+	result, err := repo.Get(testKey)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result, got nil")
+	}
+	if result.Slug != "test-params" {
+		t.Errorf("expected slug 'test-params', got '%s'", result.Slug)
+	}
+}
+
 // Get: single document with page=0 returns as-is (no reassembly)
 func TestGet_SingleDocReturnsAsIs(t *testing.T) {
 	skipIfNoMongo(t)

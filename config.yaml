@@ -94,7 +94,7 @@ endpoints:
     refresh: "0 3 * * *"
     ttl: "24h"
 
-  - slug: fda-ndc-by-name
+  - slug: fda-ndc
     base_url: https://api.fda.gov
     path: /drug/ndc.json
     format: json
@@ -102,8 +102,10 @@ endpoints:
     pagesize: 100
     data_key: results
     total_key: meta.results.total
-    query_params:
-      search: "brand_name:\"{BRAND_NAME}\""
+    search_params:
+      - "brand_name:\"{BRAND_NAME}\""
+      - "generic_name:\"{GENERIC_NAME}\""
+      - "product_ndc:\"{NDC}\""
 
   - slug: fda-drugsfda-by-name
     base_url: https://api.fda.gov

@@ -92,20 +92,53 @@ The fetcher sends `skip=0&limit=100`, `skip=100&limit=100`, etc. If the API caps
 APIs return data in different JSON keys. Use `data_key` and `total_key` to tell drugs where to find items and totals:
 
 ```yaml
-  - slug: fda-ndc-by-name
+  - slug: fda-enforcement
     base_url: https://api.fda.gov
-    path: /drug/ndc.json
+    path: /drug/enforcement.json
     format: json
     pagination_style: offset
     data_key: results              # Items are in "results", not "data"
     total_key: meta.results.total  # Total count at nested dot-path
-    query_params:
-      search: "brand_name:\"{BRAND_NAME}\""
 ```
 
-→ `GET /api/cache/fda-ndc-by-name?BRAND_NAME=aspirin`
-
 `total_key` supports dot-notation for nested paths (e.g., `meta.results.total` traverses `response.meta.results.total`).
+
+### Optional query parameters
+
+Query params with `{PLACEHOLDER}` values are optional — only params the caller provides are sent upstream. Unresolved placeholders are silently dropped:
+
+```yaml
+  - slug: search
+    query_params:
+      q: "{QUERY}"
+      category: "{CAT}"
+      status: "active"       # Static — always sent
+```
+
+→ `GET /api/cache/search?QUERY=aspirin` sends `q=aspirin&status=active` (no `category`)
+→ `GET /api/cache/search?QUERY=aspirin&CAT=drugs` sends all three
+
+### Search params (openFDA-style)
+
+For APIs like openFDA that take a single `search` query param with multiple clauses, use `search_params`. Each clause is optional — only resolved ones are joined with `+` and sent as `search`:
+
+```yaml
+  - slug: fda-ndc
+    base_url: https://api.fda.gov
+    path: /drug/ndc.json
+    format: json
+    pagination_style: offset
+    pagesize: 100
+    data_key: results
+    total_key: meta.results.total
+    search_params:
+      - "brand_name:\"{BRAND_NAME}\""
+      - "generic_name:\"{GENERIC_NAME}\""
+      - "product_ndc:\"{NDC}\""
+```
+
+→ `GET /api/cache/fda-ndc?BRAND_NAME=Tylenol` sends `search=brand_name:"Tylenol"`
+→ `GET /api/cache/fda-ndc?BRAND_NAME=Tylenol&NDC=12345` sends `search=brand_name:"Tylenol"+product_ndc:"12345"`
 
 ### Scheduled refresh
 
@@ -212,7 +245,8 @@ json.NewDecoder(resp.Body).Decode(&result)
 | `base_url` | yes | — | Upstream base URL |
 | `path` | yes | — | Path, supports `{PARAM}` placeholders |
 | `format` | yes | — | `json`, `xml`, or `raw` |
-| `query_params` | no | — | Static or `{PARAM}` query parameters |
+| `query_params` | no | — | Static or `{PARAM}` query parameters (unresolved placeholders skipped) |
+| `search_params` | no | — | List of optional search clauses joined with `+` into `search` param |
 | `pagination` | no | `1` | `"all"` or max page count |
 | `pagination_style` | no | `page` | `page` (page/pagesize) or `offset` (skip/limit) |
 | `page_param` | no | `page` | Query param for page number (page style only) |

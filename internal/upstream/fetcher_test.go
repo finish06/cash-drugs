@@ -848,3 +848,271 @@ func TestFDA_AC017_OffsetSkipCalculation(t *testing.T) {
 		}
 	}
 }
+
+// Test: Optional query params — unresolved {PLACEHOLDER} params should be skipped
+func TestOptionalQueryParams_UnresolvedPlaceholdersSkipped(t *testing.T) {
+	var receivedQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.Query()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":     []string{"result1"},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-optional",
+		BaseURL: server.URL,
+		Path:    "/api/search",
+		Format:  "json",
+		QueryParams: map[string]string{
+			"brand_name":   "{BRAND_NAME}",
+			"generic_name": "{GENERIC_NAME}",
+			"status":       "active", // static param, always sent
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	// Only provide BRAND_NAME, not GENERIC_NAME
+	params := map[string]string{
+		"BRAND_NAME": "Tylenol",
+	}
+
+	result, err := upstream.Fetch(ep, params)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result, got nil")
+	}
+
+	// brand_name should be sent with the resolved value
+	if receivedQuery.Get("brand_name") != "Tylenol" {
+		t.Errorf("expected brand_name=Tylenol, got %q", receivedQuery.Get("brand_name"))
+	}
+
+	// static param should always be sent
+	if receivedQuery.Get("status") != "active" {
+		t.Errorf("expected status=active, got %q", receivedQuery.Get("status"))
+	}
+
+	// generic_name should NOT be sent (unresolved placeholder)
+	if receivedQuery.Has("generic_name") {
+		t.Errorf("expected generic_name to be omitted (unresolved placeholder), but got %q", receivedQuery.Get("generic_name"))
+	}
+}
+
+func TestOptionalQueryParams_AllPlaceholdersResolved(t *testing.T) {
+	var receivedQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.Query()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":     []string{"result1"},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-optional",
+		BaseURL: server.URL,
+		Path:    "/api/search",
+		Format:  "json",
+		QueryParams: map[string]string{
+			"brand_name":   "{BRAND_NAME}",
+			"generic_name": "{GENERIC_NAME}",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	// Provide both params
+	params := map[string]string{
+		"BRAND_NAME":   "Tylenol",
+		"GENERIC_NAME": "Acetaminophen",
+	}
+
+	_, err := upstream.Fetch(ep, params)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Both should be sent
+	if receivedQuery.Get("brand_name") != "Tylenol" {
+		t.Errorf("expected brand_name=Tylenol, got %q", receivedQuery.Get("brand_name"))
+	}
+	if receivedQuery.Get("generic_name") != "Acetaminophen" {
+		t.Errorf("expected generic_name=Acetaminophen, got %q", receivedQuery.Get("generic_name"))
+	}
+}
+
+func TestOptionalQueryParams_NoPlaceholdersProvided(t *testing.T) {
+	var receivedQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.Query()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":     []string{"result1"},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-optional",
+		BaseURL: server.URL,
+		Path:    "/api/search",
+		Format:  "json",
+		QueryParams: map[string]string{
+			"brand_name":   "{BRAND_NAME}",
+			"generic_name": "{GENERIC_NAME}",
+			"status":       "active",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	// No placeholder params provided — only static params should be sent
+	_, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if receivedQuery.Get("status") != "active" {
+		t.Errorf("expected status=active, got %q", receivedQuery.Get("status"))
+	}
+	if receivedQuery.Has("brand_name") {
+		t.Errorf("expected brand_name to be omitted, but got %q", receivedQuery.Get("brand_name"))
+	}
+	if receivedQuery.Has("generic_name") {
+		t.Errorf("expected generic_name to be omitted, but got %q", receivedQuery.Get("generic_name"))
+	}
+}
+
+// Test: search_params combines resolved clauses into a single "search" query param
+func TestSearchParams_PartialResolution(t *testing.T) {
+	var receivedQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.Query()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{map[string]interface{}{"product_ndc": "12345"}},
+			"meta":    map[string]interface{}{"results": map[string]interface{}{"total": 1}},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "fda-ndc",
+		BaseURL: server.URL,
+		Path:    "/drug/ndc.json",
+		Format:  "json",
+		SearchParams: []string{
+			"brand_name:\"{BRAND_NAME}\"",
+			"generic_name:\"{GENERIC_NAME}\"",
+			"product_ndc:\"{NDC}\"",
+		},
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		PaginationStyle: "offset",
+		Pagesize:        100,
+	}
+	config.ApplyDefaults(&ep)
+
+	// Only provide BRAND_NAME
+	params := map[string]string{"BRAND_NAME": "Tylenol"}
+
+	result, err := upstream.Fetch(ep, params)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result, got nil")
+	}
+
+	// search param should only contain the resolved brand_name clause
+	search := receivedQuery.Get("search")
+	if search != "brand_name:\"Tylenol\"" {
+		t.Errorf("expected search='brand_name:\"Tylenol\"', got %q", search)
+	}
+}
+
+func TestSearchParams_AllResolved(t *testing.T) {
+	var receivedQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.Query()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{map[string]interface{}{"product_ndc": "12345"}},
+			"meta":    map[string]interface{}{"results": map[string]interface{}{"total": 1}},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "fda-ndc",
+		BaseURL: server.URL,
+		Path:    "/drug/ndc.json",
+		Format:  "json",
+		SearchParams: []string{
+			"brand_name:\"{BRAND_NAME}\"",
+			"generic_name:\"{GENERIC_NAME}\"",
+		},
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		PaginationStyle: "offset",
+		Pagesize:        100,
+	}
+	config.ApplyDefaults(&ep)
+
+	params := map[string]string{
+		"BRAND_NAME":   "Tylenol",
+		"GENERIC_NAME": "Acetaminophen",
+	}
+
+	_, err := upstream.Fetch(ep, params)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Both clauses joined with +
+	search := receivedQuery.Get("search")
+	expected := "brand_name:\"Tylenol\"+generic_name:\"Acetaminophen\""
+	if search != expected {
+		t.Errorf("expected search=%q, got %q", expected, search)
+	}
+}
+
+func TestSearchParams_NoneResolved(t *testing.T) {
+	var receivedQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.Query()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{map[string]interface{}{"product_ndc": "12345"}},
+			"meta":    map[string]interface{}{"results": map[string]interface{}{"total": 1}},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "fda-ndc",
+		BaseURL: server.URL,
+		Path:    "/drug/ndc.json",
+		Format:  "json",
+		SearchParams: []string{
+			"brand_name:\"{BRAND_NAME}\"",
+			"generic_name:\"{GENERIC_NAME}\"",
+		},
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		PaginationStyle: "offset",
+		Pagesize:        100,
+	}
+	config.ApplyDefaults(&ep)
+
+	// No params provided — search param should not be sent
+	_, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if receivedQuery.Has("search") {
+		t.Errorf("expected no search param when all clauses unresolved, got %q", receivedQuery.Get("search"))
+	}
+}

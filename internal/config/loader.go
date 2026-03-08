@@ -23,6 +23,7 @@ type Endpoint struct {
 	PageParam       string            `yaml:"page_param"`
 	PagesizeParam   string            `yaml:"pagesize_param"`
 	Pagesize        int               `yaml:"pagesize"`
+	SearchParams    []string          `yaml:"search_params"`
 	DataKey         string            `yaml:"data_key"`
 	TotalKey        string            `yaml:"total_key"`
 	Refresh         string            `yaml:"refresh"`
@@ -183,6 +184,14 @@ func ExtractAllParams(ep Endpoint) []string {
 		}
 	}
 	for _, v := range ep.QueryParams {
+		for _, p := range ExtractPathParams(v) {
+			if !seen[p] {
+				seen[p] = true
+				params = append(params, p)
+			}
+		}
+	}
+	for _, v := range ep.SearchParams {
 		for _, p := range ExtractPathParams(v) {
 			if !seen[p] {
 				seen[p] = true
