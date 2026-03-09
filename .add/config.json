@@ -139,11 +139,11 @@
     "lastDetected": null
   },
   "changelog": {
-    "lastProcessedCommit": null,
-    "lastVersionTag": null
+    "lastProcessedCommit": "7bd7d2fdd772f050a17e990ea695762697d93de8",
+    "lastVersionTag": "v0.5.0"
   },
   "planning": {
-    "current_milestone": null,
+    "current_milestone": "M8",
     "current_cycle": null,
     "wip_limit": 3,
     "parallel_agents": 1,

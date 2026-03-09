@@ -268,6 +268,81 @@ json.NewDecoder(resp.Body).Decode(&result)
 | `LOG_LEVEL` | `warn` | Overrides config file log level |
 | `LOG_FORMAT` | `json` | `json` or `text` |
 
+## Architecture
+
+### System Overview
+
+```mermaid
+graph LR
+    Svc([Internal Services])
+    CD[cash-drugs<br/>:8080]
+    DB[(MongoDB)]
+    DM[DailyMed API]
+    FDA[openFDA API]
+
+    Svc -->|/api/cache/slug| CD
+    CD -->|read/write cache| DB
+    CD -->|on-demand fetch| DM
+    CD -->|on-demand fetch| FDA
+    CD -.->|scheduled refresh| DM
+    CD -.->|scheduled refresh| FDA
+```
+
+### Request Flow
+
+```mermaid
+graph LR
+    Req([Request]) --> CH[CacheHandler]
+    CH -->|cache key| DB[(MongoDB)]
+    DB -->|hit & fresh| Res([200 cached])
+    DB -->|hit & stale| Stale([200 stale + bg refresh])
+    DB -->|miss| FL[FetchLock]
+    FL --> UF[HTTPFetcher]
+    UF --> API[Upstream API]
+    API -->|success| Store[Upsert to MongoDB]
+    Store --> Res2([200 fresh])
+    API -->|failure| Fallback{Stale cache?}
+    Fallback -->|yes| Res3([200 stale])
+    Fallback -->|no| Err([502 upstream_error])
+```
+
+### Scheduler Flow
+
+```mermaid
+graph LR
+    Cron([Cron Trigger]) --> Check{Cache fresh?}
+    Check -->|yes| Skip([Skip])
+    Check -->|no| FL[FetchLock]
+    FL -->|acquired| UF[HTTPFetcher]
+    FL -->|locked| Dedup([Skip — dedup])
+    UF --> API[Upstream API]
+    API --> DB[(MongoDB)]
+```
+
+### Project Structure
+
+```mermaid
+graph TD
+    CMD[cmd/server/main.go] --> H[handler/]
+    CMD --> S[scheduler/]
+    CMD --> C[cache/]
+    CMD --> CF[config/]
+    CMD --> L[logging/]
+
+    H -->|cache lookup| C
+    H -->|upstream fetch| UF[upstream/]
+    H -->|dedup| FL[fetchlock/]
+    H -->|response types| M[model/]
+
+    S -->|scheduled fetch| UF
+    S -->|dedup| FL
+    S -->|store results| C
+
+    C --> DB[(MongoDB)]
+```
+
+> Full sequence diagrams with error paths and pagination flows: [`docs/sequence-diagram.md`](docs/sequence-diagram.md)
+
 ## Development
 
 ```bash

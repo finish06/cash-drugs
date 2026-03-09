@@ -7,6 +7,19 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ## [Unreleased]
 
+### Added
+- Optional query parameters — unresolved `{PLACEHOLDER}` params silently skipped from upstream requests
+- `search_params` config field for openFDA-style compound search queries (multiple optional clauses joined with `+`)
+- `fda-ndc` endpoint replacing `fda-ndc-by-name` — supports brand_name, generic_name, and NDC search
+- `fda-label` endpoint with multi-param search (brand_name, generic_name, NDC)
+- Upstream 404 handling spec (`specs/upstream-404-handling.md`)
+- Cache package integration tests — coverage increased from 25.7% to 91.1%
+
+### Changed
+- `fda-drugsfda-by-name` renamed to `fda-drugsfda`
+- `fda-labels-by-name` renamed to `fda-label` with `search_params`
+- Total project test coverage: 83.6% (above 80% threshold)
+
 ## [0.5.0] — 2026-03-07 — FDA API Integration
 
 ### Added

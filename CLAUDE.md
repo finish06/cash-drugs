@@ -90,6 +90,12 @@ cash-drugs/
 - Push git tag `v*` → tests → publish `:vX.Y.Z` + `:latest`
 - Registry: `dockerhub.calebdunn.tech/finish06/cash-drugs`
 
+## Deploy Expectations
+
+When deploying changes that modify routes, handlers, middleware, or the upstream integration:
+- Update `docs/sequence-diagram.md` to reflect the current request flows
+- Ensure new endpoints, error paths, and middleware are represented in the Mermaid diagrams
+
 ## Quality Gates
 
 - **Mode:** Standard
