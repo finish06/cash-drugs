@@ -98,6 +98,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M5: FDA API Integration | FDA openFDA drug endpoints via config-driven enhancements | beta | DONE | Offset pagination, configurable response parsing, 6 FDA endpoints |
 | M6: Docker Build & Publish | Automated Docker image publishing to private registry | beta | DONE | CI publishes :beta on push, versioned tags on git tag, version in /health |
 | M7: Auth + Transforms | Upstream auth and response transforms | ga | LATER | API key/OAuth support, field mapping, response filtering |
+| M8: Prometheus Metrics | Prometheus endpoint with full operational observability | beta | NOW | `/metrics` endpoint, cache hit/miss, upstream latency, MongoDB health/size, scheduler stats |
 
 ### Milestone Detail
 
@@ -163,6 +164,28 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [x] CI builds and pushes images on push to main and git tags
 - [x] `/health` returns embedded version
 - [x] Production compose pulls from registry
+
+#### M8: Prometheus Metrics [NOW]
+**Goal:** Expose a `/metrics` Prometheus endpoint providing full operational observability — MongoDB health/size, cache performance, upstream API behavior, request throughput, and scheduler stats
+**Appetite:** Medium — new metrics package, instrumentation across all layers
+**Target maturity:** beta
+**Features:**
+- Prometheus `/metrics` endpoint via `promhttp`
+- HTTP request counters and latency histograms per slug/status code
+- Cache hit/miss/stale counters per slug
+- Upstream fetch duration, error rate, and page counts per slug
+- MongoDB connection health, ping latency, document count, data size per slug
+- Scheduler job execution counters and duration per slug
+- Fetch lock deduplication counters
+- Go runtime metrics (goroutines, memory, GC) included by default
+**Success criteria:**
+- [ ] `/metrics` returns Prometheus exposition format
+- [ ] Cache hit ratio visible per slug
+- [ ] Upstream error rate trackable per slug
+- [ ] MongoDB health and document counts exported
+- [ ] Scheduler run history and duration available
+- [ ] No regression in existing tests or functionality
+- [ ] Example Grafana dashboard available with JSON files with variable level datasource configuration 
 
 ### Maturity Promotion Path
 
