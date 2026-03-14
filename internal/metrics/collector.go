@@ -64,6 +64,11 @@ func (c *MongoCollector) Stop() {
 }
 
 func (c *MongoCollector) collect() {
+	if c.client == nil {
+		c.metrics.MongoDBUp.Set(0)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
