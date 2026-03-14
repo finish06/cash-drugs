@@ -200,12 +200,40 @@ sequenceDiagram
     EH-->>Client: 200 [{slug, base_url, path, format, refresh, ttl}, ...]
 ```
 
+## Prometheus Metrics Flow
+
+```mermaid
+sequenceDiagram
+    actor Prom as Prometheus
+    participant GW as cash-drugs<br/>:8080
+    participant MH as promhttp.Handler
+    participant REG as prometheus.Registry
+    participant MC as MongoCollector<br/>(background)
+    participant DB as MongoDB
+
+    Note over MC,DB: Every 30 seconds
+    MC->>DB: Ping(ctx)
+    DB-->>MC: ok
+    MC->>REG: Set mongodb_up=1, ping_duration
+    MC->>DB: Aggregate({$group: {_id: "$slug", count: {$sum: 1}}})
+    DB-->>MC: [{slug, count}, ...]
+    MC->>REG: Set mongodb_documents_total per slug
+
+    Prom->>GW: GET /metrics
+    GW->>MH: ServeHTTP(w, r)
+    MH->>REG: Gather()
+    REG-->>MH: All metric families
+    MH-->>Prom: text/plain (Prometheus exposition format)
+    Note over Prom: Includes cashdrugs_* + Go runtime metrics
+```
+
 ## System Overview
 
 ```mermaid
 sequenceDiagram
     actor Dev as Developer
     actor Svc as Internal Service
+    actor Prom as Prometheus
     participant SW as Swagger UI
     participant CD as cash-drugs<br/>:8080
     participant DB as MongoDB
@@ -237,4 +265,7 @@ sequenceDiagram
 
     Svc->>CD: GET /health
     CD-->>Svc: {"status": "ok", "db": "connected", "version": "v0.5.0"}
+
+    Prom->>CD: GET /metrics
+    CD-->>Prom: cashdrugs_* metrics (Prometheus exposition format)
 ```
