@@ -98,7 +98,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M5: FDA API Integration | FDA openFDA drug endpoints via config-driven enhancements | beta | DONE | Offset pagination, configurable response parsing, 6 FDA endpoints |
 | M6: Docker Build & Publish | Automated Docker image publishing to private registry | beta | DONE | CI publishes :beta on push, versioned tags on git tag, version in /health |
 | M7: Auth + Transforms | Upstream auth and response transforms | ga | LATER | API key/OAuth support, field mapping, response filtering |
-| M8: Prometheus Metrics | Prometheus endpoint with full operational observability | beta | NOW | `/metrics` endpoint, cache hit/miss, upstream latency, MongoDB health/size, scheduler stats |
+| M8: Prometheus Metrics | Prometheus endpoint with full operational observability | beta | DONE | `/metrics` endpoint, cache hit/miss, upstream latency, MongoDB health/size, scheduler stats |
 
 ### Milestone Detail
 
@@ -165,7 +165,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [x] `/health` returns embedded version
 - [x] Production compose pulls from registry
 
-#### M8: Prometheus Metrics [NOW]
+#### M8: Prometheus Metrics [DONE]
 **Goal:** Expose a `/metrics` Prometheus endpoint providing full operational observability — MongoDB health/size, cache performance, upstream API behavior, request throughput, and scheduler stats
 **Appetite:** Medium — new metrics package, instrumentation across all layers
 **Target maturity:** beta
@@ -179,13 +179,13 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - Fetch lock deduplication counters
 - Go runtime metrics (goroutines, memory, GC) included by default
 **Success criteria:**
-- [ ] `/metrics` returns Prometheus exposition format
-- [ ] Cache hit ratio visible per slug
-- [ ] Upstream error rate trackable per slug
-- [ ] MongoDB health and document counts exported
-- [ ] Scheduler run history and duration available
-- [ ] No regression in existing tests or functionality
-- [ ] Example Grafana dashboard available with JSON files with variable level datasource configuration 
+- [x] `/metrics` returns Prometheus exposition format
+- [x] Cache hit ratio visible per slug
+- [x] Upstream error rate trackable per slug
+- [x] MongoDB health and document counts exported
+- [x] Scheduler run history and duration available
+- [x] No regression in existing tests or functionality
+- [x] Example Grafana dashboard available with JSON files with variable level datasource configuration
 
 ### Maturity Promotion Path
 
