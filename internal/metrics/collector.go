@@ -10,11 +10,69 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-// MongoCollector periodically collects MongoDB health and document count metrics.
-type MongoCollector struct {
+// SlugCount represents a document count for a single slug.
+type SlugCount struct {
+	Slug  string
+	Count int64
+}
+
+// CollectorSource abstracts MongoDB operations for testability.
+type CollectorSource interface {
+	Ping(ctx context.Context) error
+	CountBySlug(ctx context.Context) ([]SlugCount, error)
+}
+
+// MongoCollectorSource implements CollectorSource using a real MongoDB connection.
+type MongoCollectorSource struct {
 	client   *mongo.Client
 	db       *mongo.Database
 	collName string
+}
+
+// NewMongoCollectorSource creates a CollectorSource backed by MongoDB.
+func NewMongoCollectorSource(client *mongo.Client, db *mongo.Database, collName string) *MongoCollectorSource {
+	return &MongoCollectorSource{client: client, db: db, collName: collName}
+}
+
+// Ping checks MongoDB connectivity.
+func (s *MongoCollectorSource) Ping(ctx context.Context) error {
+	return s.client.Ping(ctx, nil)
+}
+
+// CountBySlug returns document counts grouped by slug.
+func (s *MongoCollectorSource) CountBySlug(ctx context.Context) ([]SlugCount, error) {
+	coll := s.db.Collection(s.collName)
+	pipeline := bson.A{
+		bson.M{"$group": bson.M{
+			"_id":   "$slug",
+			"count": bson.M{"$sum": 1},
+		}},
+	}
+
+	cursor, err := coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []struct {
+		Slug  string `bson:"_id"`
+		Count int64  `bson:"count"`
+	}
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	counts := make([]SlugCount, len(results))
+	for i, r := range results {
+		counts[i] = SlugCount{Slug: r.Slug, Count: r.Count}
+	}
+	return counts, nil
+}
+
+// MongoCollector periodically collects MongoDB health and document count metrics.
+type MongoCollector struct {
+	source   CollectorSource
 	metrics  *Metrics
 	interval time.Duration
 	stopCh   chan struct{}
@@ -24,10 +82,23 @@ type MongoCollector struct {
 
 // NewMongoCollector creates a new background MongoDB metrics collector.
 func NewMongoCollector(client *mongo.Client, db *mongo.Database, collName string, m *Metrics, interval time.Duration) *MongoCollector {
+	var source CollectorSource
+	if client != nil {
+		source = NewMongoCollectorSource(client, db, collName)
+	}
 	return &MongoCollector{
-		client:   client,
-		db:       db,
-		collName: collName,
+		source:   source,
+		metrics:  m,
+		interval: interval,
+		stopCh:   make(chan struct{}),
+		done:     make(chan struct{}),
+	}
+}
+
+// NewMongoCollectorWithSource creates a collector with a custom source (for testing).
+func NewMongoCollectorWithSource(source CollectorSource, m *Metrics, interval time.Duration) *MongoCollector {
+	return &MongoCollector{
+		source:   source,
 		metrics:  m,
 		interval: interval,
 		stopCh:   make(chan struct{}),
@@ -64,7 +135,7 @@ func (c *MongoCollector) Stop() {
 }
 
 func (c *MongoCollector) collect() {
-	if c.client == nil {
+	if c.source == nil {
 		c.metrics.MongoDBUp.Set(0)
 		return
 	}
@@ -74,7 +145,7 @@ func (c *MongoCollector) collect() {
 
 	// Ping MongoDB
 	pingStart := time.Now()
-	err := c.client.Ping(ctx, nil)
+	err := c.source.Ping(ctx)
 	pingDuration := time.Since(pingStart).Seconds()
 
 	if err != nil {
@@ -87,33 +158,15 @@ func (c *MongoCollector) collect() {
 	c.metrics.MongoDBPingDuration.Set(pingDuration)
 
 	// Count documents per slug
-	coll := c.db.Collection(c.collName)
-	pipeline := bson.A{
-		bson.M{"$group": bson.M{
-			"_id":   "$slug",
-			"count": bson.M{"$sum": 1},
-		}},
-	}
-
-	cursor, err := coll.Aggregate(ctx, pipeline)
+	counts, err := c.source.CountBySlug(ctx)
 	if err != nil {
-		slog.Debug("mongodb aggregate failed", "component", "metrics", "error", err)
-		return
-	}
-	defer cursor.Close(ctx)
-
-	var results []struct {
-		Slug  string `bson:"_id"`
-		Count int64  `bson:"count"`
-	}
-	if err := cursor.All(ctx, &results); err != nil {
-		slog.Debug("mongodb cursor decode failed", "component", "metrics", "error", err)
+		slog.Debug("mongodb count by slug failed", "component", "metrics", "error", err)
 		return
 	}
 
 	// Reset before setting to clear stale slug label values
 	c.metrics.MongoDBDocuments.Reset()
-	for _, r := range results {
-		c.metrics.MongoDBDocuments.WithLabelValues(r.Slug).Set(float64(r.Count))
+	for _, sc := range counts {
+		c.metrics.MongoDBDocuments.WithLabelValues(sc.Slug).Set(float64(sc.Count))
 	}
 }
