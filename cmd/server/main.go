@@ -25,14 +25,14 @@ import (
 )
 
 // @title        cash-drugs API
-// @version      0.5.0
+// @version      0.6.0
 // @description  API cache/proxy — fetches from upstream REST APIs, stores in MongoDB, serves cached data to internal consumers.
 
 // @host      localhost:8080
 // @BasePath  /
 
 // version is set at build time via -ldflags "-X main.version=v0.5.0".
-var version = "dev"
+var version = "dev" // overridden at build time via -ldflags "-X main.version=v0.6.0"
 
 func main() {
 	cfgPath := os.Getenv("CONFIG_PATH")
