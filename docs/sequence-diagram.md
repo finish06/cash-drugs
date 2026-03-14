@@ -177,12 +177,12 @@ sequenceDiagram
 
     alt MongoDB reachable
         DB-->>HC: ok
-        HC-->>Client: 200 {"status": "ok", "db": "connected", "version": "v0.5.0"}
+        HC-->>Client: 200 {"status": "ok", "db": "connected", "version": "v0.6.1"}
     end
 
     alt MongoDB unreachable
         DB-->>HC: error
-        HC-->>Client: 503 {"status": "degraded", "db": "disconnected", "version": "v0.5.0"}
+        HC-->>Client: 503 {"status": "degraded", "db": "disconnected", "version": "v0.6.1"}
     end
 ```
 
@@ -264,7 +264,7 @@ sequenceDiagram
     CD->>DB: Upsert cached response
 
     Svc->>CD: GET /health
-    CD-->>Svc: {"status": "ok", "db": "connected", "version": "v0.5.0"}
+    CD-->>Svc: {"status": "ok", "db": "connected", "version": "v0.6.1"}
 
     Prom->>CD: GET /metrics
     CD-->>Prom: cashdrugs_* metrics (Prometheus exposition format)

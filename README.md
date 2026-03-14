@@ -37,6 +37,7 @@ Service starts at **http://localhost:8080**. Explore:
 - **Swagger UI:** http://localhost:8080/swagger/
 - **All endpoints:** http://localhost:8080/api/endpoints
 - **Health:** http://localhost:8080/health
+- **Metrics:** http://localhost:8080/metrics
 
 ## Configure Any API
 
@@ -190,12 +191,31 @@ Parameters work in paths and query values:
 
 Stores the response body as-is with the original content type. No JSON envelope.
 
+## Monitoring
+
+cash-drugs exposes Prometheus metrics at `/metrics` for full operational observability.
+
+```bash
+curl http://localhost:8080/metrics
+```
+
+Key metrics:
+- **Cache performance:** hit/miss/stale ratio per slug
+- **Request throughput:** request rate and P95 latency per slug
+- **Upstream health:** fetch duration, error rate, pages per slug
+- **MongoDB health:** connection status, ping latency, document counts
+- **Scheduler:** job success/failure rate, duration per slug
+
+A pre-built Grafana dashboard is included at [`docs/grafana/cash-drugs-dashboard.json`](docs/grafana/cash-drugs-dashboard.json) with a `$slug` filter variable.
+
+For full setup instructions including Prometheus scrape config, Docker Compose integration, PromQL queries, and alerting rules, see [`docs/prometheus-setup.md`](docs/prometheus-setup.md).
+
 ## How It Works
 
 ```
 Your Services → drugs → MongoDB cache
-                  ↕
-            Upstream APIs
+                  ↕            ↕
+            Upstream APIs   Prometheus → Grafana
 ```
 
 1. **First request** → cache miss → fetch from upstream → store in MongoDB → return
@@ -279,6 +299,8 @@ graph LR
     DB[(MongoDB)]
     DM[DailyMed API]
     FDA[openFDA API]
+    Prom[Prometheus]
+    Graf[Grafana]
 
     Svc -->|/api/cache/slug| CD
     CD -->|read/write cache| DB
@@ -286,6 +308,8 @@ graph LR
     CD -->|on-demand fetch| FDA
     CD -.->|scheduled refresh| DM
     CD -.->|scheduled refresh| FDA
+    Prom -->|/metrics| CD
+    Prom --> Graf
 ```
 
 ### Request Flow
@@ -328,16 +352,20 @@ graph TD
     CMD --> C[cache/]
     CMD --> CF[config/]
     CMD --> L[logging/]
+    CMD --> MET[metrics/]
 
     H -->|cache lookup| C
     H -->|upstream fetch| UF[upstream/]
     H -->|dedup| FL[fetchlock/]
     H -->|response types| M[model/]
+    H -->|record metrics| MET
 
     S -->|scheduled fetch| UF
     S -->|dedup| FL
     S -->|store results| C
+    S -->|record metrics| MET
 
+    MET -->|background collector| C
     C --> DB[(MongoDB)]
 ```
 
@@ -363,4 +391,4 @@ go vet ./...
 
 ## Tech Stack
 
-Go 1.22+ · MongoDB · Docker Compose · `log/slog` · swaggo/swag
+Go 1.22+ · MongoDB · Docker Compose · `log/slog` · swaggo/swag · Prometheus client_golang
