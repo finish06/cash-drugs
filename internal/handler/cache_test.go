@@ -10,7 +10,10 @@ import (
 
 	"github.com/finish06/cash-drugs/internal/config"
 	"github.com/finish06/cash-drugs/internal/handler"
+	"github.com/finish06/cash-drugs/internal/metrics"
 	"github.com/finish06/cash-drugs/internal/model"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // AC-013: Consumer requests for endpoints not defined in config return 404
@@ -450,6 +453,162 @@ func TestAC016_HandlerExtractsQueryParamPlaceholders(t *testing.T) {
 	}
 	if fetcher.lastParams["SETID"] != "abc-123" {
 		t.Errorf("expected SETID=abc-123 from query_params placeholder, got %v", fetcher.lastParams)
+	}
+}
+
+// M8-AC-002/AC-003: HTTP request metrics recorded on cache hit
+func TestM8_AC002_HTTPRequestMetricsOnCacheHit(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: &model.CachedResponse{
+			Slug:      "drugnames",
+			Data:      map[string]interface{}{"items": []interface{}{}},
+			FetchedAt: time.Now(),
+		}},
+		&mockFetcher{},
+		handler.WithMetrics(m),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	val := testutil.ToFloat64(m.HTTPRequestsTotal.WithLabelValues("drugnames", "GET", "200"))
+	if val != 1 {
+		t.Errorf("expected http_requests_total=1, got %f", val)
+	}
+
+	if testutil.CollectAndCount(m.HTTPRequestDuration) == 0 {
+		t.Error("expected HTTP duration histogram to have observations")
+	}
+}
+
+// M8-AC-004: Cache outcome counters recorded
+func TestM8_AC004_CacheOutcomeMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	// Cache hit
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: &model.CachedResponse{
+			Slug:      "drugnames",
+			Data:      map[string]interface{}{"items": []interface{}{}},
+			FetchedAt: time.Now(),
+		}},
+		&mockFetcher{},
+		handler.WithMetrics(m),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	hitVal := testutil.ToFloat64(m.CacheHitsTotal.WithLabelValues("drugnames", "hit"))
+	if hitVal != 1 {
+		t.Errorf("expected cache hit=1, got %f", hitVal)
+	}
+
+	// Cache miss
+	h2 := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		&mockFetcher{result: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      []interface{}{},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		}},
+		handler.WithMetrics(m),
+	)
+
+	req2 := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w2 := httptest.NewRecorder()
+	h2.ServeHTTP(w2, req2)
+
+	missVal := testutil.ToFloat64(m.CacheHitsTotal.WithLabelValues("drugnames", "miss"))
+	if missVal != 1 {
+		t.Errorf("expected cache miss=1, got %f", missVal)
+	}
+}
+
+// M8-AC-005/AC-006: Upstream fetch metrics on error
+func TestM8_AC005_UpstreamFetchMetricsOnError(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		&mockFetcher{err: fmt.Errorf("upstream unavailable")},
+		handler.WithMetrics(m),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	errVal := testutil.ToFloat64(m.UpstreamFetchErrors.WithLabelValues("drugnames"))
+	if errVal != 1 {
+		t.Errorf("expected upstream error=1, got %f", errVal)
+	}
+
+	if testutil.CollectAndCount(m.UpstreamFetchDuration) == 0 {
+		t.Error("expected upstream fetch duration to be recorded even on error")
+	}
+}
+
+// M8-AC-002: 404 metrics recorded for unknown slug
+func TestM8_AC002_HTTPMetricsOn404(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{},
+		&mockCacheRepo{},
+		&mockFetcher{},
+		handler.WithMetrics(m),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/nonexistent", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	val := testutil.ToFloat64(m.HTTPRequestsTotal.WithLabelValues("nonexistent", "GET", "404"))
+	if val != 1 {
+		t.Errorf("expected 404 counter=1, got %f", val)
 	}
 }
 
