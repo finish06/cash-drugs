@@ -70,6 +70,7 @@ cash-drugs/
 │   ├── scheduler/         # Cron-based refresh
 │   ├── fetchlock/         # Dedup concurrent fetches
 │   ├── logging/           # Structured logging setup
+│   ├── metrics/           # Prometheus metrics & MongoDB collector
 │   └── model/             # Response models
 ├── docker-compose.yml          # Local development
 ├── docker-compose.prod.yml     # Production (pulls from registry)

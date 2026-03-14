@@ -4,7 +4,7 @@
         "description": "API cache/proxy — fetches from upstream REST APIs, stores in MongoDB, serves cached data to internal consumers.",
         "title": "cash-drugs API",
         "contact": {},
-        "version": "0.5.0"
+        "version": "0.6.0"
     },
     "host": "localhost:8080",
     "basePath": "/",
