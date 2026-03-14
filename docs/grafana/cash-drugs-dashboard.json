@@ -451,7 +451,25 @@
   ],
   "schemaVersion": 39,
   "tags": ["cash-drugs", "api-cache"],
-  "templating": { "list": [] },
+  "templating": { "list": [
+    {
+      "allValue": ".*",
+      "current": { "selected": true, "text": "All", "value": "$__all" },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "definition": "label_values(cashdrugs_http_requests_total, slug)",
+      "hide": 0,
+      "includeAll": true,
+      "label": "Slug",
+      "multi": true,
+      "name": "slug",
+      "query": { "qryType": 1, "query": "label_values(cashdrugs_http_requests_total, slug)" },
+      "refresh": 2,
+      "regex": "",
+      "skipUrlSync": false,
+      "sort": 1,
+      "type": "query"
+    }
+  ] },
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",

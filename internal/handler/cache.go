@@ -216,11 +216,17 @@ func (h *CacheHandler) backgroundRevalidate(ep config.Endpoint, params map[strin
 		}
 		defer mu.Unlock()
 
+		fetchStart := time.Now()
 		result, err := h.fetcher.Fetch(ep, params)
+		fetchDuration := time.Since(fetchStart).Seconds()
+
 		if err != nil {
 			slog.Error("background revalidation failed", "component", "handler", "slug", ep.Slug, "error", err)
+			h.recordUpstreamMetrics(ep.Slug, fetchDuration, 0, true)
 			return
 		}
+
+		h.recordUpstreamMetrics(ep.Slug, fetchDuration, result.PageCount, false)
 
 		if err := h.repo.Upsert(result); err != nil {
 			slog.Error("background upsert failed", "component", "handler", "slug", ep.Slug, "error", err)

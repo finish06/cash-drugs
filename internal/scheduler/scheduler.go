@@ -122,7 +122,6 @@ func (s *Scheduler) fetchEndpoint(ep config.Endpoint) {
 			s.metrics.SchedulerRunsTotal.WithLabelValues(ep.Slug, "error").Inc()
 			s.metrics.SchedulerRunDuration.WithLabelValues(ep.Slug).Observe(duration.Seconds())
 			s.metrics.UpstreamFetchErrors.WithLabelValues(ep.Slug).Inc()
-			s.metrics.UpstreamFetchDuration.WithLabelValues(ep.Slug).Observe(duration.Seconds())
 		}
 		return
 	}
@@ -140,7 +139,6 @@ func (s *Scheduler) fetchEndpoint(ep config.Endpoint) {
 	if s.metrics != nil {
 		s.metrics.SchedulerRunsTotal.WithLabelValues(ep.Slug, "success").Inc()
 		s.metrics.SchedulerRunDuration.WithLabelValues(ep.Slug).Observe(duration.Seconds())
-		s.metrics.UpstreamFetchDuration.WithLabelValues(ep.Slug).Observe(duration.Seconds())
 		s.metrics.UpstreamFetchPages.WithLabelValues(ep.Slug).Add(float64(result.PageCount))
 	}
 }

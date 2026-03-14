@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -17,6 +18,8 @@ type MongoCollector struct {
 	metrics  *Metrics
 	interval time.Duration
 	stopCh   chan struct{}
+	done     chan struct{}
+	stopOnce sync.Once
 }
 
 // NewMongoCollector creates a new background MongoDB metrics collector.
@@ -28,12 +31,15 @@ func NewMongoCollector(client *mongo.Client, db *mongo.Database, collName string
 		metrics:  m,
 		interval: interval,
 		stopCh:   make(chan struct{}),
+		done:     make(chan struct{}),
 	}
 }
 
 // Start begins the background collection loop.
 func (c *MongoCollector) Start() {
 	go func() {
+		defer close(c.done)
+
 		// Collect once immediately
 		c.collect()
 
@@ -51,9 +57,10 @@ func (c *MongoCollector) Start() {
 	}()
 }
 
-// Stop signals the collector to stop.
+// Stop signals the collector to stop and waits for the goroutine to exit.
 func (c *MongoCollector) Stop() {
-	close(c.stopCh)
+	c.stopOnce.Do(func() { close(c.stopCh) })
+	<-c.done
 }
 
 func (c *MongoCollector) collect() {
@@ -99,6 +106,8 @@ func (c *MongoCollector) collect() {
 		return
 	}
 
+	// Reset before setting to clear stale slug label values
+	c.metrics.MongoDBDocuments.Reset()
 	for _, r := range results {
 		c.metrics.MongoDBDocuments.WithLabelValues(r.Slug).Set(float64(r.Count))
 	}
