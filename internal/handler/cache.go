@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/finish06/cash-drugs/internal/cache"
 	"github.com/finish06/cash-drugs/internal/config"
+	"github.com/finish06/cash-drugs/internal/metrics"
 	"github.com/finish06/cash-drugs/internal/model"
 	"github.com/finish06/cash-drugs/internal/upstream"
 )
@@ -20,6 +22,7 @@ type CacheHandler struct {
 	repo       cache.Repository
 	fetcher    upstream.Fetcher
 	fetchLocks *FetchLocks
+	metrics    *metrics.Metrics
 }
 
 // Option configures a CacheHandler.
@@ -29,6 +32,13 @@ type Option func(*CacheHandler)
 func WithFetchLocks(fl *FetchLocks) Option {
 	return func(h *CacheHandler) {
 		h.fetchLocks = fl
+	}
+}
+
+// WithMetrics enables Prometheus metric instrumentation.
+func WithMetrics(m *metrics.Metrics) Option {
+	return func(h *CacheHandler) {
+		h.metrics = m
 	}
 }
 
@@ -69,6 +79,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ep, ok := h.endpoints[slug]
 	if !ok {
 		slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "status", 404, "duration", time.Since(start))
+		h.recordHTTPMetrics(slug, r.Method, http.StatusNotFound, start)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(model.ErrorResponse{
@@ -94,37 +105,49 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Check TTL staleness
 			if config.IsStale(ep, cached.FetchedAt) {
 				slog.Debug("cache hit (stale)", "component", "handler", "slug", slug, "reason", "ttl_expired")
+				h.recordCacheOutcome(slug, "stale")
 				respondWithCached(w, cached, true, "ttl_expired")
 				h.backgroundRevalidate(ep, pathParams)
 				slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "stale", "duration", time.Since(start))
+				h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 				return
 			}
 			slog.Debug("cache hit", "component", "handler", "slug", slug)
+			h.recordCacheOutcome(slug, "hit")
 			respondWithCached(w, cached, false, "")
 			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "hit", "duration", time.Since(start))
+			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 			return
 		}
 	}
 
 	slog.Debug("cache miss", "component", "handler", "slug", slug)
+	h.recordCacheOutcome(slug, "miss")
 
 	// Fetch from upstream
 	slog.Info("fetch started", "component", "handler", "slug", slug)
+	fetchStart := time.Now()
 	result, fetchErr := h.fetcher.Fetch(ep, pathParams)
+	fetchDuration := time.Since(fetchStart).Seconds()
+
 	if fetchErr != nil {
 		slog.Error("upstream fetch failed", "component", "handler", "slug", slug, "error", fetchErr)
+		h.recordUpstreamMetrics(slug, fetchDuration, 0, true)
 
 		// Try stale cache fallback
 		cached, cacheErr := h.repo.Get(cacheKey)
 		if cacheErr == nil && cached != nil {
 			slog.Warn("serving stale cache — upstream unavailable", "component", "handler", "slug", slug)
+			h.recordCacheOutcome(slug, "stale")
 			respondWithCached(w, cached, true, "upstream unavailable")
 			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "stale", "duration", time.Since(start))
+			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 			return
 		}
 
 		// No cache, return 502
 		slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 502, "cache", "miss", "duration", time.Since(start))
+		h.recordHTTPMetrics(slug, r.Method, http.StatusBadGateway, start)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
 		json.NewEncoder(w).Encode(model.ErrorResponse{
@@ -135,6 +158,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("fetch completed", "component", "handler", "slug", slug, "pages", result.PageCount)
+	h.recordUpstreamMetrics(slug, fetchDuration, result.PageCount, false)
 
 	// Store in cache
 	if err := h.repo.Upsert(result); err != nil {
@@ -144,6 +168,35 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Return fresh result
 	respondWithCached(w, result, false, "")
 	slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "miss", "duration", time.Since(start))
+	h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
+}
+
+func (h *CacheHandler) recordHTTPMetrics(slug, method string, statusCode int, start time.Time) {
+	if h.metrics == nil {
+		return
+	}
+	h.metrics.HTTPRequestsTotal.WithLabelValues(slug, method, strconv.Itoa(statusCode)).Inc()
+	h.metrics.HTTPRequestDuration.WithLabelValues(slug, method).Observe(time.Since(start).Seconds())
+}
+
+func (h *CacheHandler) recordCacheOutcome(slug, outcome string) {
+	if h.metrics == nil {
+		return
+	}
+	h.metrics.CacheHitsTotal.WithLabelValues(slug, outcome).Inc()
+}
+
+func (h *CacheHandler) recordUpstreamMetrics(slug string, duration float64, pageCount int, isError bool) {
+	if h.metrics == nil {
+		return
+	}
+	h.metrics.UpstreamFetchDuration.WithLabelValues(slug).Observe(duration)
+	if isError {
+		h.metrics.UpstreamFetchErrors.WithLabelValues(slug).Inc()
+	}
+	if pageCount > 0 {
+		h.metrics.UpstreamFetchPages.WithLabelValues(slug).Add(float64(pageCount))
+	}
 }
 
 // backgroundRevalidate spawns a goroutine to refresh the cache in the background.
@@ -156,15 +209,24 @@ func (h *CacheHandler) backgroundRevalidate(ep config.Endpoint, params map[strin
 		mu := h.fetchLocks.Get(ep.Slug)
 		if !mu.TryLock() {
 			slog.Debug("skipping background revalidation — fetch already in progress", "component", "handler", "slug", ep.Slug)
+			if h.metrics != nil {
+				h.metrics.FetchLockDedupTotal.WithLabelValues(ep.Slug).Inc()
+			}
 			return
 		}
 		defer mu.Unlock()
 
+		fetchStart := time.Now()
 		result, err := h.fetcher.Fetch(ep, params)
+		fetchDuration := time.Since(fetchStart).Seconds()
+
 		if err != nil {
 			slog.Error("background revalidation failed", "component", "handler", "slug", ep.Slug, "error", err)
+			h.recordUpstreamMetrics(ep.Slug, fetchDuration, 0, true)
 			return
 		}
+
+		h.recordUpstreamMetrics(ep.Slug, fetchDuration, result.PageCount, false)
 
 		if err := h.repo.Upsert(result); err != nil {
 			slog.Error("background upsert failed", "component", "handler", "slug", ep.Slug, "error", err)

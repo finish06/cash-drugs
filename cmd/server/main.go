@@ -16,8 +16,11 @@ import (
 	"github.com/finish06/cash-drugs/internal/fetchlock"
 	"github.com/finish06/cash-drugs/internal/handler"
 	"github.com/finish06/cash-drugs/internal/logging"
+	"github.com/finish06/cash-drugs/internal/metrics"
 	"github.com/finish06/cash-drugs/internal/scheduler"
 	"github.com/finish06/cash-drugs/internal/upstream"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
@@ -82,11 +85,19 @@ func main() {
 	// Shared fetch locks for deduplication between scheduler and handler
 	locks := fetchlock.New()
 
+	// Initialize Prometheus metrics
+	m := metrics.NewMetrics(prometheus.DefaultRegisterer)
+
+	// Start background MongoDB metrics collector
+	_, collName := repo.Names()
+	mongoCollector := metrics.NewMongoCollector(repo.Client(), repo.Database(), collName, m, 30*time.Second)
+	mongoCollector.Start()
+
 	// Start background scheduler
-	sched := scheduler.New(endpoints, fetcher, repo, locks)
+	sched := scheduler.New(endpoints, fetcher, repo, locks, scheduler.WithMetrics(m))
 	sched.Start(context.Background())
 
-	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks))
+	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m))
 	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
 	endpointsHandler := handler.NewEndpointsHandler(endpoints)
 
@@ -94,6 +105,7 @@ func main() {
 	mux.Handle("/api/cache/", cacheHandler)
 	mux.Handle("/api/endpoints", endpointsHandler)
 	mux.Handle("/health", healthHandler)
+	mux.Handle("/metrics", promhttp.Handler())
 	mux.Handle("/swagger/", httpSwagger.WrapHandler)
 	mux.HandleFunc("/openapi.json", handler.ServeOpenAPISpec)
 
@@ -109,6 +121,7 @@ func main() {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
 		slog.Info("shutting down", "component", "server")
+		mongoCollector.Stop()
 		sched.Stop()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

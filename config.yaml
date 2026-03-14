@@ -106,6 +106,7 @@ endpoints:
       - "brand_name:\"{BRAND_NAME}\""
       - "generic_name:\"{GENERIC_NAME}\""
       - "product_ndc:\"{NDC}\""
+      - "pharm_class:\"{PHARM_CLASS}\""
 
   - slug: fda-label
     base_url: https://api.fda.gov

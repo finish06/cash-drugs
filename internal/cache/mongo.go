@@ -242,6 +242,16 @@ func (r *MongoRepository) Names() (dbName, collName string) {
 	return r.dbName, r.collName
 }
 
+// Client returns the underlying MongoDB client.
+func (r *MongoRepository) Client() *mongo.Client {
+	return r.client
+}
+
+// Database returns the underlying MongoDB database.
+func (r *MongoRepository) Database() *mongo.Database {
+	return r.db
+}
+
 // Timeout returns the configured operation timeout.
 func (r *MongoRepository) Timeout() time.Duration {
 	return r.timeout
