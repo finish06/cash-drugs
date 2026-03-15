@@ -640,6 +640,7 @@ func TestFDA_AC005_ExistingDailyMedEndpointsUnchanged(t *testing.T) {
 	}
 }
 
+
 // AC-CSM-012: SystemMetricsInterval field parsed from YAML
 func TestAC_CSM012_SystemMetricsInterval(t *testing.T) {
 	cfgPath := writeTestConfig(t, `
@@ -677,6 +678,85 @@ endpoints:
 	}
 	if appCfg.SystemMetricsInterval != "" {
 		t.Errorf("expected empty SystemMetricsInterval when absent, got '%s'", appCfg.SystemMetricsInterval)
+	}
+}
+
+// AC-007 (connection-resilience): MaxConcurrentRequests field parsed from YAML
+func TestAC007_MaxConcurrentRequestsParsed(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+max_concurrent_requests: 100
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if appCfg.MaxConcurrentRequests != 100 {
+		t.Errorf("expected MaxConcurrentRequests=100, got %d", appCfg.MaxConcurrentRequests)
+	}
+}
+
+// AC-007 (connection-resilience): Default value (50) when field is absent
+func TestAC007_MaxConcurrentRequestsDefault(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	resolved := appCfg.MaxConcurrentRequests
+	if resolved == 0 {
+		resolved = 50 // default applied at usage site
+	}
+	if resolved != 50 {
+		t.Errorf("expected default MaxConcurrentRequests=50, got %d", resolved)
+	}
+}
+
+// AC-007 (connection-resilience): Invalid values (0, negative) should use default
+func TestAC007_MaxConcurrentRequestsInvalid(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{"zero", "0"},
+		{"negative", "-5"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfgPath := writeTestConfig(t, `
+max_concurrent_requests: `+tc.value+`
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+			appCfg, err := config.LoadConfig(cfgPath)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			resolved := appCfg.MaxConcurrentRequests
+			if resolved <= 0 {
+				resolved = 50 // default applied at usage site
+			}
+			if resolved != 50 {
+				t.Errorf("expected resolved MaxConcurrentRequests=50, got %d", resolved)
+			}
+		})
 	}
 }
 

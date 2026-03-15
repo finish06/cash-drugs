@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/finish06/cash-drugs/internal/handler"
 	"github.com/finish06/cash-drugs/internal/logging"
 	"github.com/finish06/cash-drugs/internal/metrics"
+	"github.com/finish06/cash-drugs/internal/middleware"
 	"github.com/finish06/cash-drugs/internal/scheduler"
 	"github.com/finish06/cash-drugs/internal/upstream"
 	"github.com/prometheus/client_golang/prometheus"
@@ -125,20 +127,45 @@ func main() {
 	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
 	endpointsHandler := handler.NewEndpointsHandler(endpoints)
 
+	// Resolve concurrency limit: env var > config > default (50)
+	maxConcurrent := 50
+	if appCfg != nil && appCfg.MaxConcurrentRequests > 0 {
+		maxConcurrent = appCfg.MaxConcurrentRequests
+	}
+	if envVal := os.Getenv("MAX_CONCURRENT_REQUESTS"); envVal != "" {
+		if v, err := strconv.Atoi(envVal); err == nil && v > 0 {
+			maxConcurrent = v
+		}
+	}
+	slog.Info("concurrency limiter configured", "component", "server", "max_concurrent_requests", maxConcurrent)
+
+	limiter := middleware.NewConcurrencyLimiter(maxConcurrent, m)
+
+	// Application routes wrapped with concurrency limiter
+	appMux := http.NewServeMux()
+	appMux.Handle("/api/cache/", cacheHandler)
+	appMux.Handle("/api/endpoints", endpointsHandler)
+	appMux.Handle("/swagger/", httpSwagger.WrapHandler)
+	appMux.HandleFunc("/openapi.json", handler.ServeOpenAPISpec)
+
+	// Outer mux: exempt paths registered directly, app routes wrapped with limiter
 	mux := http.NewServeMux()
-	mux.Handle("/api/cache/", cacheHandler)
-	mux.Handle("/api/endpoints", endpointsHandler)
 	mux.Handle("/health", healthHandler)
 	mux.Handle("/metrics", promhttp.Handler())
-	mux.Handle("/swagger/", httpSwagger.WrapHandler)
-	mux.HandleFunc("/openapi.json", handler.ServeOpenAPISpec)
+	mux.Handle("/", limiter.Wrap(appMux))
 
 	addr := os.Getenv("LISTEN_ADDR")
 	if addr == "" {
 		addr = ":8080"
 	}
 
-	srv := &http.Server{Addr: addr, Handler: mux}
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 
 	go func() {
 		sigCh := make(chan os.Signal, 1)
