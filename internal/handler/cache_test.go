@@ -1025,7 +1025,8 @@ func TestM9_AC013_CircuitOpenServesStaleCacheWithReason(t *testing.T) {
 		handler.WithCircuit(circuit),
 	)
 
-	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	// Use _force=true to bypass cache-first path and reach the circuit breaker check
+	req := httptest.NewRequest("GET", "/api/cache/drugnames?_force=true", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 

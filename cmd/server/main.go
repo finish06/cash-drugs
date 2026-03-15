@@ -132,11 +132,37 @@ func main() {
 	lruCache := cache.NewLRUCache(int64(lruSizeMB) * 1024 * 1024)
 	slog.Info("LRU cache configured", "component", "server", "size_mb", lruSizeMB)
 
+	// Circuit breaker configuration
+	circuitFailureThreshold := uint32(5)
+	if envVal := os.Getenv("CIRCUIT_FAILURE_THRESHOLD"); envVal != "" {
+		if v, err := strconv.Atoi(envVal); err == nil && v > 0 {
+			circuitFailureThreshold = uint32(v)
+		}
+	}
+	circuitOpenDuration := 30 * time.Second
+	if envVal := os.Getenv("CIRCUIT_OPEN_DURATION"); envVal != "" {
+		if d, err := time.ParseDuration(envVal); err == nil {
+			circuitOpenDuration = d
+		}
+	}
+	circuitReg := upstream.NewCircuitRegistry(circuitFailureThreshold, circuitOpenDuration)
+	slog.Info("circuit breaker configured", "component", "server", "failure_threshold", circuitFailureThreshold, "open_duration", circuitOpenDuration)
+
+	// Force-refresh cooldown configuration
+	cooldownDuration := 30 * time.Second
+	if envVal := os.Getenv("FORCE_REFRESH_COOLDOWN"); envVal != "" {
+		if d, err := time.ParseDuration(envVal); err == nil {
+			cooldownDuration = d
+		}
+	}
+	cooldownTracker := upstream.NewCooldownTracker(cooldownDuration)
+	slog.Info("force-refresh cooldown configured", "component", "server", "duration", cooldownDuration)
+
 	// Start background scheduler
-	sched := scheduler.New(endpoints, fetcher, repo, locks, scheduler.WithMetrics(m), scheduler.WithLRU(lruCache))
+	sched := scheduler.New(endpoints, fetcher, repo, locks, scheduler.WithMetrics(m), scheduler.WithLRU(lruCache), scheduler.WithCircuit(circuitReg))
 	sched.Start(context.Background())
 
-	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m), handler.WithLRU(lruCache))
+	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m), handler.WithLRU(lruCache), handler.WithCircuit(circuitReg), handler.WithCooldown(cooldownTracker))
 	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
 	endpointsHandler := handler.NewEndpointsHandler(endpoints)
 
