@@ -25,10 +25,97 @@ type Pinger interface {
 type MongoRepository struct {
 	client     *mongo.Client
 	db         *mongo.Database
-	collection *mongo.Collection
+	collection collection
 	timeout    time.Duration
 	dbName     string
 	collName   string
+}
+
+// reassemblePages combines multiple page documents into a single CachedResponse.
+// Returns the first document as-is if it's a single non-paginated document (Page == 0).
+// For multi-page results, concatenates all Data arrays into a combined response.
+func reassemblePages(docs []model.CachedResponse) *model.CachedResponse {
+	if len(docs) == 0 {
+		return nil
+	}
+
+	// Single document (non-paginated or raw) -- return as-is
+	if len(docs) == 1 && docs[0].Page == 0 {
+		return &docs[0]
+	}
+
+	// Multi-page: reassemble all page data into combined response
+	base := docs[0]
+	var allData []interface{}
+	for _, doc := range docs {
+		if arr, ok := doc.Data.(bson.A); ok {
+			for _, item := range arr {
+				allData = append(allData, item)
+			}
+		} else if arr, ok := doc.Data.([]interface{}); ok {
+			allData = append(allData, arr...)
+		}
+	}
+
+	base.Data = allData
+	base.Page = 0 // combined view
+	return &base
+}
+
+// buildUpsertFilter returns the filter document for a single-document upsert.
+func buildUpsertFilter(cacheKey string) bson.M {
+	return bson.M{"cache_key": cacheKey}
+}
+
+// buildSingleUpdate returns the update document for a single-document upsert.
+func buildSingleUpdate(resp *model.CachedResponse, now time.Time) bson.M {
+	return bson.M{
+		"$set": bson.M{
+			"slug":         resp.Slug,
+			"params":       resp.Params,
+			"cache_key":    resp.CacheKey,
+			"data":         resp.Data,
+			"content_type": resp.ContentType,
+			"fetched_at":   resp.FetchedAt,
+			"source_url":   resp.SourceURL,
+			"http_status":  resp.HTTPStatus,
+			"page_count":   resp.PageCount,
+			"updated_at":   now,
+		},
+		"$setOnInsert": bson.M{
+			"created_at": now,
+		},
+	}
+}
+
+// buildPageUpdate returns the update document for a single page upsert.
+func buildPageUpdate(resp *model.CachedResponse, page model.PageData, pageKey string, now time.Time) bson.M {
+	return bson.M{
+		"$set": bson.M{
+			"slug":         resp.Slug,
+			"params":       resp.Params,
+			"cache_key":    pageKey,
+			"page":         page.Page,
+			"page_count":   resp.PageCount,
+			"data":         page.Data,
+			"content_type": resp.ContentType,
+			"fetched_at":   resp.FetchedAt,
+			"source_url":   resp.SourceURL,
+			"http_status":  resp.HTTPStatus,
+			"updated_at":   now,
+		},
+		"$setOnInsert": bson.M{
+			"created_at": now,
+		},
+	}
+}
+
+// buildRegexFilter creates a MongoDB regex filter that matches a cache key
+// and its page variants (e.g., "mykey" matches "mykey" and "mykey:page:1").
+func buildRegexFilter(cacheKey string) bson.M {
+	return bson.M{"cache_key": bson.M{
+		"$regex": "^" + escapeRegex(cacheKey) + "(:|$)",
+	}}
 }
 
 // NewMongoRepository connects to MongoDB, pings it, and ensures indexes.
@@ -56,7 +143,7 @@ func NewMongoRepository(uri string, timeout time.Duration) (*MongoRepository, er
 	repo := &MongoRepository{
 		client:     client,
 		db:         db,
-		collection: coll,
+		collection: &mongoCollectionAdapter{coll: coll},
 		timeout:    timeout,
 		dbName:     dbName,
 		collName:   defaultCollectionName,
@@ -75,10 +162,7 @@ func (r *MongoRepository) Get(cacheKey string) (*model.CachedResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 
-	// Find all documents matching this cache key prefix (pages stored as cacheKey:page:N)
-	pageFilter := bson.M{"cache_key": bson.M{
-		"$regex": "^" + escapeRegex(cacheKey) + "(:|$)",
-	}}
+	pageFilter := buildRegexFilter(cacheKey)
 
 	cursor, err := r.collection.Find(ctx, pageFilter, options.Find().SetSort(bson.D{{Key: "page", Value: 1}}))
 	if err != nil {
@@ -91,31 +175,7 @@ func (r *MongoRepository) Get(cacheKey string) (*model.CachedResponse, error) {
 		return nil, fmt.Errorf("failed to decode cached responses: %w", err)
 	}
 
-	if len(docs) == 0 {
-		return nil, nil
-	}
-
-	// Single document (non-paginated or raw) — return as-is
-	if len(docs) == 1 && docs[0].Page == 0 {
-		return &docs[0], nil
-	}
-
-	// Multi-page: reassemble all page data into combined response
-	base := docs[0]
-	var allData []interface{}
-	for _, doc := range docs {
-		if arr, ok := doc.Data.(bson.A); ok {
-			for _, item := range arr {
-				allData = append(allData, item)
-			}
-		} else if arr, ok := doc.Data.([]interface{}); ok {
-			allData = append(allData, arr...)
-		}
-	}
-
-	base.Data = allData
-	base.Page = 0 // combined view
-	return &base, nil
+	return reassemblePages(docs), nil
 }
 
 // Upsert inserts or updates a cached response. For multi-page responses (Pages populated),
@@ -143,25 +203,8 @@ func (r *MongoRepository) Upsert(resp *model.CachedResponse) error {
 		// Upsert each page
 		for _, page := range resp.Pages {
 			pageKey := fmt.Sprintf("%s:page:%d", resp.CacheKey, page.Page)
-			filter := bson.M{"cache_key": pageKey}
-			update := bson.M{
-				"$set": bson.M{
-					"slug":         resp.Slug,
-					"params":       resp.Params,
-					"cache_key":    pageKey,
-					"page":         page.Page,
-					"page_count":   resp.PageCount,
-					"data":         page.Data,
-					"content_type": resp.ContentType,
-					"fetched_at":   resp.FetchedAt,
-					"source_url":   resp.SourceURL,
-					"http_status":  resp.HTTPStatus,
-					"updated_at":   now,
-				},
-				"$setOnInsert": bson.M{
-					"created_at": now,
-				},
-			}
+			filter := buildUpsertFilter(pageKey)
+			update := buildPageUpdate(resp, page, pageKey, now)
 
 			opts := options.UpdateOne().SetUpsert(true)
 			if _, err := r.collection.UpdateOne(ctx, filter, update, opts); err != nil {
@@ -172,24 +215,8 @@ func (r *MongoRepository) Upsert(resp *model.CachedResponse) error {
 	}
 
 	// Single document (non-paginated, raw, or single-page)
-	filter := bson.M{"cache_key": resp.CacheKey}
-	update := bson.M{
-		"$set": bson.M{
-			"slug":         resp.Slug,
-			"params":       resp.Params,
-			"cache_key":    resp.CacheKey,
-			"data":         resp.Data,
-			"content_type": resp.ContentType,
-			"fetched_at":   resp.FetchedAt,
-			"source_url":   resp.SourceURL,
-			"http_status":  resp.HTTPStatus,
-			"page_count":   resp.PageCount,
-			"updated_at":   now,
-		},
-		"$setOnInsert": bson.M{
-			"created_at": now,
-		},
-	}
+	filter := buildUpsertFilter(resp.CacheKey)
+	update := buildSingleUpdate(resp, now)
 
 	opts := options.UpdateOne().SetUpsert(true)
 	_, err := r.collection.UpdateOne(ctx, filter, update, opts)
@@ -207,9 +234,7 @@ func (r *MongoRepository) FetchedAt(cacheKey string) (time.Time, bool, error) {
 	defer cancel()
 
 	// Look for exact key or first page
-	filter := bson.M{"cache_key": bson.M{
-		"$regex": "^" + escapeRegex(cacheKey) + "(:|$)",
-	}}
+	filter := buildRegexFilter(cacheKey)
 
 	opts := options.FindOne().SetProjection(bson.M{"fetched_at": 1})
 	var result struct {
