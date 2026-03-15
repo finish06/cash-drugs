@@ -7,18 +7,64 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ## [Unreleased]
 
-### Added
-- Optional query parameters — unresolved `{PLACEHOLDER}` params silently skipped from upstream requests
-- `search_params` config field for openFDA-style compound search queries (multiple optional clauses joined with `+`)
-- `fda-ndc` endpoint replacing `fda-ndc-by-name` — supports brand_name, generic_name, and NDC search
-- `fda-label` endpoint with multi-param search (brand_name, generic_name, NDC)
-- Upstream 404 handling spec (`specs/upstream-404-handling.md`)
-- Cache package integration tests — coverage increased from 25.7% to 91.1%
+_No unreleased changes._
+
+## [0.7.1] — 2026-03-14 — Performance Quick Wins
 
 ### Changed
-- `fda-drugsfda-by-name` renamed to `fda-drugsfda`
-- `fda-labels-by-name` renamed to `fda-label` with `search_params`
-- Total project test coverage: 83.6% (above 80% threshold)
+- LRU cache `estimateSize()` uses PageCount heuristic instead of `json.Marshal` — saves 50-200ms per Set on large responses
+- Handler reuses first `repo.Get()` result in upstream-failure fallback — eliminates duplicate MongoDB query on cache miss
+- Gzip middleware uses `sync.Pool` for `gzip.Writer` instances — reduces GC pressure at 150 concurrent requests
+
+## [0.7.0] — 2026-03-14 — M9: Performance & Resilience
+
+### Added
+- **Connection resilience:** concurrency limiter middleware caps in-flight requests (default: 50, configurable via `max_concurrent_requests` / `MAX_CONCURRENT_REQUESTS`). Returns 503 + `Retry-After` instead of connection refused. `/health` and `/metrics` exempt from limits.
+- **Response optimization:** gzip compression middleware for JSON/XML responses (1KB threshold, `Accept-Encoding: gzip`). Singleflight request coalescing deduplicates concurrent identical requests. In-memory LRU cache (256MB default, configurable via `lru_cache_size_mb` / `LRU_CACHE_SIZE_MB`) sits between handler and MongoDB.
+- **Upstream resilience:** per-endpoint circuit breakers via gobreaker (5 consecutive failures → open 30s → half-open probe). Force-refresh 30s per-key cooldown prevents upstream abuse via `_force=true`. Scheduler respects circuit state.
+- **Container system metrics:** CPU, memory, disk, and network metrics from procfs/cgroup exported via `/metrics` endpoint. `SystemCollector` follows `MongoCollector` pattern (background goroutine, configurable interval via `system_metrics_interval` / `SYSTEM_METRICS_INTERVAL`).
+- HTTP server timeouts: ReadTimeout=10s, WriteTimeout=30s, IdleTimeout=60s
+- New Prometheus metrics: `cashdrugs_inflight_requests`, `cashdrugs_rejected_requests_total`, `cashdrugs_lru_cache_hits_total`, `cashdrugs_lru_cache_misses_total`, `cashdrugs_lru_cache_size_bytes`, `cashdrugs_singleflight_dedup_total`, `cashdrugs_circuit_state`, `cashdrugs_circuit_rejections_total`, `cashdrugs_force_refresh_cooldown_total`, `cashdrugs_container_cpu_*`, `cashdrugs_container_memory_*`, `cashdrugs_container_disk_*`, `cashdrugs_container_network_*`
+- New internal packages: `internal/middleware/` (limiter + gzip), `internal/cache/lru.go`, `internal/upstream/circuit.go`, `internal/upstream/cooldown.go`, `internal/metrics/system*.go`
+- Sequence diagrams for all new flows (concurrency limiter, circuit breaker, cooldown, container metrics, LRU/singleflight)
+
+### Changed
+- `MAX_CONCURRENT_REQUESTS=150` in production docker-compose
+- Handler request flow: gzip → limiter → LRU check → singleflight → MongoDB → circuit breaker → upstream fetch
+
+## [0.6.1] — 2026-03-14 — M8 Polish
+
+### Changed
+- MongoCollector: `sync.Once` + done channel for safe shutdown
+- MongoCollector: reset gauge before setting to clear stale slug label values
+- Scheduler: removed duplicate `UpstreamFetchDuration` recording
+- Handler: added metrics to `backgroundRevalidate` goroutine
+- Grafana dashboard: added `$slug` template variable
+- `go mod tidy`: fixed direct/indirect dependency annotations
+
+### Fixed
+- Metrics collector coverage increased to 85.7%
+
+## [0.6.0] — 2026-03-14 — M8: Prometheus Metrics
+
+### Added
+- `/metrics` endpoint serving Prometheus exposition format via `promhttp.Handler()`
+- HTTP request counter `cashdrugs_http_requests_total` with labels `slug`, `method`, `status_code`
+- HTTP request duration histogram `cashdrugs_http_request_duration_seconds` with labels `slug`, `method`
+- Cache outcome counter `cashdrugs_cache_hits_total` with labels `slug`, `outcome` (hit, miss, stale)
+- Upstream fetch duration histogram, error counter, and page counter per slug
+- MongoDB ping latency gauge, health gauge, and document count gauge per slug
+- Scheduler job execution counter and duration histogram per slug
+- Fetch lock deduplication counter per slug
+- Go runtime metrics (goroutines, memory, GC) via default Prometheus collectors
+- Background `MongoCollector` collecting MongoDB stats every 30s
+- Example Grafana dashboard JSON with variable datasource (`${DS_PROMETHEUS}`)
+- Prometheus setup guide (`docs/prometheus-setup.md`)
+- `internal/metrics/` package with `Metrics` struct and `MongoCollector`
+
+### Changed
+- All metric names use `cashdrugs_` namespace prefix
+- Version embedded via `-ldflags` at build time, reported in `/health`
 
 ## [0.5.0] — 2026-03-07 — FDA API Integration
 
