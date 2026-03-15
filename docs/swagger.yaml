@@ -23,6 +23,8 @@ definitions:
         type: string
       page_count:
         type: integer
+      results_count:
+        type: integer
       slug:
         type: string
       source_url:
@@ -47,6 +49,33 @@ definitions:
       scheduled:
         type: boolean
       slug:
+        type: string
+    type: object
+  internal_handler.VersionInfo:
+    properties:
+      arch:
+        type: string
+      build_date:
+        type: string
+      endpoint_count:
+        type: integer
+      git_branch:
+        type: string
+      git_commit:
+        type: string
+      go_version:
+        type: string
+      gomaxprocs:
+        type: integer
+      hostname:
+        type: string
+      os:
+        type: string
+      start_time:
+        type: string
+      uptime_seconds:
+        type: number
+      version:
         type: string
     type: object
 host: localhost:8080
@@ -144,6 +173,20 @@ paths:
           schema:
             type: object
       summary: OpenAPI specification
+      tags:
+      - system
+  /version:
+    get:
+      description: Returns build metadata, runtime info, and uptime for deployment
+        verification.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.VersionInfo'
+      summary: Version and build info
       tags:
       - system
 swagger: "2.0"

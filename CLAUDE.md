@@ -63,10 +63,10 @@ cash-drugs/
 ├── cmd/
 │   └── server/            # Application entrypoint
 ├── internal/
-│   ├── cache/             # MongoDB cache layer + LRU
+│   ├── cache/             # MongoDB cache layer + sharded LRU (16-shard FNV-1a)
 │   ├── config/            # YAML config loader
 │   ├── handler/           # HTTP handlers
-│   ├── upstream/          # Upstream API fetcher + circuit breaker + cooldown
+│   ├── upstream/          # Upstream API fetcher + circuit breaker + cooldown + parallel page fetches
 │   ├── scheduler/         # Cron-based refresh
 │   ├── fetchlock/         # Dedup concurrent fetches
 │   ├── logging/           # Structured logging setup

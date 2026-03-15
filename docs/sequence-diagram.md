@@ -8,7 +8,7 @@ sequenceDiagram
     participant GZ as Gzip Middleware
     participant LIM as Concurrency Limiter
     participant CH as CacheHandler
-    participant LRU as LRU Cache<br/>(in-memory)
+    participant LRU as Sharded LRU Cache<br/>(16 shards, FNV-1a)
     participant DB as MongoDB<br/>(cached_responses)
 
     Client->>GZ: GET /api/cache/{slug}?param=value
@@ -16,17 +16,19 @@ sequenceDiagram
     LIM->>CH: ServeHTTP(w, r)
     CH->>CH: Build cache key<br/>(slug + sorted params)
     CH->>LRU: Get(cacheKey)
+    Note over LRU: FNV-1a hash → shard N<br/>lock shard N mutex
     alt LRU hit
         LRU-->>CH: CachedResponse (fresh)
     end
     alt LRU miss
         LRU-->>CH: nil
-        CH->>DB: Get(cacheKey)
+        CH->>DB: Get(cacheKey) via base_key index
+        Note over DB: Compound index: base_key + page<br/>exact match (no regex)
         DB-->>CH: CachedResponse (fresh)
         CH->>LRU: Set(cacheKey, response)
     end
     CH->>CH: Set X-Cache-Stale: false
-    CH-->>GZ: 200 {"data": [...], "meta": {slug, fetched_at, stale: false}}
+    CH-->>GZ: 200 {"data": [...], "meta": {slug, fetched_at, results_count, stale: false}}
     GZ-->>Client: 200 (gzip compressed)
 ```
 
@@ -41,13 +43,13 @@ sequenceDiagram
     participant CB as Circuit Breaker
     participant UF as HTTPFetcher
     participant API as Upstream API
-    participant LRU as LRU Cache
+    participant LRU as Sharded LRU Cache
     participant DB as MongoDB
 
     Client->>CH: GET /api/cache/{slug}
     CH->>LRU: Get(cacheKey)
     LRU-->>CH: nil (LRU miss)
-    CH->>DB: Get(cacheKey)
+    CH->>DB: Get(cacheKey) via base_key index
     DB-->>CH: nil (cache miss)
 
     CH->>SF: Do(cacheKey, fetchFn)
@@ -60,19 +62,44 @@ sequenceDiagram
     alt Circuit closed
         CB-->>SF: Allowed
         SF->>UF: Fetch(endpoint, params)
-        UF->>API: GET {base_url}{path}?params
 
-        alt Upstream success
-            API-->>UF: 200 {data}
-            UF->>UF: Extract data via data_key
-            UF->>UF: Paginate if needed (page/offset style)
-            UF-->>SF: CachedResponse{Pages}
+        Note over UF,API: Page 1 fetched sequentially
+        UF->>API: GET {base_url}{path}?page=1
+        API-->>UF: 200 {data, total_pages: N}
+
+        alt Multi-page response (N > 1)
+            Note over UF,API: Pages 2..N fetched concurrently<br/>semaphore cap = 3 goroutines
+            par Parallel page fetches
+                UF->>API: GET ?page=2
+                API-->>UF: {data}
+            and
+                UF->>API: GET ?page=3
+                API-->>UF: {data}
+            and
+                UF->>API: GET ?page=4
+                API-->>UF: {data}
+            end
+            Note over UF: Remaining pages queued behind semaphore
+        end
+
+        UF->>UF: Extract data via data_key
+        UF-->>SF: CachedResponse{Pages}
+
+        alt Upstream success (data present)
             SF->>CB: RecordSuccess(slug)
-            SF->>DB: Upsert(response)
+            SF->>DB: Upsert(response) with base_key
             SF->>LRU: Set(cacheKey, response)
             SF->>FL: Unlock(slug)
             SF-->>CH: CachedResponse
-            CH-->>Client: 200 {"data": [...], "meta": {stale: false}}
+            CH-->>Client: 200 {"data": [...], "meta": {results_count, stale: false}}
+        end
+
+        alt Upstream success (empty data)
+            Note over UF: API returned 200 but empty results
+            SF->>CB: RecordSuccess(slug)
+            SF->>FL: Unlock(slug)
+            SF-->>CH: CachedResponse (empty)
+            CH-->>Client: 200 {"data": [], "meta": {results_count: 0, stale: false}}
         end
 
         alt Upstream failure
@@ -151,7 +178,7 @@ sequenceDiagram
         GZ-->>Client: 503 (gzip compressed)
     end
 
-    Note over LIM: Exempt paths: /health, /metrics<br/>bypass the limiter entirely
+    Note over LIM: Exempt paths: /health, /metrics, /version<br/>bypass the limiter entirely
 ```
 
 ## Circuit Breaker Flow
@@ -287,35 +314,60 @@ sequenceDiagram
     SC->>REG: Set cashdrugs_system_network_transmit_bytes
 ```
 
-## Paginated Fetch Flow
+## Paginated Fetch Flow (Parallel)
 
 ```mermaid
 sequenceDiagram
-    participant UF as HTTPFetcher
+    participant UF as HTTPFetcher<br/>(FetchConcurrency: 3)
+    participant SEM as Semaphore<br/>(cap 3)
     participant API as Upstream API
 
-    Note over UF,API: Page-style pagination
-    UF->>API: GET ?page=1&pagesize=100
+    Note over UF,API: Page-style pagination (parallel)
+    UF->>API: GET ?page=1&pagesize=100 (sequential)
     API-->>UF: {data: [...], metadata: {total_pages: 5}}
-    UF->>API: GET ?page=2&pagesize=100
-    API-->>UF: {data: [...]}
-    UF->>API: GET ?page=3&pagesize=100
-    API-->>UF: {data: [...]}
-    UF->>API: GET ?page=4&pagesize=100
-    API-->>UF: {data: [...]}
+    Note over UF: total_pages=5 → spawn 4 goroutines
+
+    par Pages 2-4 (concurrent, semaphore slots available)
+        UF->>SEM: acquire
+        SEM-->>UF: granted
+        UF->>API: GET ?page=2&pagesize=100
+        API-->>UF: {data: [...]}
+    and
+        UF->>SEM: acquire
+        SEM-->>UF: granted
+        UF->>API: GET ?page=3&pagesize=100
+        API-->>UF: {data: [...]}
+    and
+        UF->>SEM: acquire
+        SEM-->>UF: granted
+        UF->>API: GET ?page=4&pagesize=100
+        API-->>UF: {data: [...]}
+    end
+
+    Note over UF,SEM: Page 5 waits for a semaphore slot
+    UF->>SEM: acquire (blocks until slot free)
+    SEM-->>UF: granted
     UF->>API: GET ?page=5&pagesize=100
     API-->>UF: {data: [...]}
+
     Note over UF: Combine all pages into CachedResponse.Pages
 
-    Note over UF,API: Offset-style pagination (FDA)
-    UF->>API: GET ?skip=0&limit=100
+    Note over UF,API: Offset-style pagination (FDA, same parallel strategy)
+    UF->>API: GET ?skip=0&limit=100 (sequential)
     API-->>UF: {results: [...], meta: {results: {total: 350}}}
-    UF->>API: GET ?skip=100&limit=100
-    API-->>UF: {results: [...]}
-    UF->>API: GET ?skip=200&limit=100
-    API-->>UF: {results: [...]}
-    UF->>API: GET ?skip=300&limit=100
-    API-->>UF: {results: [...]}
+    Note over UF: total=350 → 3 more pages needed
+
+    par Remaining offsets (concurrent)
+        UF->>API: GET ?skip=100&limit=100
+        API-->>UF: {results: [...]}
+    and
+        UF->>API: GET ?skip=200&limit=100
+        API-->>UF: {results: [...]}
+    and
+        UF->>API: GET ?skip=300&limit=100
+        API-->>UF: {results: [...]}
+    end
+
     Note over UF: Combine via configurable data_key + total_key
 ```
 
@@ -370,12 +422,12 @@ sequenceDiagram
 
     alt MongoDB reachable
         DB-->>HC: ok
-        HC-->>Client: 200 {"status": "ok", "db": "connected", "version": "v0.6.1"}
+        HC-->>Client: 200 {"status": "ok", "db": "connected", "version": "v0.8.0"}
     end
 
     alt MongoDB unreachable
         DB-->>HC: error
-        HC-->>Client: 503 {"status": "degraded", "db": "disconnected", "version": "v0.6.1"}
+        HC-->>Client: 503 {"status": "degraded", "db": "disconnected", "version": "v0.8.0"}
     end
 ```
 
@@ -424,6 +476,48 @@ sequenceDiagram
     Note over Prom: Includes cashdrugs_* + Go runtime<br/>+ system container metrics
 ```
 
+## Version Endpoint Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant GW as cash-drugs<br/>:8080
+    participant VH as VersionHandler
+
+    Client->>GW: GET /version
+    Note over GW: Exempt from concurrency limiter
+    GW->>VH: ServeHTTP(w, r)
+    VH->>VH: Collect runtime info<br/>(version, git_commit, git_branch,<br/>build_date, go_version, os, arch,<br/>hostname, GOMAXPROCS, uptime)
+    VH-->>Client: 200 {"version": "v0.8.0", "git_commit": "abc1234",<br/>"uptime_seconds": 3600, "endpoint_count": 13, ...}
+
+    Note over VH: Prometheus gauges updated independently:<br/>cashdrugs_build_info (labels: version, commit, go, date)<br/>cashdrugs_uptime_seconds (updated every 15s)
+```
+
+## Empty Upstream Result Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant CH as CacheHandler
+    participant UF as HTTPFetcher
+    participant API as Upstream API
+
+    Client->>CH: GET /api/cache/{slug}?search=nonexistent
+    CH->>CH: LRU miss → MongoDB miss → fetch upstream
+
+    CH->>UF: Fetch(endpoint, params)
+    UF->>API: GET {base_url}{path}?search=nonexistent
+    API-->>UF: 200 {data: [], metadata: {total_pages: 0}}
+    Note over UF: Valid 200 response, but empty data array
+
+    UF-->>CH: CachedResponse (empty data)
+
+    Note over CH: NOT an error — upstream responded successfully<br/>Return 200 with empty data + results_count: 0
+    CH-->>Client: 200 {"data": [], "meta": {results_count: 0, stale: false}}
+
+    Note over CH: Previous behavior returned 502 for empty results.<br/>Now correctly distinguishes "no results" from "upstream error".
+```
+
 ## System Overview
 
 ```mermaid
@@ -435,7 +529,7 @@ sequenceDiagram
     participant GZ as Gzip
     participant LIM as Limiter
     participant CD as cash-drugs<br/>:8080
-    participant LRU as LRU Cache
+    participant LRU as Sharded LRU Cache<br/>(16 shards)
     participant DB as MongoDB
     participant API1 as DailyMed API
     participant API2 as openFDA API
@@ -448,36 +542,41 @@ sequenceDiagram
     Svc->>GZ: GET /api/cache/drugnames
     GZ->>LIM: pass through
     LIM->>CD: ServeHTTP
-    CD->>LRU: Check LRU
+    CD->>LRU: Hash key → shard → check
     LRU-->>CD: miss
-    CD->>DB: Check MongoDB
+    CD->>DB: base_key exact match (indexed)
     DB-->>CD: Cache miss
     Note over CD: Singleflight + circuit breaker
-    CD->>API1: GET /dailymed/services/v2/drugnames
+    CD->>API1: GET /dailymed/services/v2/drugnames?page=1
     API1-->>CD: {data: [...], metadata: {total_pages: N}}
-    CD->>DB: Store response (multi-page)
-    CD->>LRU: Populate LRU
-    CD-->>GZ: {"data": [...], "meta": {stale: false}}
+    Note over CD,API1: Pages 2..N fetched in parallel (cap 3)
+    CD->>DB: Store response with base_key (multi-page)
+    CD->>LRU: Populate shard
+    CD-->>GZ: {"data": [...], "meta": {results_count: M, stale: false}}
     GZ-->>Svc: 200 (gzip compressed)
 
     Svc->>GZ: GET /api/cache/fda-enforcement
     GZ->>LIM: pass through
     LIM->>CD: ServeHTTP
-    CD->>LRU: Check LRU
+    CD->>LRU: Hash key → shard → check
     LRU-->>CD: Cache hit (fresh)
-    CD-->>GZ: {"data": [...], "meta": {stale: false}}
+    CD-->>GZ: {"data": [...], "meta": {results_count: M, stale: false}}
     GZ-->>Svc: 200 (gzip compressed)
 
     Note over CD,DB: Scheduler runs in background
     CD->>API2: GET /drug/enforcement.json?skip=0&limit=100
     API2-->>CD: {results: [...], meta: {results: {total: 500}}}
-    CD->>DB: Upsert cached response
+    CD->>DB: Upsert cached response with base_key
+
+    Svc->>CD: GET /version
+    Note over LIM: Exempt — bypasses limiter
+    CD-->>Svc: {"version": "v0.8.0", "uptime_seconds": 3600, ...}
 
     Svc->>CD: GET /health
     Note over LIM: Exempt — bypasses limiter
-    CD-->>Svc: {"status": "ok", "db": "connected", "version": "v0.6.1"}
+    CD-->>Svc: {"status": "ok", "db": "connected", "version": "v0.8.0"}
 
     Prom->>CD: GET /metrics
     Note over LIM: Exempt — bypasses limiter
-    CD-->>Prom: cashdrugs_* + system metrics (Prometheus exposition format)
+    CD-->>Prom: cashdrugs_* + build_info + uptime + system metrics
 ```

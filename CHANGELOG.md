@@ -9,6 +9,23 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 _No unreleased changes._
 
+## [0.8.0] — 2026-03-15 — M10: Performance Optimization
+
+### Added
+- **MongoDB query optimization:** `base_key` exact-match field replaces regex-based `cache_key` queries for all Get, FetchedAt, and stale-page-deletion operations. Compound index on `base_key + page` created at startup. Startup migration (`backfillBaseKey`) populates `base_key` on existing documents.
+- **LRU cache sharding:** 16-shard FNV-1a hashed LRU cache with per-shard mutexes, replacing single-mutex design. Reduces lock contention under concurrent load. Shard count auto-adjusts for small budgets (minimum 32KB per shard).
+- **Parallel page fetches:** Remaining pages (2..N) fetched concurrently after sequential first page, capped at 3 concurrent goroutines via semaphore (`FetchConcurrency` field on `HTTPFetcher`). Applies to both page-style and offset-style pagination.
+- **Empty upstream results:** Upstream APIs returning 200 with empty data now return 200 with `{"data": [], "meta": {results_count: 0}}` instead of 502 error. Correctly distinguishes "no results" from "upstream failure".
+- **Version endpoint:** `GET /version` returns build metadata (version, git_commit, git_branch, build_date, go_version, os, arch, hostname, GOMAXPROCS, uptime_seconds, endpoint_count, start_time). Exempt from concurrency limiter. Prometheus `cashdrugs_build_info` gauge and `cashdrugs_uptime_seconds` gauge added.
+- New Prometheus metrics: `cashdrugs_build_info` (labels: version, git_commit, go_version, build_date), `cashdrugs_uptime_seconds`
+- `results_count` field added to API response `meta` envelope
+
+### Changed
+- MongoDB `Get()` and `FetchedAt()` use `base_key` exact match instead of `cache_key` regex
+- `Upsert()` writes `base_key` field on both single-document and multi-page responses
+- LRU cache constructor (`NewLRUCache`) now returns a 16-shard implementation by default
+- Paginated fetcher fetches page 1 sequentially, then remaining pages concurrently (was fully sequential)
+
 ## [0.7.1] — 2026-03-14 — Performance Quick Wins
 
 ### Changed

@@ -148,6 +148,26 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/version": {
+            "get": {
+                "description": "Returns build metadata, runtime info, and uptime for deployment verification.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Version and build info",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.VersionInfo"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -186,6 +206,9 @@ const docTemplate = `{
                 "page_count": {
                     "type": "integer"
                 },
+                "results_count": {
+                    "type": "integer"
+                },
                 "slug": {
                     "type": "string"
                 },
@@ -222,6 +245,47 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.VersionInfo": {
+            "type": "object",
+            "properties": {
+                "arch": {
+                    "type": "string"
+                },
+                "build_date": {
+                    "type": "string"
+                },
+                "endpoint_count": {
+                    "type": "integer"
+                },
+                "git_branch": {
+                    "type": "string"
+                },
+                "git_commit": {
+                    "type": "string"
+                },
+                "go_version": {
+                    "type": "string"
+                },
+                "gomaxprocs": {
+                    "type": "integer"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "os": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "uptime_seconds": {
+                    "type": "number"
+                },
+                "version": {
                     "type": "string"
                 }
             }
