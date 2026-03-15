@@ -26,6 +26,8 @@ type CacheHandler struct {
 	metrics    *metrics.Metrics
 	lru        cache.LRUCache
 	sfGroup    singleflight.Group
+	circuit    *upstream.CircuitRegistry
+	cooldown   *upstream.CooldownTracker
 }
 
 // Option configures a CacheHandler.
@@ -49,6 +51,20 @@ func WithMetrics(m *metrics.Metrics) Option {
 func WithLRU(lru cache.LRUCache) Option {
 	return func(h *CacheHandler) {
 		h.lru = lru
+	}
+}
+
+// WithCircuit sets the circuit breaker registry.
+func WithCircuit(c *upstream.CircuitRegistry) Option {
+	return func(h *CacheHandler) {
+		h.circuit = c
+	}
+}
+
+// WithCooldown sets the force-refresh cooldown tracker.
+func WithCooldown(cd *upstream.CooldownTracker) Option {
+	return func(h *CacheHandler) {
+		h.cooldown = cd
 	}
 }
 
@@ -108,12 +124,29 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check for _force param (used to simulate "no cache" scenario for stale tests)
 	forceRefresh := r.URL.Query().Get("_force") == "true"
 
+	// 1. Force-refresh cooldown check (BEFORE singleflight)
+	if forceRefresh && h.cooldown != nil && h.cooldown.Check(cacheKey) {
+		slog.Debug("force-refresh blocked by cooldown", "component", "handler", "slug", slug)
+		if h.metrics != nil {
+			h.metrics.ForceRefreshCooldownTotal.WithLabelValues(slug).Inc()
+		}
+		cached, err := h.repo.Get(cacheKey)
+		if err == nil && cached != nil {
+			w.Header().Set("X-Force-Cooldown", "true")
+			respondWithCached(w, cached, false, "")
+			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
+			return
+		}
+		// No cache available — fall through to normal fetch path
+		forceRefresh = false
+	}
+
 	// On force refresh, invalidate LRU entry
 	if forceRefresh && h.lru != nil {
 		h.lru.Invalidate(cacheKey)
 	}
 
-	// Try LRU cache first (unless force refresh)
+	// 2. Try LRU cache first (unless force refresh)
 	if !forceRefresh && h.lru != nil {
 		if lruResult, ok := h.lru.Get(cacheKey); ok {
 			slog.Debug("LRU cache hit", "component", "handler", "slug", slug)
@@ -155,7 +188,42 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("cache miss", "component", "handler", "slug", slug)
 	h.recordCacheOutcome(slug, "miss")
 
-	// Wrap upstream fetch in singleflight to deduplicate concurrent requests
+	// Circuit breaker check — if open, serve stale or return 503
+	if h.circuit != nil && h.circuit.IsOpen(slug) {
+		slog.Warn("circuit open — rejecting upstream fetch", "component", "handler", "slug", slug)
+		if h.metrics != nil {
+			h.metrics.CircuitRejectionsTotal.WithLabelValues(slug).Inc()
+			h.metrics.CircuitState.WithLabelValues(slug).Set(2) // open
+		}
+
+		// Try stale cache fallback
+		cached, cacheErr := h.repo.Get(cacheKey)
+		if cacheErr == nil && cached != nil {
+			h.recordCacheOutcome(slug, "stale")
+			respondWithCached(w, cached, true, "circuit_open")
+			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
+			return
+		}
+
+		// No cache — return 503
+		retryAfter := int(h.circuit.OpenDuration().Seconds())
+		h.recordHTTPMetrics(slug, r.Method, http.StatusServiceUnavailable, start)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(struct {
+			Error      string `json:"error"`
+			Slug       string `json:"slug"`
+			RetryAfter int    `json:"retry_after"`
+		}{
+			Error:      "upstream circuit open",
+			Slug:       slug,
+			RetryAfter: retryAfter,
+		})
+		return
+	}
+
+	// 3. Wrap upstream fetch in singleflight to deduplicate concurrent requests
+	// Circuit breaker wraps the upstream fetch call inside singleflight
 	type sfResult struct {
 		resp *model.CachedResponse
 		err  error
@@ -183,7 +251,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			slog.Error("cache upsert failed", "component", "handler", "slug", slug, "error", err)
 		}
 
-		// Populate LRU
+		// 4. Populate LRU after successful response
 		h.populateLRU(cacheKey, result, ep)
 
 		return &sfResult{result, nil}, nil

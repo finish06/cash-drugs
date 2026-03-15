@@ -36,6 +36,11 @@ type Metrics struct {
 	ContainerNetworkReceivePackets  *prometheus.GaugeVec
 	ContainerNetworkTransmitPackets *prometheus.GaugeVec
 
+	// Circuit breaker metrics
+	CircuitState              *prometheus.GaugeVec
+	CircuitRejectionsTotal    *prometheus.CounterVec
+	ForceRefreshCooldownTotal *prometheus.CounterVec
+
 	// Concurrency limiter metrics
 	InFlightRequests      prometheus.Gauge
 	RejectedRequestsTotal prometheus.Counter
@@ -260,6 +265,32 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			[]string{"interface"},
 		),
 
+		// Circuit breaker metrics
+		CircuitState: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "circuit_state",
+				Help:      "Circuit breaker state per slug (0=closed, 1=half-open, 2=open).",
+			},
+			[]string{"slug"},
+		),
+		CircuitRejectionsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "circuit_rejections_total",
+				Help:      "Requests rejected by open circuit breaker.",
+			},
+			[]string{"slug"},
+		),
+		ForceRefreshCooldownTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "force_refresh_cooldown_total",
+				Help:      "Force-refresh requests blocked by cooldown.",
+			},
+			[]string{"slug"},
+		),
+
 		// Concurrency limiter metrics
 		InFlightRequests: prometheus.NewGauge(
 			prometheus.GaugeOpts{
@@ -338,6 +369,9 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.ContainerNetworkTransmitBytes,
 		m.ContainerNetworkReceivePackets,
 		m.ContainerNetworkTransmitPackets,
+		m.CircuitState,
+		m.CircuitRejectionsTotal,
+		m.ForceRefreshCooldownTotal,
 		m.InFlightRequests,
 		m.RejectedRequestsTotal,
 		m.LRUCacheHitsTotal,

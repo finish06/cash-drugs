@@ -201,6 +201,45 @@ func TestAC012_SchedulerRunDuration(t *testing.T) {
 	}
 }
 
+// M9-AC-014: Circuit state gauge
+func TestM9_AC014_CircuitStateGauge(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	m.CircuitState.WithLabelValues("drugnames").Set(2) // 2 = open
+
+	val := testutil.ToFloat64(m.CircuitState.WithLabelValues("drugnames"))
+	if val != 2 {
+		t.Errorf("expected circuit state 2 (open), got %f", val)
+	}
+}
+
+// M9-AC-015: Circuit rejections counter
+func TestM9_AC015_CircuitRejectionsCounter(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	m.CircuitRejectionsTotal.WithLabelValues("drugnames").Inc()
+
+	val := testutil.ToFloat64(m.CircuitRejectionsTotal.WithLabelValues("drugnames"))
+	if val != 1 {
+		t.Errorf("expected 1 rejection, got %f", val)
+	}
+}
+
+// M9-AC-016: Force refresh cooldown counter
+func TestM9_AC016_ForceRefreshCooldownCounter(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	m.ForceRefreshCooldownTotal.WithLabelValues("drugnames").Inc()
+
+	val := testutil.ToFloat64(m.ForceRefreshCooldownTotal.WithLabelValues("drugnames"))
+	if val != 1 {
+		t.Errorf("expected 1 cooldown, got %f", val)
+	}
+}
+
 // AC-013: Fetch lock dedup counter
 func TestAC013_FetchLockDedupCounter(t *testing.T) {
 	reg := prometheus.NewRegistry()

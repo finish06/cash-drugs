@@ -23,6 +23,7 @@ type Scheduler struct {
 	locks     *fetchlock.Map
 	metrics   *metrics.Metrics
 	lru       cache.LRUCache
+	circuit   *upstream.CircuitRegistry
 }
 
 // Option configures a Scheduler.
@@ -39,6 +40,13 @@ func WithMetrics(m *metrics.Metrics) Option {
 func WithLRU(lru cache.LRUCache) Option {
 	return func(s *Scheduler) {
 		s.lru = lru
+	}
+}
+
+// WithCircuit sets the circuit breaker registry for the scheduler.
+func WithCircuit(c *upstream.CircuitRegistry) Option {
+	return func(s *Scheduler) {
+		s.circuit = c
 	}
 }
 
@@ -109,6 +117,12 @@ func (s *Scheduler) Stop() {
 }
 
 func (s *Scheduler) fetchEndpoint(ep config.Endpoint) {
+	// Circuit breaker check — skip fetch if circuit is open
+	if s.circuit != nil && s.circuit.IsOpen(ep.Slug) {
+		slog.Warn("skipping scheduled fetch — circuit open", "component", "scheduler", "slug", ep.Slug)
+		return
+	}
+
 	mu := s.locks.Get(ep.Slug)
 	if !mu.TryLock() {
 		slog.Debug("skipping fetch — previous fetch still running", "component", "scheduler", "slug", ep.Slug)

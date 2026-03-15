@@ -11,6 +11,7 @@ import (
 	"github.com/finish06/cash-drugs/internal/fetchlock"
 	"github.com/finish06/cash-drugs/internal/model"
 	"github.com/finish06/cash-drugs/internal/scheduler"
+	"github.com/finish06/cash-drugs/internal/upstream"
 )
 
 // AC-003: Scheduler starts background goroutines for scheduled endpoints
@@ -192,6 +193,66 @@ func TestAC008_GracefulShutdown(t *testing.T) {
 
 	if countAfterStop > countBeforeStop+1 {
 		t.Errorf("expected no new fetches after stop, before=%d after=%d", countBeforeStop, countAfterStop)
+	}
+}
+
+// M9-AC-017: Circuit open → scheduler skips fetch, logs warning
+func TestM9_AC017_CircuitOpenSchedulerSkipsFetch(t *testing.T) {
+	fetcher := &mockFetcher{}
+	repo := &mockRepo{}
+
+	endpoints := []config.Endpoint{
+		{Slug: "drugnames", BaseURL: "http://example.com", Path: "/api", Format: "json", Refresh: "* * * * *"},
+	}
+	config.ApplyDefaults(&endpoints[0])
+
+	circuit := upstream.NewCircuitRegistry(2, 30*time.Second)
+	// Trip circuit for this slug
+	for i := 0; i < 2; i++ {
+		circuit.Execute("drugnames", func() (interface{}, error) {
+			return nil, &fetchError{msg: "fail"}
+		})
+	}
+
+	s := scheduler.New(endpoints, fetcher, repo, fetchlock.New(), scheduler.WithCircuit(circuit))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s.Start(ctx)
+	defer s.Stop()
+
+	// Wait for warm-up attempt
+	time.Sleep(200 * time.Millisecond)
+
+	// Fetch should NOT have been called because circuit is open
+	if fetcher.callCount.Load() > 0 {
+		t.Errorf("expected 0 fetch calls when circuit is open, got %d", fetcher.callCount.Load())
+	}
+}
+
+// M9-AC-018: Circuit closed → scheduler proceeds normally
+func TestM9_AC018_CircuitClosedSchedulerProceeds(t *testing.T) {
+	fetcher := &mockFetcher{}
+	repo := &mockRepo{}
+
+	endpoints := []config.Endpoint{
+		{Slug: "drugnames", BaseURL: "http://example.com", Path: "/api", Format: "json", Refresh: "0 0 1 1 *"},
+	}
+	config.ApplyDefaults(&endpoints[0])
+
+	circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+
+	s := scheduler.New(endpoints, fetcher, repo, fetchlock.New(), scheduler.WithCircuit(circuit))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s.Start(ctx)
+	defer s.Stop()
+
+	time.Sleep(200 * time.Millisecond)
+
+	if fetcher.callCount.Load() < 1 {
+		t.Error("expected fetch to proceed when circuit is closed")
 	}
 }
 
