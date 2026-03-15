@@ -33,10 +33,18 @@ type mockCollection struct {
 	updateOneCalled int
 	deleteOneCalled bool
 	deleteManyCalled bool
+
+	// Capture filters and updates for assertions
+	lastFindFilter      any
+	lastFindOneFilter   any
+	lastDeleteManyFilter any
+	updateOneFilters    []any
+	updateOneUpdates    []any
 }
 
 func (m *mockCollection) Find(ctx context.Context, filter any, opts ...options.Lister[options.FindOptions]) (*mongo.Cursor, error) {
 	m.findCalled = true
+	m.lastFindFilter = filter
 	if m.findErr != nil {
 		return nil, m.findErr
 	}
@@ -46,6 +54,7 @@ func (m *mockCollection) Find(ctx context.Context, filter any, opts ...options.L
 
 func (m *mockCollection) FindOne(ctx context.Context, filter any, opts ...options.Lister[options.FindOneOptions]) *mongo.SingleResult {
 	m.findOneCalled = true
+	m.lastFindOneFilter = filter
 	if m.findOneErr != nil {
 		return mongo.NewSingleResultFromDocument(nil, m.findOneErr, nil)
 	}
@@ -58,6 +67,8 @@ func (m *mockCollection) FindOne(ctx context.Context, filter any, opts ...option
 
 func (m *mockCollection) UpdateOne(ctx context.Context, filter any, update any, opts ...options.Lister[options.UpdateOneOptions]) (*mongo.UpdateResult, error) {
 	m.updateOneCalled++
+	m.updateOneFilters = append(m.updateOneFilters, filter)
+	m.updateOneUpdates = append(m.updateOneUpdates, update)
 	if m.updateErr != nil {
 		return nil, m.updateErr
 	}
@@ -80,6 +91,7 @@ func (m *mockCollection) DeleteOne(ctx context.Context, filter any, opts ...opti
 
 func (m *mockCollection) DeleteMany(ctx context.Context, filter any, opts ...options.Lister[options.DeleteManyOptions]) (*mongo.DeleteResult, error) {
 	m.deleteManyCalled = true
+	m.lastDeleteManyFilter = filter
 	if m.deleteErr != nil {
 		return nil, m.deleteErr
 	}

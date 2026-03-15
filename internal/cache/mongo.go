@@ -3,6 +3,8 @@ package cache
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/finish06/cash-drugs/internal/model"
@@ -74,6 +76,7 @@ func buildSingleUpdate(resp *model.CachedResponse, now time.Time) bson.M {
 			"slug":         resp.Slug,
 			"params":       resp.Params,
 			"cache_key":    resp.CacheKey,
+			"base_key":     resp.CacheKey,
 			"data":         resp.Data,
 			"content_type": resp.ContentType,
 			"fetched_at":   resp.FetchedAt,
@@ -95,6 +98,7 @@ func buildPageUpdate(resp *model.CachedResponse, page model.PageData, pageKey st
 			"slug":         resp.Slug,
 			"params":       resp.Params,
 			"cache_key":    pageKey,
+			"base_key":     resp.CacheKey,
 			"page":         page.Page,
 			"page_count":   resp.PageCount,
 			"data":         page.Data,
@@ -110,12 +114,47 @@ func buildPageUpdate(resp *model.CachedResponse, page model.PageData, pageKey st
 	}
 }
 
+// buildBaseKeyFilter creates a MongoDB exact-match filter on the base_key field.
+func buildBaseKeyFilter(cacheKey string) bson.M {
+	return bson.M{"base_key": cacheKey}
+}
+
 // buildRegexFilter creates a MongoDB regex filter that matches a cache key
-// and its page variants (e.g., "mykey" matches "mykey" and "mykey:page:1").
+// and its page variants. Deprecated: use buildBaseKeyFilter instead.
 func buildRegexFilter(cacheKey string) bson.M {
 	return bson.M{"cache_key": bson.M{
 		"$regex": "^" + escapeRegex(cacheKey) + "(:|$)",
 	}}
+}
+
+// escapeRegex escapes special regex characters in a string for use in MongoDB $regex.
+// Deprecated: no longer needed since queries use exact match on base_key.
+func escapeRegex(s string) string {
+	special := []byte(`\.+*?^${}()|[]`)
+	result := make([]byte, 0, len(s)*2)
+	for i := 0; i < len(s); i++ {
+		for _, c := range special {
+			if s[i] == c {
+				result = append(result, '\\')
+				break
+			}
+		}
+		result = append(result, s[i])
+	}
+	return string(result)
+}
+
+// extractBaseKey returns the cache key without any :page:N suffix.
+// For keys like "drugnames:page:2", returns "drugnames".
+// For keys like "some:page:key:page:2", splits on the last ":page:" occurrence.
+// For keys without ":page:", returns the key as-is.
+func extractBaseKey(cacheKey string) string {
+	const sep = ":page:"
+	idx := strings.LastIndex(cacheKey, sep)
+	if idx < 0 {
+		return cacheKey
+	}
+	return cacheKey[:idx]
 }
 
 // NewMongoRepository connects to MongoDB, pings it, and ensures indexes.
@@ -153,6 +192,10 @@ func NewMongoRepository(uri string, timeout time.Duration) (*MongoRepository, er
 		return nil, fmt.Errorf("failed to create indexes: %w", err)
 	}
 
+	if err := repo.backfillBaseKey(ctx); err != nil {
+		slog.Warn("backfillBaseKey failed (non-fatal)", "error", err)
+	}
+
 	return repo, nil
 }
 
@@ -162,7 +205,7 @@ func (r *MongoRepository) Get(cacheKey string) (*model.CachedResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 
-	pageFilter := buildRegexFilter(cacheKey)
+	pageFilter := buildBaseKeyFilter(cacheKey)
 
 	cursor, err := r.collection.Find(ctx, pageFilter, options.Find().SetSort(bson.D{{Key: "page", Value: 1}}))
 	if err != nil {
@@ -190,10 +233,8 @@ func (r *MongoRepository) Upsert(resp *model.CachedResponse) error {
 	if len(resp.Pages) > 1 {
 		// Delete any stale pages beyond current page count
 		staleFilter := bson.M{
-			"cache_key": bson.M{
-				"$regex": "^" + escapeRegex(resp.CacheKey) + ":page:",
-			},
-			"page": bson.M{"$gt": len(resp.Pages)},
+			"base_key": resp.CacheKey,
+			"page":     bson.M{"$gt": len(resp.Pages)},
 		}
 		r.collection.DeleteMany(ctx, staleFilter)
 
@@ -233,8 +274,8 @@ func (r *MongoRepository) FetchedAt(cacheKey string) (time.Time, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 
-	// Look for exact key or first page
-	filter := buildRegexFilter(cacheKey)
+	// Look for exact key or first page using indexed base_key
+	filter := buildBaseKeyFilter(cacheKey)
 
 	opts := options.FindOne().SetProjection(bson.M{"fetched_at": 1})
 	var result struct {
@@ -288,22 +329,58 @@ func (r *MongoRepository) ensureIndexes(ctx context.Context) error {
 		Options: options.Index().SetUnique(true).SetName("idx_cache_key"),
 	}
 
-	_, err := r.collection.Indexes().CreateOne(ctx, indexModel)
+	if _, err := r.collection.Indexes().CreateOne(ctx, indexModel); err != nil {
+		return err
+	}
+
+	// Compound index on base_key + page for efficient multi-page lookups
+	baseKeyIndex := mongo.IndexModel{
+		Keys:    bson.D{{Key: "base_key", Value: 1}, {Key: "page", Value: 1}},
+		Options: options.Index().SetName("idx_base_key_page"),
+	}
+
+	_, err := r.collection.Indexes().CreateOne(ctx, baseKeyIndex)
 	return err
 }
 
-// escapeRegex escapes special regex characters in a string for use in MongoDB $regex.
-func escapeRegex(s string) string {
-	special := []byte(`\.+*?^${}()|[]`)
-	result := make([]byte, 0, len(s)*2)
-	for i := 0; i < len(s); i++ {
-		for _, c := range special {
-			if s[i] == c {
-				result = append(result, '\\')
-				break
-			}
-		}
-		result = append(result, s[i])
+// backfillBaseKey populates the base_key field on documents that are missing it.
+// This is idempotent -- documents with base_key already set are skipped.
+func (r *MongoRepository) backfillBaseKey(ctx context.Context) error {
+	// Find all documents where base_key is empty or missing
+	filter := bson.M{
+		"$or": bson.A{
+			bson.M{"base_key": ""},
+			bson.M{"base_key": bson.M{"$exists": false}},
+		},
 	}
-	return string(result)
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("backfillBaseKey: failed to find documents: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var updated int64
+	for cursor.Next(ctx) {
+		var doc struct {
+			CacheKey string `bson:"cache_key"`
+		}
+		if err := cursor.Decode(&doc); err != nil {
+			continue
+		}
+
+		baseKey := extractBaseKey(doc.CacheKey)
+		updateFilter := bson.M{"cache_key": doc.CacheKey}
+		update := bson.M{"$set": bson.M{"base_key": baseKey}}
+
+		if _, err := r.collection.UpdateOne(ctx, updateFilter, update); err != nil {
+			slog.Warn("backfillBaseKey: failed to update document",
+				"cache_key", doc.CacheKey, "error", err)
+			continue
+		}
+		updated++
+	}
+
+	slog.Info("backfillBaseKey complete", "documents_updated", updated)
+	return nil
 }
