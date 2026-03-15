@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -514,11 +516,14 @@ func TestAC004_URLConstructionWithQueryParams(t *testing.T) {
 
 // AC-002: Offset pagination sends skip & limit query params
 func TestFDA_AC002_OffsetPaginationSendsSkipLimit(t *testing.T) {
+	var mu sync.Mutex
 	var requests []url.Values
 	totalItems := 25
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		requests = append(requests, r.URL.Query())
+		mu.Unlock()
 
 		// Generate items for this page based on skip/limit
 		items := []interface{}{}
@@ -560,15 +565,26 @@ func TestFDA_AC002_OffsetPaginationSendsSkipLimit(t *testing.T) {
 		t.Fatalf("expected 3 requests, got %d", len(requests))
 	}
 
-	expectedSkips := []string{"0", "10", "20"}
-	for i, expected := range expectedSkips {
-		got := requests[i].Get("skip")
-		if got != expected {
-			t.Errorf("request %d: expected skip=%s, got skip=%s", i, expected, got)
-		}
-		limit := requests[i].Get("limit")
+	// First request is always sequential (skip=0)
+	if requests[0].Get("skip") != "0" {
+		t.Errorf("first request: expected skip=0, got skip=%s", requests[0].Get("skip"))
+	}
+
+	// Collect all skip values and verify the expected set is present
+	var skips []string
+	for _, q := range requests {
+		skips = append(skips, q.Get("skip"))
+		limit := q.Get("limit")
 		if limit != "10" {
-			t.Errorf("request %d: expected limit=10, got limit=%s", i, limit)
+			t.Errorf("expected limit=10, got limit=%s", limit)
+		}
+	}
+	sort.Strings(skips)
+	expectedSkips := []string{"0", "10", "20"}
+	sort.Strings(expectedSkips)
+	for i, expected := range expectedSkips {
+		if skips[i] != expected {
+			t.Errorf("expected skip=%s in sorted requests, got skip=%s", expected, skips[i])
 		}
 	}
 
@@ -674,12 +690,15 @@ func TestFDA_AC004_AC016_ConfigurableTotalKeyDotNotation(t *testing.T) {
 
 // AC-005: Backward compatibility — page-based pagination still works when no PaginationStyle is set
 func TestFDA_AC005_BackwardCompatPagePagination(t *testing.T) {
+	var mu sync.Mutex
 	var requests []url.Values
 	pageCount := 0
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		requests = append(requests, r.URL.Query())
 		pageCount++
+		mu.Unlock()
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []interface{}{
 				map[string]interface{}{"item": pageCount},
@@ -804,10 +823,13 @@ func TestFDA_AC012_GracefulSkipLimitHandling(t *testing.T) {
 
 // AC-017: Offset skip calculation is (page-1) * pagesize
 func TestFDA_AC017_OffsetSkipCalculation(t *testing.T) {
+	var mu sync.Mutex
 	var receivedSkips []string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		receivedSkips = append(receivedSkips, r.URL.Query().Get("skip"))
+		mu.Unlock()
 
 		items := []interface{}{map[string]interface{}{"id": 1}}
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -843,10 +865,21 @@ func TestFDA_AC017_OffsetSkipCalculation(t *testing.T) {
 		t.Fatalf("expected 3 requests, got %d", len(receivedSkips))
 	}
 
-	expectedSkips := []string{"0", "25", "50"}
-	for i, expected := range expectedSkips {
-		if receivedSkips[i] != expected {
-			t.Errorf("request %d: expected skip=%s, got skip=%s", i, expected, receivedSkips[i])
+	// With parallel fetching, request order is non-deterministic after page 1.
+	// Verify first request is skip=0 (sequential), then remaining contain 25 and 50.
+	if receivedSkips[0] != "0" {
+		t.Errorf("first request: expected skip=0, got skip=%s", receivedSkips[0])
+	}
+	expectedRemaining := map[string]bool{"25": false, "50": false}
+	for _, skip := range receivedSkips[1:] {
+		if _, ok := expectedRemaining[skip]; !ok {
+			t.Errorf("unexpected skip value: %s", skip)
+		}
+		expectedRemaining[skip] = true
+	}
+	for skip, found := range expectedRemaining {
+		if !found {
+			t.Errorf("expected skip=%s in requests, not found", skip)
 		}
 	}
 }
