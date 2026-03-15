@@ -119,11 +119,24 @@ func main() {
 		slog.Info("system metrics collector skipped (not linux)", "component", "metrics", "os", runtime.GOOS)
 	}
 
+	// Initialize LRU cache
+	lruSizeMB := 256 // default
+	if appCfg != nil && appCfg.LRUCacheSizeMB > 0 {
+		lruSizeMB = appCfg.LRUCacheSizeMB
+	}
+	if envVal := os.Getenv("LRU_CACHE_SIZE_MB"); envVal != "" {
+		if v, err := strconv.Atoi(envVal); err == nil && v >= 0 {
+			lruSizeMB = v
+		}
+	}
+	lruCache := cache.NewLRUCache(int64(lruSizeMB) * 1024 * 1024)
+	slog.Info("LRU cache configured", "component", "server", "size_mb", lruSizeMB)
+
 	// Start background scheduler
-	sched := scheduler.New(endpoints, fetcher, repo, locks, scheduler.WithMetrics(m))
+	sched := scheduler.New(endpoints, fetcher, repo, locks, scheduler.WithMetrics(m), scheduler.WithLRU(lruCache))
 	sched.Start(context.Background())
 
-	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m))
+	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m), handler.WithLRU(lruCache))
 	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
 	endpointsHandler := handler.NewEndpointsHandler(endpoints)
 
@@ -159,9 +172,12 @@ func main() {
 		addr = ":8080"
 	}
 
+	// Wrap outermost handler with gzip middleware (compresses all responses including 503)
+	gzipHandler := middleware.GzipMiddleware(mux)
+
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler:      gzipHandler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

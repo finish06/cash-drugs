@@ -14,6 +14,7 @@ import (
 	"github.com/finish06/cash-drugs/internal/metrics"
 	"github.com/finish06/cash-drugs/internal/model"
 	"github.com/finish06/cash-drugs/internal/upstream"
+	"golang.org/x/sync/singleflight"
 )
 
 // CacheHandler handles GET /api/cache/{slug} requests.
@@ -23,6 +24,8 @@ type CacheHandler struct {
 	fetcher    upstream.Fetcher
 	fetchLocks *FetchLocks
 	metrics    *metrics.Metrics
+	lru        cache.LRUCache
+	sfGroup    singleflight.Group
 }
 
 // Option configures a CacheHandler.
@@ -39,6 +42,13 @@ func WithFetchLocks(fl *FetchLocks) Option {
 func WithMetrics(m *metrics.Metrics) Option {
 	return func(h *CacheHandler) {
 		h.metrics = m
+	}
+}
+
+// WithLRU sets the in-memory LRU cache for the handler.
+func WithLRU(lru cache.LRUCache) Option {
+	return func(h *CacheHandler) {
+		h.lru = lru
 	}
 }
 
@@ -98,7 +108,26 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check for _force param (used to simulate "no cache" scenario for stale tests)
 	forceRefresh := r.URL.Query().Get("_force") == "true"
 
-	// Try cache first (unless force refresh)
+	// On force refresh, invalidate LRU entry
+	if forceRefresh && h.lru != nil {
+		h.lru.Invalidate(cacheKey)
+	}
+
+	// Try LRU cache first (unless force refresh)
+	if !forceRefresh && h.lru != nil {
+		if lruResult, ok := h.lru.Get(cacheKey); ok {
+			slog.Debug("LRU cache hit", "component", "handler", "slug", slug)
+			h.recordLRUHit(slug)
+			h.recordCacheOutcome(slug, "hit")
+			respondWithCached(w, lruResult, false, "")
+			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "lru_hit", "duration", time.Since(start))
+			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
+			return
+		}
+		h.recordLRUMiss(slug)
+	}
+
+	// Try MongoDB cache (unless force refresh)
 	if !forceRefresh {
 		cached, err := h.repo.Get(cacheKey)
 		if err == nil && cached != nil {
@@ -114,6 +143,8 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			slog.Debug("cache hit", "component", "handler", "slug", slug)
 			h.recordCacheOutcome(slug, "hit")
+			// Populate LRU from MongoDB hit
+			h.populateLRU(cacheKey, cached, ep)
 			respondWithCached(w, cached, false, "")
 			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "hit", "duration", time.Since(start))
 			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
@@ -124,16 +155,48 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("cache miss", "component", "handler", "slug", slug)
 	h.recordCacheOutcome(slug, "miss")
 
-	// Fetch from upstream
-	slog.Info("fetch started", "component", "handler", "slug", slug)
-	fetchStart := time.Now()
-	result, fetchErr := h.fetcher.Fetch(ep, pathParams)
-	fetchDuration := time.Since(fetchStart).Seconds()
+	// Wrap upstream fetch in singleflight to deduplicate concurrent requests
+	type sfResult struct {
+		resp *model.CachedResponse
+		err  error
+	}
 
-	if fetchErr != nil {
-		slog.Error("upstream fetch failed", "component", "handler", "slug", slug, "error", fetchErr)
-		h.recordUpstreamMetrics(slug, fetchDuration, 0, true)
+	v, _, shared := h.sfGroup.Do(cacheKey, func() (interface{}, error) {
+		slog.Info("fetch started", "component", "handler", "slug", slug)
+		fetchStart := time.Now()
+		result, fetchErr := h.fetcher.Fetch(ep, pathParams)
+		fetchDuration := time.Since(fetchStart).Seconds()
 
+		if fetchErr != nil {
+			slog.Error("upstream fetch failed", "component", "handler", "slug", slug, "error", fetchErr)
+			h.recordUpstreamMetrics(slug, fetchDuration, 0, true)
+			// Forget on error so errors are not shared/cached
+			h.sfGroup.Forget(cacheKey)
+			return &sfResult{nil, fetchErr}, nil
+		}
+
+		slog.Info("fetch completed", "component", "handler", "slug", slug, "pages", result.PageCount)
+		h.recordUpstreamMetrics(slug, fetchDuration, result.PageCount, false)
+
+		// Store in MongoDB cache
+		if err := h.repo.Upsert(result); err != nil {
+			slog.Error("cache upsert failed", "component", "handler", "slug", slug, "error", err)
+		}
+
+		// Populate LRU
+		h.populateLRU(cacheKey, result, ep)
+
+		return &sfResult{result, nil}, nil
+	})
+
+	// Record singleflight dedup metric
+	if shared {
+		h.recordSingleflightDedup(slug)
+	}
+
+	sr := v.(*sfResult)
+
+	if sr.err != nil {
 		// Try stale cache fallback
 		cached, cacheErr := h.repo.Get(cacheKey)
 		if cacheErr == nil && cached != nil {
@@ -157,16 +220,8 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("fetch completed", "component", "handler", "slug", slug, "pages", result.PageCount)
-	h.recordUpstreamMetrics(slug, fetchDuration, result.PageCount, false)
-
-	// Store in cache
-	if err := h.repo.Upsert(result); err != nil {
-		slog.Error("cache upsert failed", "component", "handler", "slug", slug, "error", err)
-	}
-
 	// Return fresh result
-	respondWithCached(w, result, false, "")
+	respondWithCached(w, sr.resp, false, "")
 	slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "miss", "duration", time.Since(start))
 	h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 }
@@ -197,6 +252,46 @@ func (h *CacheHandler) recordUpstreamMetrics(slug string, duration float64, page
 	if pageCount > 0 {
 		h.metrics.UpstreamFetchPages.WithLabelValues(slug).Add(float64(pageCount))
 	}
+}
+
+func (h *CacheHandler) populateLRU(cacheKey string, resp *model.CachedResponse, ep config.Endpoint) {
+	if h.lru == nil {
+		return
+	}
+	ttl := ep.TTLDuration
+	if ttl == 0 {
+		ttl = 5 * time.Minute // default LRU TTL
+	}
+	h.lru.Set(cacheKey, resp, ttl)
+	h.updateLRUSizeMetric()
+}
+
+func (h *CacheHandler) updateLRUSizeMetric() {
+	if h.metrics == nil || h.lru == nil {
+		return
+	}
+	h.metrics.LRUCacheSizeBytes.Set(float64(h.lru.SizeBytes()))
+}
+
+func (h *CacheHandler) recordLRUHit(slug string) {
+	if h.metrics == nil {
+		return
+	}
+	h.metrics.LRUCacheHitsTotal.WithLabelValues(slug).Inc()
+}
+
+func (h *CacheHandler) recordLRUMiss(slug string) {
+	if h.metrics == nil {
+		return
+	}
+	h.metrics.LRUCacheMissesTotal.WithLabelValues(slug).Inc()
+}
+
+func (h *CacheHandler) recordSingleflightDedup(slug string) {
+	if h.metrics == nil {
+		return
+	}
+	h.metrics.SingleflightDedupTotal.WithLabelValues(slug).Inc()
 }
 
 // backgroundRevalidate spawns a goroutine to refresh the cache in the background.

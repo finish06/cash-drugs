@@ -760,6 +760,46 @@ endpoints:
 	}
 }
 
+// AC: LRUCacheSizeMB field parsed from YAML
+func TestLRUCacheSizeMB_Parsed(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+lru_cache_size_mb: 512
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if appCfg.LRUCacheSizeMB != 512 {
+		t.Errorf("expected LRUCacheSizeMB=512, got %d", appCfg.LRUCacheSizeMB)
+	}
+}
+
+// AC: LRUCacheSizeMB default when absent
+func TestLRUCacheSizeMB_DefaultWhenAbsent(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Default is 0 from YAML (caller applies 256 default)
+	if appCfg.LRUCacheSizeMB != 0 {
+		t.Errorf("expected LRUCacheSizeMB=0 when absent, got %d", appCfg.LRUCacheSizeMB)
+	}
+}
+
 // Helper functions
 
 const validConfig = `

@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/finish06/cash-drugs/internal/cache"
 	"github.com/finish06/cash-drugs/internal/config"
 	"github.com/finish06/cash-drugs/internal/handler"
 	"github.com/finish06/cash-drugs/internal/metrics"
@@ -612,7 +615,399 @@ func TestM8_AC002_HTTPMetricsOn404(t *testing.T) {
 	}
 }
 
+// AC: Singleflight — concurrent requests for same cache key produce only 1 upstream fetch
+func TestSingleflight_DeduplicatesConcurrentRequests(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	var fetchCount atomic.Int32
+	fetcher := &slowMockFetcher{
+		delay: 100 * time.Millisecond,
+		result: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      map[string]interface{}{"items": []interface{}{"drug1"}},
+			FetchedAt: time.Now(),
+			SourceURL: "http://example.com/v2/drugnames",
+			PageCount: 1,
+		},
+		fetchCount: &fetchCount,
+	}
+
+	lru := cache.NewLRUCache(0) // disabled LRU so we always go to upstream
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+		handler.WithLRU(lru),
+	)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Errorf("expected 200, got %d", w.Code)
+			}
+		}()
+	}
+	wg.Wait()
+
+	count := fetchCount.Load()
+	if count != 1 {
+		t.Errorf("expected exactly 1 upstream fetch (singleflight dedup), got %d", count)
+	}
+}
+
+// AC: Singleflight — different cache keys are independent
+func TestSingleflight_DifferentKeysIndependent(t *testing.T) {
+	ep1 := config.Endpoint{
+		Slug:    "drug1",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drug1",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep1)
+
+	ep2 := config.Endpoint{
+		Slug:    "drug2",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drug2",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep2)
+
+	var fetchCount atomic.Int32
+	fetcher := &slowMockFetcher{
+		delay: 50 * time.Millisecond,
+		result: &model.CachedResponse{
+			Slug:      "test",
+			CacheKey:  "test",
+			Data:      map[string]interface{}{"items": []interface{}{}},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		},
+		fetchCount: &fetchCount,
+	}
+
+	lru := cache.NewLRUCache(0)
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep1, ep2},
+		&mockCacheRepo{},
+		fetcher,
+		handler.WithLRU(lru),
+	)
+
+	var wg sync.WaitGroup
+	for _, slug := range []string{"drug1", "drug2"} {
+		wg.Add(1)
+		go func(s string) {
+			defer wg.Done()
+			req := httptest.NewRequest("GET", "/api/cache/"+s, nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+		}(slug)
+	}
+	wg.Wait()
+
+	count := fetchCount.Load()
+	if count < 2 {
+		t.Errorf("expected at least 2 fetches for different keys, got %d", count)
+	}
+}
+
+// AC: Singleflight — errors are NOT shared (singleflight.Forget on error)
+func TestSingleflight_ErrorsNotShared(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	var fetchCount atomic.Int32
+	fetcher := &slowMockFetcher{
+		delay:      50 * time.Millisecond,
+		err:        fmt.Errorf("upstream unavailable"),
+		fetchCount: &fetchCount,
+	}
+
+	lru := cache.NewLRUCache(0)
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+		handler.WithLRU(lru),
+	)
+
+	// First request fails
+	req1 := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w1 := httptest.NewRecorder()
+	h.ServeHTTP(w1, req1)
+
+	// Second request should also try (errors not cached in group)
+	req2 := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w2 := httptest.NewRecorder()
+	h.ServeHTTP(w2, req2)
+
+	count := fetchCount.Load()
+	if count < 2 {
+		t.Errorf("expected at least 2 fetches (errors should not be shared), got %d", count)
+	}
+}
+
+// AC: LRU hit serves directly without MongoDB
+func TestLRU_HitServesDirectly(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	lru := cache.NewLRUCache(1024 * 1024)
+	resp := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      map[string]interface{}{"items": []interface{}{"drug1"}},
+		FetchedAt: time.Now(),
+		SourceURL: "http://example.com/v2/drugnames",
+		PageCount: 1,
+	}
+	lru.Set("drugnames", resp, 5*time.Minute)
+
+	repo := &mockCacheRepo{} // empty - should not be called
+	fetcher := &mockFetcher{}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		repo,
+		fetcher,
+		handler.WithLRU(lru),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if fetcher.fetchCalled {
+		t.Error("expected no upstream fetch when LRU has the data")
+	}
+}
+
+// AC: Force refresh skips LRU and invalidates entry
+func TestLRU_ForceRefreshSkipsAndInvalidates(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	lru := cache.NewLRUCache(1024 * 1024)
+	cachedResp := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      map[string]interface{}{"items": []interface{}{"old"}},
+		FetchedAt: time.Now(),
+		SourceURL: "http://example.com/v2/drugnames",
+		PageCount: 1,
+	}
+	lru.Set("drugnames", cachedResp, 5*time.Minute)
+
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      map[string]interface{}{"items": []interface{}{"new"}},
+			FetchedAt: time.Now(),
+			SourceURL: "http://example.com/v2/drugnames",
+			PageCount: 1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+		handler.WithLRU(lru),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames?_force=true", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if !fetcher.fetchCalled {
+		t.Error("expected upstream fetch on force refresh despite LRU hit")
+	}
+}
+
+// AC: LRU metrics — hits, misses, singleflight dedup
+func TestLRU_MetricsRecorded(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	lru := cache.NewLRUCache(1024 * 1024)
+	resp := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      map[string]interface{}{"items": []interface{}{"drug1"}},
+		FetchedAt: time.Now(),
+		SourceURL: "http://example.com/v2/drugnames",
+		PageCount: 1,
+	}
+	lru.Set("drugnames", resp, 5*time.Minute)
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		&mockFetcher{},
+		handler.WithLRU(lru),
+		handler.WithMetrics(m),
+	)
+
+	// LRU hit
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	hitVal := testutil.ToFloat64(m.LRUCacheHitsTotal.WithLabelValues("drugnames"))
+	if hitVal != 1 {
+		t.Errorf("expected lru_cache_hits_total=1, got %f", hitVal)
+	}
+
+	// LRU miss (different slug)
+	ep2 := config.Endpoint{
+		Slug:    "other",
+		BaseURL: "http://example.com",
+		Path:    "/v2/other",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep2)
+
+	h2 := handler.NewCacheHandler(
+		[]config.Endpoint{ep2},
+		&mockCacheRepo{},
+		&mockFetcher{result: &model.CachedResponse{
+			Slug:      "other",
+			CacheKey:  "other",
+			Data:      []interface{}{},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		}},
+		handler.WithLRU(lru),
+		handler.WithMetrics(m),
+	)
+
+	req2 := httptest.NewRequest("GET", "/api/cache/other", nil)
+	w2 := httptest.NewRecorder()
+	h2.ServeHTTP(w2, req2)
+
+	missVal := testutil.ToFloat64(m.LRUCacheMissesTotal.WithLabelValues("other"))
+	if missVal != 1 {
+		t.Errorf("expected lru_cache_misses_total=1, got %f", missVal)
+	}
+}
+
+// AC: Singleflight dedup metric incremented
+func TestSingleflight_DedupMetricIncremented(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	var fetchCount atomic.Int32
+	fetcher := &slowMockFetcher{
+		delay: 100 * time.Millisecond,
+		result: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      map[string]interface{}{"items": []interface{}{"drug1"}},
+			FetchedAt: time.Now(),
+			SourceURL: "http://example.com/v2/drugnames",
+			PageCount: 1,
+		},
+		fetchCount: &fetchCount,
+	}
+
+	lru := cache.NewLRUCache(0)
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+		handler.WithLRU(lru),
+		handler.WithMetrics(m),
+	)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+		}()
+	}
+	wg.Wait()
+
+	dedupVal := testutil.ToFloat64(m.SingleflightDedupTotal.WithLabelValues("drugnames"))
+	if dedupVal < 1 {
+		t.Errorf("expected singleflight_dedup_total >= 1, got %f", dedupVal)
+	}
+}
+
 // --- Mock implementations ---
+
+// slowMockFetcher simulates a slow upstream fetch for singleflight tests
+type slowMockFetcher struct {
+	delay      time.Duration
+	result     *model.CachedResponse
+	err        error
+	fetchCount *atomic.Int32
+}
+
+func (m *slowMockFetcher) Fetch(ep config.Endpoint, params map[string]string) (*model.CachedResponse, error) {
+	m.fetchCount.Add(1)
+	time.Sleep(m.delay)
+	if m.err != nil {
+		return nil, m.err
+	}
+	// Return a copy with the correct slug
+	resp := *m.result
+	resp.Slug = ep.Slug
+	resp.CacheKey = ep.Slug
+	return &resp, nil
+}
 
 type mockCacheRepo struct {
 	cached       *model.CachedResponse

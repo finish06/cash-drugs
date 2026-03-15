@@ -36,6 +36,7 @@ type AppConfig struct {
 	LogLevel              string         `yaml:"log_level"`
 	SystemMetricsInterval string         `yaml:"system_metrics_interval"`
 	MaxConcurrentRequests int            `yaml:"max_concurrent_requests"`
+	LRUCacheSizeMB        int            `yaml:"lru_cache_size_mb"`
 	Endpoints             []Endpoint     `yaml:"endpoints"`
 	Database              databaseConfig `yaml:"database"`
 }
