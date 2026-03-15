@@ -34,8 +34,13 @@ import (
 // @host      localhost:8080
 // @BasePath  /
 
-// version is set at build time via -ldflags "-X main.version=v0.5.0".
-var version = "dev" // overridden at build time via -ldflags "-X main.version=v0.6.0"
+// Build-time variables set via -ldflags.
+var (
+	version   = "dev" // overridden at build time via -ldflags "-X main.version=v0.6.0"
+	gitCommit string  // -X main.gitCommit=$(git rev-parse --short HEAD)
+	gitBranch string  // -X main.gitBranch=$(git rev-parse --abbrev-ref HEAD)
+	buildDate string  // -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+)
 
 func main() {
 	cfgPath := os.Getenv("CONFIG_PATH")
@@ -119,6 +124,17 @@ func main() {
 		slog.Info("system metrics collector skipped (not linux)", "component", "metrics", "os", runtime.GOOS)
 	}
 
+	// Start uptime gauge updater goroutine
+	serverStartTime := time.Now()
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			m.UptimeSeconds.Set(time.Since(serverStartTime).Seconds())
+			<-ticker.C
+		}
+	}()
+
 	// Initialize LRU cache
 	lruSizeMB := 256 // default
 	if appCfg != nil && appCfg.LRUCacheSizeMB > 0 {
@@ -165,6 +181,10 @@ func main() {
 	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m), handler.WithLRU(lruCache), handler.WithCircuit(circuitReg), handler.WithCooldown(cooldownTracker))
 	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
 	endpointsHandler := handler.NewEndpointsHandler(endpoints)
+	versionHandler := handler.NewVersionHandler(version, gitCommit, gitBranch, buildDate, len(endpoints))
+
+	// Set build info Prometheus gauge
+	m.BuildInfo.WithLabelValues(version, gitCommit, runtime.Version(), buildDate).Set(1)
 
 	// Resolve concurrency limit: env var > config > default (50)
 	maxConcurrent := 50
@@ -191,6 +211,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/health", healthHandler)
 	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/version", versionHandler)
 	mux.Handle("/", limiter.Wrap(appMux))
 
 	addr := os.Getenv("LISTEN_ADDR")

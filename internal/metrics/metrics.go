@@ -52,6 +52,10 @@ type Metrics struct {
 
 	// Singleflight metrics
 	SingleflightDedupTotal *prometheus.CounterVec
+
+	// Build and uptime metrics
+	BuildInfo      *prometheus.GaugeVec
+	UptimeSeconds  prometheus.Gauge
 }
 
 // NewMetrics creates and registers all Prometheus metrics with the given registry.
@@ -341,6 +345,23 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			},
 			[]string{"slug"},
 		),
+
+		// Build and uptime metrics
+		BuildInfo: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "build_info",
+				Help:      "Build metadata for version tracking.",
+			},
+			[]string{"version", "git_commit", "go_version", "build_date"},
+		),
+		UptimeSeconds: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "uptime_seconds",
+				Help:      "Process uptime in seconds.",
+			},
+		),
 	}
 
 	reg.MustRegister(
@@ -378,6 +399,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.LRUCacheMissesTotal,
 		m.LRUCacheSizeBytes,
 		m.SingleflightDedupTotal,
+		m.BuildInfo,
+		m.UptimeSeconds,
 	)
 
 	return m

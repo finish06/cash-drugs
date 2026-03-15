@@ -11,7 +11,12 @@ RUN go mod download
 
 COPY . .
 RUN swag init -g cmd/server/main.go -o docs --parseDependency 2>/dev/null; \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${VERSION}" -o /drugs ./cmd/server
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "\
+      -X main.version=${VERSION} \
+      -X main.gitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+      -X main.gitBranch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown) \
+      -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -o /drugs ./cmd/server
 
 FROM alpine:3.21
 
