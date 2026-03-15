@@ -447,6 +447,322 @@
           "legendFormat": "{{ slug }}"
         }
       ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 66 },
+      "id": 106,
+      "title": "Resilience",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 150 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 67 },
+      "id": 60,
+      "title": "In-Flight Requests",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "cashdrugs_inflight_requests",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 67 },
+      "id": 61,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Rejected Requests (503/s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(cashdrugs_rejected_requests_total[5m])",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "Closed", "color": "green" } }, "type": "value" },
+            { "options": { "1": { "text": "Half-Open", "color": "yellow" } }, "type": "value" },
+            { "options": { "2": { "text": "Open", "color": "red" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 67 },
+      "id": 62,
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value" },
+      "title": "Circuit Breaker State",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "cashdrugs_circuit_state",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 67 },
+      "id": 63,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Circuit Rejections",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(cashdrugs_circuit_rejections_total{slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 75 },
+      "id": 64,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Force-Refresh Cooldowns",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(cashdrugs_force_refresh_cooldown_total{slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 83 },
+      "id": 107,
+      "title": "LRU Cache",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "max": 268435456,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 201326592 },
+              { "color": "red", "value": 251658240 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 84 },
+      "id": 65,
+      "title": "LRU Cache Size",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "cashdrugs_lru_cache_size_bytes",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 84 },
+      "id": 66,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "LRU Hit Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(cashdrugs_lru_cache_hits_total{slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }} hits"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(cashdrugs_lru_cache_misses_total{slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }} misses"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 84 },
+      "id": 67,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Singleflight Dedup",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(cashdrugs_singleflight_dedup_total{slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 92 },
+      "id": 108,
+      "title": "Container Resources",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 93 },
+      "id": 70,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "CPU Usage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(cashdrugs_container_cpu_usage_seconds_total[5m])",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 93 },
+      "id": 71,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Memory RSS",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "cashdrugs_container_memory_rss_bytes",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "red", "value": 0.9 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 93 },
+      "id": 72,
+      "title": "Memory Usage Ratio",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "cashdrugs_container_memory_usage_ratio",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 101 },
+      "id": 73,
+      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value" },
+      "title": "Disk Usage",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "cashdrugs_container_disk_used_bytes",
+          "legendFormat": "Used"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "cashdrugs_container_disk_total_bytes",
+          "legendFormat": "Total"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 101 },
+      "id": 74,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Network I/O",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(cashdrugs_container_network_receive_bytes_total{interface!=\"lo\"}[5m])",
+          "legendFormat": "RX {{ interface }}"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(cashdrugs_container_network_transmit_bytes_total{interface!=\"lo\"}[5m])",
+          "legendFormat": "TX {{ interface }}"
+        }
+      ]
     }
   ],
   "schemaVersion": 39,
