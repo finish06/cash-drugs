@@ -1397,6 +1397,13 @@ func TestM10_EmptyResults_AC006_ShortLRUTTL(t *testing.T) {
 		Format:      "json",
 		TTL:         "10m",
 		TTLDuration: 10 * time.Minute,
+		SearchParams: []string{
+			"product_ndc:\"{NDC}\"",
+		},
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		PaginationStyle: "offset",
+		Pagesize:        100,
 	}
 	config.ApplyDefaults(&ep)
 
@@ -1429,7 +1436,8 @@ func TestM10_EmptyResults_AC006_ShortLRUTTL(t *testing.T) {
 	}
 
 	// Verify LRU was populated (entry exists)
-	cacheKey := "fda-ndc:NDC=99999999"
+	// Handler extracts NDC from search_params placeholder and builds cache key
+	cacheKey := cache.BuildCacheKey("fda-ndc", map[string]string{"NDC": "99999999"})
 	_, ok := lru.Get(cacheKey)
 	if !ok {
 		t.Error("expected empty result to be cached in LRU")

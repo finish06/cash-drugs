@@ -341,8 +341,23 @@ func (h *CacheHandler) populateLRU(cacheKey string, resp *model.CachedResponse, 
 	if ttl == 0 {
 		ttl = 5 * time.Minute // default LRU TTL
 	}
+	// Use shorter TTL for empty results to allow re-checking upstream sooner
+	if isEmptyResult(resp) {
+		ttl = 2 * time.Minute
+	}
 	h.lru.Set(cacheKey, resp, ttl)
 	h.updateLRUSizeMetric()
+}
+
+// isEmptyResult returns true if the cached response has a valid but empty data array.
+func isEmptyResult(resp *model.CachedResponse) bool {
+	if resp == nil {
+		return false
+	}
+	if dataArr, ok := resp.Data.([]interface{}); ok {
+		return len(dataArr) == 0
+	}
+	return false
 }
 
 func (h *CacheHandler) updateLRUSizeMetric() {
@@ -426,14 +441,26 @@ func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stal
 	}
 
 	// JSON responses: wrap in APIResponse envelope
+	// Count results for the meta field
+	resultsCount := 0
+	data := cached.Data
+	if dataArr, ok := data.([]interface{}); ok {
+		resultsCount = len(dataArr)
+		// Ensure empty data is an empty array, not nil
+		if dataArr == nil {
+			data = []interface{}{}
+		}
+	}
+
 	resp := model.APIResponse{
-		Data: cached.Data,
+		Data: data,
 		Meta: model.ResponseMeta{
-			Slug:      cached.Slug,
-			SourceURL: cached.SourceURL,
-			FetchedAt: cached.FetchedAt.Format("2006-01-02T15:04:05Z"),
-			PageCount: cached.PageCount,
-			Stale:     stale,
+			Slug:         cached.Slug,
+			SourceURL:    cached.SourceURL,
+			FetchedAt:    cached.FetchedAt.Format("2006-01-02T15:04:05Z"),
+			PageCount:    cached.PageCount,
+			ResultsCount: resultsCount,
+			Stale:        stale,
 		},
 	}
 	if stale && staleReason != "" {

@@ -135,7 +135,8 @@ func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*
 	now := time.Now()
 
 	// Combine all page data into a single slice for the response
-	var allData []interface{}
+	// Use empty slice (not nil) to ensure JSON marshals as [] not null
+	allData := make([]interface{}, 0)
 	for _, p := range allPages {
 		allData = append(allData, p.Data...)
 	}
