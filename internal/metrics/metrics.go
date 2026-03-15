@@ -39,6 +39,14 @@ type Metrics struct {
 	// Concurrency limiter metrics
 	InFlightRequests      prometheus.Gauge
 	RejectedRequestsTotal prometheus.Counter
+
+	// LRU cache metrics
+	LRUCacheHitsTotal   *prometheus.CounterVec
+	LRUCacheMissesTotal *prometheus.CounterVec
+	LRUCacheSizeBytes   prometheus.Gauge
+
+	// Singleflight metrics
+	SingleflightDedupTotal *prometheus.CounterVec
 }
 
 // NewMetrics creates and registers all Prometheus metrics with the given registry.
@@ -267,6 +275,41 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 				Help:      "Total requests rejected by the concurrency limiter.",
 			},
 		),
+
+		// LRU cache metrics
+		LRUCacheHitsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "lru_cache_hits_total",
+				Help:      "Total LRU cache hits by slug.",
+			},
+			[]string{"slug"},
+		),
+		LRUCacheMissesTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "lru_cache_misses_total",
+				Help:      "Total LRU cache misses by slug.",
+			},
+			[]string{"slug"},
+		),
+		LRUCacheSizeBytes: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "lru_cache_size_bytes",
+				Help:      "Current LRU cache size in bytes.",
+			},
+		),
+
+		// Singleflight metrics
+		SingleflightDedupTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "singleflight_dedup_total",
+				Help:      "Total deduplicated concurrent requests via singleflight.",
+			},
+			[]string{"slug"},
+		),
 	}
 
 	reg.MustRegister(
@@ -297,6 +340,10 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.ContainerNetworkTransmitPackets,
 		m.InFlightRequests,
 		m.RejectedRequestsTotal,
+		m.LRUCacheHitsTotal,
+		m.LRUCacheMissesTotal,
+		m.LRUCacheSizeBytes,
+		m.SingleflightDedupTotal,
 	)
 
 	return m

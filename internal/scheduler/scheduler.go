@@ -22,6 +22,7 @@ type Scheduler struct {
 	cron      *cron.Cron
 	locks     *fetchlock.Map
 	metrics   *metrics.Metrics
+	lru       cache.LRUCache
 }
 
 // Option configures a Scheduler.
@@ -31,6 +32,13 @@ type Option func(*Scheduler)
 func WithMetrics(m *metrics.Metrics) Option {
 	return func(s *Scheduler) {
 		s.metrics = m
+	}
+}
+
+// WithLRU sets the in-memory LRU cache for cache population after scheduled fetches.
+func WithLRU(lru cache.LRUCache) Option {
+	return func(s *Scheduler) {
+		s.lru = lru
 	}
 }
 
@@ -133,6 +141,16 @@ func (s *Scheduler) fetchEndpoint(ep config.Endpoint) {
 			s.metrics.SchedulerRunDuration.WithLabelValues(ep.Slug).Observe(duration.Seconds())
 		}
 		return
+	}
+
+	// Populate LRU cache
+	if s.lru != nil {
+		ttl := ep.TTLDuration
+		if ttl == 0 {
+			ttl = 5 * time.Minute
+		}
+		cacheKey := cache.BuildCacheKey(ep.Slug, nil)
+		s.lru.Set(cacheKey, result, ttl)
 	}
 
 	slog.Info("fetch completed", "component", "scheduler", "slug", ep.Slug, "duration", duration, "pages", result.PageCount)
