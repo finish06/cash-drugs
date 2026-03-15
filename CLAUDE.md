@@ -63,14 +63,15 @@ cash-drugs/
 ├── cmd/
 │   └── server/            # Application entrypoint
 ├── internal/
-│   ├── cache/             # MongoDB cache layer
+│   ├── cache/             # MongoDB cache layer + LRU
 │   ├── config/            # YAML config loader
 │   ├── handler/           # HTTP handlers
-│   ├── upstream/          # Upstream API fetcher
+│   ├── upstream/          # Upstream API fetcher + circuit breaker + cooldown
 │   ├── scheduler/         # Cron-based refresh
 │   ├── fetchlock/         # Dedup concurrent fetches
 │   ├── logging/           # Structured logging setup
-│   ├── metrics/           # Prometheus metrics & MongoDB collector
+│   ├── metrics/           # Prometheus metrics + MongoDB/System collectors
+│   ├── middleware/         # Concurrency limiter + gzip compression
 │   └── model/             # Response models
 ├── docker-compose.yml          # Local development
 ├── docker-compose.prod.yml     # Production (pulls from registry)
