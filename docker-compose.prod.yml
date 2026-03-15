@@ -18,6 +18,7 @@ services:
       - CONFIG_PATH=/config.yaml
       - LISTEN_ADDR=:8080
       - LOG_LEVEL=info
+      - MAX_CONCURRENT_REQUESTS=150
     depends_on:
       - mongodb
     restart: unless-stopped
