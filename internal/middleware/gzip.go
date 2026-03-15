@@ -5,9 +5,18 @@ import (
 	"compress/gzip"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 const gzipMinSize = 1024 // 1KB minimum for compression
+
+// gzipWriterPool reuses gzip.Writer instances to reduce allocation pressure
+// under high concurrency.
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} {
+		return gzip.NewWriter(nil)
+	},
+}
 
 // gzipResponseWriter buffers the response to check size before compressing.
 type gzipResponseWriter struct {
@@ -65,9 +74,11 @@ func GzipMiddleware(next http.Handler) http.Handler {
 		w.Header().Del("Content-Length") // Length changes after compression
 		w.WriteHeader(statusCode)
 
-		gz := gzip.NewWriter(w)
+		gz := gzipWriterPool.Get().(*gzip.Writer)
+		gz.Reset(w)
 		gz.Write(body)
 		gz.Close()
+		gzipWriterPool.Put(gz)
 	})
 }
 

@@ -146,6 +146,10 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.lru.Invalidate(cacheKey)
 	}
 
+	// staleCache holds the first MongoDB lookup result for reuse in error fallback,
+	// avoiding a duplicate query when the upstream fetch fails.
+	var staleCache *model.CachedResponse
+
 	// 2. Try LRU cache first (unless force refresh)
 	if !forceRefresh && h.lru != nil {
 		if lruResult, ok := h.lru.Get(cacheKey); ok {
@@ -183,6 +187,8 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 			return
 		}
+		// Save for potential reuse as stale fallback on upstream failure
+		staleCache = cached
 	}
 
 	slog.Debug("cache miss", "component", "handler", "slug", slug)
@@ -265,12 +271,16 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sr := v.(*sfResult)
 
 	if sr.err != nil {
-		// Try stale cache fallback
-		cached, cacheErr := h.repo.Get(cacheKey)
-		if cacheErr == nil && cached != nil {
+		// Try stale cache fallback. Reuse the earlier MongoDB lookup when available
+		// (normal cache-miss path), otherwise query MongoDB (force-refresh path).
+		fallback := staleCache
+		if fallback == nil {
+			fallback, _ = h.repo.Get(cacheKey)
+		}
+		if fallback != nil {
 			slog.Warn("serving stale cache — upstream unavailable", "component", "handler", "slug", slug)
 			h.recordCacheOutcome(slug, "stale")
-			respondWithCached(w, cached, true, "upstream unavailable")
+			respondWithCached(w, fallback, true, "upstream unavailable")
 			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "stale", "duration", time.Since(start))
 			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 			return

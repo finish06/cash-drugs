@@ -2,7 +2,6 @@ package cache
 
 import (
 	"container/list"
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -125,22 +124,23 @@ func (c *lruCache) removeLRU() {
 }
 
 // estimateSize returns an approximate byte size of a CachedResponse.
+// Uses a PageCount-based heuristic to avoid expensive JSON marshaling on every Set.
 func estimateSize(resp *model.CachedResponse) int64 {
-	// Base struct overhead
+	// Base struct overhead (slug, source URL, content type, timestamps, etc.)
 	size := int64(200)
-
-	// Estimate data size by JSON marshaling
-	if resp.Data != nil {
-		data, err := json.Marshal(resp.Data)
-		if err == nil {
-			size += int64(len(data))
-		}
-	}
 
 	size += int64(len(resp.Slug))
 	size += int64(len(resp.CacheKey))
 	size += int64(len(resp.SourceURL))
 	size += int64(len(resp.ContentType))
+
+	// Estimate data size from PageCount (~50KB per page average).
+	// Falls back to 10KB default when PageCount is 0.
+	if resp.PageCount > 0 {
+		size += int64(resp.PageCount) * 50000
+	} else if resp.Data != nil {
+		size += 10000
+	}
 
 	return size
 }
