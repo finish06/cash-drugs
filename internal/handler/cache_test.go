@@ -15,6 +15,7 @@ import (
 	"github.com/finish06/cash-drugs/internal/handler"
 	"github.com/finish06/cash-drugs/internal/metrics"
 	"github.com/finish06/cash-drugs/internal/model"
+	"github.com/finish06/cash-drugs/internal/upstream"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
@@ -983,6 +984,215 @@ func TestSingleflight_DedupMetricIncremented(t *testing.T) {
 	dedupVal := testutil.ToFloat64(m.SingleflightDedupTotal.WithLabelValues("drugnames"))
 	if dedupVal < 1 {
 		t.Errorf("expected singleflight_dedup_total >= 1, got %f", dedupVal)
+	}
+}
+
+// M9-AC-013: Circuit open → serves stale cache with stale_reason: "circuit_open"
+func TestM9_AC013_CircuitOpenServesStaleCacheWithReason(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	staleCache := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      map[string]interface{}{"items": []interface{}{"stale-drug"}},
+		FetchedAt: time.Now().Add(-24 * time.Hour),
+		SourceURL: "http://example.com/v2/drugnames",
+		PageCount: 1,
+	}
+
+	circuit := upstream.NewCircuitRegistry(2, 30*time.Second)
+	// Trip circuit
+	for i := 0; i < 2; i++ {
+		circuit.Execute("drugnames", func() (interface{}, error) {
+			return nil, fmt.Errorf("fail")
+		})
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: staleCache},
+		&mockFetcher{err: fmt.Errorf("should not be called")},
+		handler.WithMetrics(m),
+		handler.WithCircuit(circuit),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+	if !resp.Meta.Stale {
+		t.Error("expected stale=true when circuit is open")
+	}
+	if resp.Meta.StaleReason != "circuit_open" {
+		t.Errorf("expected stale_reason='circuit_open', got '%s'", resp.Meta.StaleReason)
+	}
+}
+
+// M9-AC-014: Circuit open + no cache → returns 503
+func TestM9_AC014_CircuitOpenNoCacheReturns503(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	circuit := upstream.NewCircuitRegistry(2, 30*time.Second)
+	// Trip circuit
+	for i := 0; i < 2; i++ {
+		circuit.Execute("drugnames", func() (interface{}, error) {
+			return nil, fmt.Errorf("fail")
+		})
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{}, // no cache
+		&mockFetcher{},
+		handler.WithMetrics(m),
+		handler.WithCircuit(circuit),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503, got %d", w.Code)
+	}
+
+	var errResp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&errResp)
+	if errResp["error"] != "upstream circuit open" {
+		t.Errorf("expected error 'upstream circuit open', got '%s'", errResp["error"])
+	}
+	if errResp["slug"] != "drugnames" {
+		t.Errorf("expected slug 'drugnames', got '%s'", errResp["slug"])
+	}
+	retryAfter, ok := errResp["retry_after"].(float64)
+	if !ok || retryAfter <= 0 {
+		t.Errorf("expected retry_after > 0, got %v", errResp["retry_after"])
+	}
+}
+
+// M9-AC-015: Force-refresh within cooldown → serves cache with X-Force-Cooldown header
+func TestM9_AC015_ForceRefreshWithinCooldown(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      map[string]interface{}{"items": []interface{}{"drug1"}},
+		FetchedAt: time.Now(),
+		SourceURL: "http://example.com/v2/drugnames",
+		PageCount: 1,
+	}
+
+	cooldown := upstream.NewCooldownTracker(30 * time.Second)
+	cooldown.Record("drugnames") // simulate a recent force-refresh
+
+	fetcher := &mockFetcher{err: fmt.Errorf("should not be called")}
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		fetcher,
+		handler.WithMetrics(m),
+		handler.WithCooldown(cooldown),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames?_force=true", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	if w.Header().Get("X-Force-Cooldown") != "true" {
+		t.Error("expected X-Force-Cooldown header to be set")
+	}
+
+	if fetcher.fetchCalled {
+		t.Error("expected no upstream fetch during cooldown")
+	}
+}
+
+// M9-AC-016: Force-refresh after cooldown expires → proceeds to upstream
+func TestM9_AC016_ForceRefreshAfterCooldownExpires(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cooldown := upstream.NewCooldownTracker(50 * time.Millisecond)
+	cooldown.Record("drugnames")
+
+	// Wait for cooldown to expire
+	time.Sleep(60 * time.Millisecond)
+
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      map[string]interface{}{"items": []interface{}{"fresh"}},
+			FetchedAt: time.Now(),
+			SourceURL: "http://example.com/v2/drugnames",
+			PageCount: 1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+		handler.WithCooldown(cooldown),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames?_force=true", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	if !fetcher.fetchCalled {
+		t.Error("expected upstream fetch after cooldown expires")
+	}
+
+	if w.Header().Get("X-Force-Cooldown") == "true" {
+		t.Error("expected no X-Force-Cooldown header after cooldown expires")
 	}
 }
 
