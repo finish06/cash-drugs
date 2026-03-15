@@ -64,6 +64,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
                         }
+                    },
+                    "503": {
+                        "description": "Service overloaded or upstream circuit open",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
+                        }
                     }
                 }
             }

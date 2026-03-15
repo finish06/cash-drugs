@@ -1,6 +1,6 @@
 # cash-drugs — Product Requirements Document
 
-**Version:** 0.2.0
+**Version:** 0.3.0
 **Created:** 2026-03-05
 **Author:** calebdunn
 **Status:** Active
@@ -99,6 +99,8 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M6: Docker Build & Publish | Automated Docker image publishing to private registry | beta | DONE | CI publishes :beta on push, versioned tags on git tag, version in /health |
 | M7: Auth + Transforms | Upstream auth and response transforms | ga | LATER | API key/OAuth support, field mapping, response filtering |
 | M8: Prometheus Metrics | Prometheus endpoint with full operational observability | beta | DONE | `/metrics` endpoint, cache hit/miss, upstream latency, MongoDB health/size, scheduler stats |
+| M9: Performance & Resilience | Prevent service collapse under load, optimize response delivery, protect against upstream instability | beta | DONE | Concurrency limiter (503+Retry-After), gzip compression, singleflight, LRU cache, circuit breakers, force-refresh cooldown, container system metrics |
+| M10: Performance Optimization | MongoDB query restructure, LRU sharding, parallel page fetches | beta | LATER | Indexed exact-match queries, sharded LRU mutex, concurrent upstream page fetches |
 
 ### Milestone Detail
 
@@ -187,6 +189,27 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [x] No regression in existing tests or functionality
 - [x] Example Grafana dashboard available with JSON files with variable level datasource configuration
 
+#### M9: Performance & Resilience [DONE]
+**Goal:** Prevent service collapse under concurrent load, optimize response delivery, protect against upstream API instability, and export container-level system metrics
+**Appetite:** Medium-Large — 4 features across middleware, cache, upstream, and metrics layers
+**Target maturity:** beta
+**Features:**
+- Connection resilience — concurrency limiter middleware (503+Retry-After), HTTP server timeouts, health/metrics exemption
+- Response optimization — gzip compression, singleflight request coalescing, in-memory LRU cache (256MB)
+- Upstream resilience — per-endpoint circuit breakers (gobreaker), force-refresh 30s cooldown
+- Container system metrics — CPU/memory/disk/network from procfs/cgroup via SystemCollector
+**Success criteria:**
+- [x] Service handles 150 concurrent connections without connection refused
+- [x] Overloaded requests receive 503 + Retry-After
+- [x] `/health` and `/metrics` respond under any load level
+- [x] Bulk responses compressed 3-5x via gzip
+- [x] Concurrent identical requests deduplicated via singleflight
+- [x] Hot responses served from LRU cache (sub-5ms)
+- [x] Failing upstreams trigger circuit breaker
+- [x] Force-refresh rate-limited (30s cooldown)
+- [x] Container CPU/memory/disk/network metrics exported to Prometheus
+- [x] All existing tests pass, 62 new ACs verified
+
 ### Maturity Promotion Path
 
 | From | To | Requirements |
@@ -220,7 +243,8 @@ Automated CI/CD pipeline builds and publishes Docker images to a private registr
 - **Reliability:** Serve stale cached data when upstream is unavailable — never return an error if cache exists
 - **Security:** Internal network only — no public exposure required in v1
 - **Data:** Store raw API responses as-is in MongoDB — no transformation in v1
-- **Observability:** Structured logging via log/slog with configurable level and format
+- **Observability:** Structured logging via log/slog with configurable level and format; Prometheus metrics for all layers; container system metrics
+- **Resilience:** Circuit breakers on upstream APIs, force-refresh cooldown, concurrency limiting with graceful 503 degradation
 
 ## 9. Open Questions
 
@@ -235,3 +259,4 @@ Automated CI/CD pipeline builds and publishes Docker images to a private registr
 |------|---------|--------|---------|
 | 2026-03-05 | 0.1.0 | calebdunn | Initial draft from /add:init interview |
 | 2026-03-07 | 0.2.0 | calebdunn | Added M4-M6, FDA integration, Docker publishing, renamed to cash-drugs, updated maturity to beta |
+| 2026-03-14 | 0.3.0 | calebdunn | Added M9 (Performance & Resilience) as DONE, M10 (Performance Optimization) as LATER, updated NFRs with resilience |

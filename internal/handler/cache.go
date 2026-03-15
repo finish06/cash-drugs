@@ -97,6 +97,7 @@ func NewCacheHandler(endpoints []config.Endpoint, repo cache.Repository, fetcher
 // @Success      200  {object}  model.APIResponse
 // @Failure      404  {object}  model.ErrorResponse
 // @Failure      502  {object}  model.ErrorResponse
+// @Failure      503  {object}  model.ErrorResponse  "Service overloaded or upstream circuit open"
 // @Router       /api/cache/{slug} [get]
 func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
