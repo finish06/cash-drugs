@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -93,6 +94,29 @@ func main() {
 	mongoCollector := metrics.NewMongoCollector(repo.Client(), repo.Database(), collName, m, 30*time.Second)
 	mongoCollector.Start()
 
+	// Start background system metrics collector (Linux only via procfs)
+	sysMetricsInterval := os.Getenv("SYSTEM_METRICS_INTERVAL")
+	if sysMetricsInterval == "" && appCfg != nil && appCfg.SystemMetricsInterval != "" {
+		sysMetricsInterval = appCfg.SystemMetricsInterval
+	}
+	if sysMetricsInterval == "" {
+		sysMetricsInterval = "15s"
+	}
+	sysInterval, err := time.ParseDuration(sysMetricsInterval)
+	if err != nil {
+		slog.Warn("invalid system_metrics_interval, using 15s", "component", "metrics", "value", sysMetricsInterval, "error", err)
+		sysInterval = 15 * time.Second
+	}
+	var sysCollector *metrics.SystemCollector
+	if runtime.GOOS == "linux" {
+		sysSource := metrics.NewProcfsSource()
+		sysCollector = metrics.NewSystemCollector(sysSource, m, sysInterval, "/")
+		sysCollector.Start()
+		slog.Info("system metrics collector started", "component", "metrics", "interval", sysInterval)
+	} else {
+		slog.Info("system metrics collector skipped (not linux)", "component", "metrics", "os", runtime.GOOS)
+	}
+
 	// Start background scheduler
 	sched := scheduler.New(endpoints, fetcher, repo, locks, scheduler.WithMetrics(m))
 	sched.Start(context.Background())
@@ -121,6 +145,9 @@ func main() {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
 		slog.Info("shutting down", "component", "server")
+		if sysCollector != nil {
+			sysCollector.Stop()
+		}
 		mongoCollector.Stop()
 		sched.Stop()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

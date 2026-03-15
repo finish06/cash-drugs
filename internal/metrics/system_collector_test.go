@@ -263,9 +263,9 @@ func TestAC_CSM010_ContainerMetricPrefix(t *testing.T) {
 		}
 	}
 
-	// We expect at least 14 container metrics (all the ones we defined)
-	if containerMetrics < 14 {
-		t.Errorf("expected at least 14 container metrics with cashdrugs_container_ prefix, found %d", containerMetrics)
+	// We expect 13 container metrics (9 gauges + 4 gauge vecs)
+	if containerMetrics < 13 {
+		t.Errorf("expected at least 13 container metrics with cashdrugs_container_ prefix, found %d", containerMetrics)
 	}
 }
 

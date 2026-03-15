@@ -115,12 +115,7 @@ func TestAC_CSM002_ParseNetDevPackets(t *testing.T) {
 
 // AC-CSM-003: Parse cgroup v2 memory.max (numeric limit)
 func TestAC_CSM003_ParseCgroupV2MemoryMax(t *testing.T) {
-	src := &ProcfsSource{
-		procPath:   testdataDir(),
-		cgroupPath: testdataDir(),
-	}
-	// We need a directory structure: cgroupPath/memory.max
-	// Our testdata has cgroup_memory_max file. We'll test parseCgroupMemoryLimit directly.
+	// Test parseCgroupMemoryLimit directly with fixture files.
 	limit, available, err := parseCgroupMemoryLimit(
 		filepath.Join(testdataDir(), "cgroup_memory_max"),
 		filepath.Join(testdataDir(), "nonexistent"),
