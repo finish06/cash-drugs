@@ -36,17 +36,23 @@ func (s *ProcfsSource) CPUUsage() (float64, float64, error) {
 	return userSec, sysSec, nil
 }
 
-// MemoryInfo parses /proc/self/status for VmRSS and VmSize, and reads cgroup memory limit.
-func (s *ProcfsSource) MemoryInfo() (*MemInfo, error) {
-	statusPath := s.procPath + "/self/status"
-	// Check for testdata: if procPath has a "proc_self_status" file directly, use that
-	if _, err := os.Stat(statusPath); os.IsNotExist(err) {
-		// Try testdata layout: procPath/proc_self_status
-		altPath := s.procPath + "/proc_self_status"
-		if _, err2 := os.Stat(altPath); err2 == nil {
-			statusPath = altPath
+// resolvePath tries the primary path first; if it doesn't exist, tries altPath.
+// This allows tests to use flat testdata files instead of nested /proc/self/status paths.
+func resolvePath(primary, alt string) string {
+	if _, err := os.Stat(primary); os.IsNotExist(err) {
+		if _, err2 := os.Stat(alt); err2 == nil {
+			return alt
 		}
 	}
+	return primary
+}
+
+// MemoryInfo parses /proc/self/status for VmRSS and VmSize, and reads cgroup memory limit.
+func (s *ProcfsSource) MemoryInfo() (*MemInfo, error) {
+	statusPath := resolvePath(
+		s.procPath+"/self/status",
+		s.procPath+"/proc_self_status",
+	)
 
 	info := &MemInfo{}
 
@@ -110,14 +116,10 @@ func (s *ProcfsSource) DiskUsage(path string) (*DiskInfo, error) {
 
 // NetworkStats parses /proc/net/dev for per-interface statistics.
 func (s *ProcfsSource) NetworkStats() ([]NetStat, error) {
-	netDevPath := s.procPath + "/net/dev"
-	// Check for testdata layout
-	if _, err := os.Stat(netDevPath); os.IsNotExist(err) {
-		altPath := s.procPath + "/proc_net_dev"
-		if _, err2 := os.Stat(altPath); err2 == nil {
-			netDevPath = altPath
-		}
-	}
+	netDevPath := resolvePath(
+		s.procPath+"/net/dev",
+		s.procPath+"/proc_net_dev",
+	)
 
 	f, err := os.Open(netDevPath)
 	if err != nil {
