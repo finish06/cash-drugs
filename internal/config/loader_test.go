@@ -640,6 +640,46 @@ func TestFDA_AC005_ExistingDailyMedEndpointsUnchanged(t *testing.T) {
 	}
 }
 
+// AC-CSM-012: SystemMetricsInterval field parsed from YAML
+func TestAC_CSM012_SystemMetricsInterval(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+log_level: info
+system_metrics_interval: "15s"
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if appCfg.SystemMetricsInterval != "15s" {
+		t.Errorf("expected SystemMetricsInterval='15s', got '%s'", appCfg.SystemMetricsInterval)
+	}
+}
+
+// AC-CSM-012: Default SystemMetricsInterval when absent
+func TestAC_CSM012_SystemMetricsIntervalDefault(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if appCfg.SystemMetricsInterval != "" {
+		t.Errorf("expected empty SystemMetricsInterval when absent, got '%s'", appCfg.SystemMetricsInterval)
+	}
+}
+
 // Helper functions
 
 const validConfig = `

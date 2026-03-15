@@ -1,0 +1,28 @@
+Name:	cash-drugs
+Umask:	0022
+State:	S (sleeping)
+Tgid:	1
+Ngid:	0
+Pid:	1
+PPid:	0
+TracerPid:	0
+Uid:	0	0	0	0
+Gid:	0	0	0	0
+FDSize:	64
+Groups:
+VmPeak:	  524288 kB
+VmSize:	  262144 kB
+VmLck:	       0 kB
+VmPin:	       0 kB
+VmHWM:	   65536 kB
+VmRSS:	   32768 kB
+RssAnon:	   16384 kB
+RssFile:	   16384 kB
+RssShmem:	       0 kB
+VmData:	  131072 kB
+VmStk:	     136 kB
+VmExe:	    8192 kB
+VmLib:	   12288 kB
+VmPTE:	     512 kB
+VmSwap:	       0 kB
+Threads:	8
