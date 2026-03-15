@@ -336,44 +336,6 @@ func TestBuildPageUpdate(t *testing.T) {
 	}
 }
 
-// --- buildRegexFilter tests ---
-
-func TestBuildRegexFilter_SimpleKey(t *testing.T) {
-	filter := buildRegexFilter("mykey")
-	regex, ok := filter["cache_key"].(bson.M)
-	if !ok {
-		t.Fatal("expected cache_key to be bson.M")
-	}
-	expected := "^mykey(:|$)"
-	if regex["$regex"] != expected {
-		t.Errorf("expected regex %q, got %v", expected, regex["$regex"])
-	}
-}
-
-func TestBuildRegexFilter_KeyWithSpecialChars(t *testing.T) {
-	filter := buildRegexFilter("key.with+special")
-	regex, ok := filter["cache_key"].(bson.M)
-	if !ok {
-		t.Fatal("expected cache_key to be bson.M")
-	}
-	expected := `^key\.with\+special(:|$)`
-	if regex["$regex"] != expected {
-		t.Errorf("expected regex %q, got %v", expected, regex["$regex"])
-	}
-}
-
-func TestBuildRegexFilter_KeyWithColons(t *testing.T) {
-	filter := buildRegexFilter("slug:param=value")
-	regex, ok := filter["cache_key"].(bson.M)
-	if !ok {
-		t.Fatal("expected cache_key to be bson.M")
-	}
-	expected := "^slug:param=value(:|$)"
-	if regex["$regex"] != expected {
-		t.Errorf("expected regex %q, got %v", expected, regex["$regex"])
-	}
-}
-
 // --- MongoRepository accessor tests ---
 
 func TestMongoRepository_Names(t *testing.T) {

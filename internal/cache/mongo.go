@@ -119,31 +119,6 @@ func buildBaseKeyFilter(cacheKey string) bson.M {
 	return bson.M{"base_key": cacheKey}
 }
 
-// buildRegexFilter creates a MongoDB regex filter that matches a cache key
-// and its page variants. Deprecated: use buildBaseKeyFilter instead.
-func buildRegexFilter(cacheKey string) bson.M {
-	return bson.M{"cache_key": bson.M{
-		"$regex": "^" + escapeRegex(cacheKey) + "(:|$)",
-	}}
-}
-
-// escapeRegex escapes special regex characters in a string for use in MongoDB $regex.
-// Deprecated: no longer needed since queries use exact match on base_key.
-func escapeRegex(s string) string {
-	special := []byte(`\.+*?^${}()|[]`)
-	result := make([]byte, 0, len(s)*2)
-	for i := 0; i < len(s); i++ {
-		for _, c := range special {
-			if s[i] == c {
-				result = append(result, '\\')
-				break
-			}
-		}
-		result = append(result, s[i])
-	}
-	return string(result)
-}
-
 // extractBaseKey returns the cache key without any :page:N suffix.
 // For keys like "drugnames:page:2", returns "drugnames".
 // For keys like "some:page:key:page:2", splits on the last ":page:" occurrence.
