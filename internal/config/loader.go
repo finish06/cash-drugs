@@ -33,10 +33,11 @@ type Endpoint struct {
 
 // AppConfig holds top-level application configuration beyond endpoints.
 type AppConfig struct {
-	LogLevel               string         `yaml:"log_level"`
-	SystemMetricsInterval  string         `yaml:"system_metrics_interval"`
-	Endpoints              []Endpoint     `yaml:"endpoints"`
-	Database               databaseConfig `yaml:"database"`
+	LogLevel              string         `yaml:"log_level"`
+	SystemMetricsInterval string         `yaml:"system_metrics_interval"`
+	MaxConcurrentRequests int            `yaml:"max_concurrent_requests"`
+	Endpoints             []Endpoint     `yaml:"endpoints"`
+	Database              databaseConfig `yaml:"database"`
 }
 
 type configFile = AppConfig

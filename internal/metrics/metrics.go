@@ -22,19 +22,23 @@ type Metrics struct {
 	FetchLockDedupTotal  *prometheus.CounterVec
 
 	// Container system metrics
-	ContainerCPUUsage              prometheus.Gauge
-	ContainerCPUCores              prometheus.Gauge
-	ContainerMemoryRSS             prometheus.Gauge
-	ContainerMemoryVMS             prometheus.Gauge
-	ContainerMemoryLimit           prometheus.Gauge
-	ContainerMemoryUsageRatio      prometheus.Gauge
-	ContainerDiskTotal             prometheus.Gauge
-	ContainerDiskFree              prometheus.Gauge
-	ContainerDiskUsed              prometheus.Gauge
-	ContainerNetworkReceiveBytes   *prometheus.GaugeVec
-	ContainerNetworkTransmitBytes  *prometheus.GaugeVec
-	ContainerNetworkReceivePackets *prometheus.GaugeVec
+	ContainerCPUUsage               prometheus.Gauge
+	ContainerCPUCores               prometheus.Gauge
+	ContainerMemoryRSS              prometheus.Gauge
+	ContainerMemoryVMS              prometheus.Gauge
+	ContainerMemoryLimit            prometheus.Gauge
+	ContainerMemoryUsageRatio       prometheus.Gauge
+	ContainerDiskTotal              prometheus.Gauge
+	ContainerDiskFree               prometheus.Gauge
+	ContainerDiskUsed               prometheus.Gauge
+	ContainerNetworkReceiveBytes    *prometheus.GaugeVec
+	ContainerNetworkTransmitBytes   *prometheus.GaugeVec
+	ContainerNetworkReceivePackets  *prometheus.GaugeVec
 	ContainerNetworkTransmitPackets *prometheus.GaugeVec
+
+	// Concurrency limiter metrics
+	InFlightRequests      prometheus.Gauge
+	RejectedRequestsTotal prometheus.Counter
 }
 
 // NewMetrics creates and registers all Prometheus metrics with the given registry.
@@ -247,6 +251,22 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			},
 			[]string{"interface"},
 		),
+
+		// Concurrency limiter metrics
+		InFlightRequests: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "inflight_requests",
+				Help:      "Current number of in-flight application requests.",
+			},
+		),
+		RejectedRequestsTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "rejected_requests_total",
+				Help:      "Total requests rejected by the concurrency limiter.",
+			},
+		),
 	}
 
 	reg.MustRegister(
@@ -275,6 +295,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.ContainerNetworkTransmitBytes,
 		m.ContainerNetworkReceivePackets,
 		m.ContainerNetworkTransmitPackets,
+		m.InFlightRequests,
+		m.RejectedRequestsTotal,
 	)
 
 	return m
