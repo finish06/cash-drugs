@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/finish06/cash-drugs/internal/cache"
@@ -22,13 +23,15 @@ type Fetcher interface {
 
 // HTTPFetcher fetches from upstream APIs using net/http.
 type HTTPFetcher struct {
-	Client *http.Client
+	Client           *http.Client
+	FetchConcurrency int // max concurrent page fetches (default: 3)
 }
 
 // NewHTTPFetcher creates a new HTTPFetcher with sensible defaults.
 func NewHTTPFetcher() *HTTPFetcher {
 	return &HTTPFetcher{
-		Client: &http.Client{Timeout: 30 * time.Second},
+		Client:           &http.Client{Timeout: 30 * time.Second},
+		FetchConcurrency: 3,
 	}
 }
 
@@ -51,35 +54,79 @@ func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*
 	maxPages, fetchAll := config.ParsePagination(ep)
 	isOffset := ep.PaginationStyle == "offset"
 
-	var allPages []model.PageData
-	pageCount := 0
+	// Step 1: Fetch first page sequentially to discover total pages
+	firstURL := buildURL(ep, path, 1, params)
+	firstData, firstParsed, err := f.fetchJSONPage(firstURL, ep.DataKey)
+	if err != nil {
+		return nil, err
+	}
 
-	for page := 1; ; page++ {
-		reqURL := buildURL(ep, path, page, params)
+	allPages := []model.PageData{{Page: 1, Data: firstData}}
+	pageCount := 1
 
-		data, parsed, err := f.fetchJSONPage(reqURL, ep.DataKey)
-		if err != nil {
-			// For offset pagination, gracefully stop on error and return partial data
-			if isOffset && pageCount > 0 {
-				slog.Warn("offset pagination stopped due to error, returning partial data",
-					"slug", ep.Slug, "pages_fetched", pageCount, "error", err)
-				break
+	// Determine total pages from first page response
+	totalPages := 1
+	if fetchAll || maxPages > 1 {
+		if hasMorePages(firstParsed, 1, ep.TotalKey, isOffset, ep.Pagesize) {
+			totalPages = determineTotalPages(firstParsed, ep.TotalKey, isOffset, ep.Pagesize)
+		}
+	}
+
+	// Apply maxPages cap
+	if !fetchAll && totalPages > maxPages {
+		totalPages = maxPages
+	}
+
+	// Step 2: If more than 1 page, fetch remaining pages concurrently
+	if totalPages > 1 {
+		remainingPages := totalPages - 1
+		concurrency := f.FetchConcurrency
+		if concurrency <= 0 {
+			concurrency = 3
+		}
+
+		type pageResult struct {
+			page int
+			data []interface{}
+			err  error
+		}
+
+		results := make([]pageResult, remainingPages)
+		sem := make(chan struct{}, concurrency)
+		var wg sync.WaitGroup
+
+		for i := 0; i < remainingPages; i++ {
+			pageNum := i + 2 // pages 2..N
+			wg.Add(1)
+			go func(idx, pNum int) {
+				defer wg.Done()
+				sem <- struct{}{}        // acquire
+				defer func() { <-sem }() // release
+
+				reqURL := buildURL(ep, path, pNum, params)
+				data, _, fetchErr := f.fetchJSONPage(reqURL, ep.DataKey)
+				results[idx] = pageResult{page: pNum, data: data, err: fetchErr}
+			}(i, pageNum)
+		}
+
+		wg.Wait()
+
+		// Collect results in page order
+		for _, r := range results {
+			if r.err != nil {
+				if isOffset && pageCount > 0 {
+					slog.Warn("offset pagination: page fetch failed, returning partial data",
+						"slug", ep.Slug, "page", r.page, "pages_fetched", pageCount, "error", r.err)
+					// Skip failed pages in offset mode, continue collecting successful ones
+					continue
+				}
+				return nil, r.err
 			}
-			return nil, err
-		}
-
-		pageCount++
-		allPages = append(allPages, model.PageData{
-			Page: pageCount,
-			Data: data,
-		})
-
-		if !fetchAll && pageCount >= maxPages {
-			break
-		}
-
-		if !hasMorePages(parsed, page, ep.TotalKey, isOffset, ep.Pagesize) {
-			break
+			pageCount++
+			allPages = append(allPages, model.PageData{
+				Page: r.page,
+				Data: r.data,
+			})
 		}
 	}
 
@@ -88,7 +135,8 @@ func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*
 	now := time.Now()
 
 	// Combine all page data into a single slice for the response
-	var allData []interface{}
+	// Use empty slice (not nil) to ensure JSON marshals as [] not null
+	allData := make([]interface{}, 0)
 	for _, p := range allPages {
 		allData = append(allData, p.Data...)
 	}
@@ -107,6 +155,27 @@ func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}, nil
+}
+
+// determineTotalPages extracts the total page count from the parsed response.
+func determineTotalPages(parsed map[string]interface{}, totalKey string, isOffset bool, pagesize int) int {
+	val, ok := resolveByDotPath(parsed, totalKey)
+	if !ok {
+		return 1
+	}
+	total, ok := val.(float64)
+	if !ok {
+		return 1
+	}
+	if isOffset {
+		// For offset pagination, total is item count — compute page count
+		pages := int(total) / pagesize
+		if int(total)%pagesize != 0 {
+			pages++
+		}
+		return pages
+	}
+	return int(total)
 }
 
 func (f *HTTPFetcher) fetchRaw(ep config.Endpoint, params map[string]string) (*model.CachedResponse, error) {

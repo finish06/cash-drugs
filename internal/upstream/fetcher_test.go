@@ -6,7 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/finish06/cash-drugs/internal/config"
 	"github.com/finish06/cash-drugs/internal/upstream"
@@ -512,11 +516,14 @@ func TestAC004_URLConstructionWithQueryParams(t *testing.T) {
 
 // AC-002: Offset pagination sends skip & limit query params
 func TestFDA_AC002_OffsetPaginationSendsSkipLimit(t *testing.T) {
+	var mu sync.Mutex
 	var requests []url.Values
 	totalItems := 25
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		requests = append(requests, r.URL.Query())
+		mu.Unlock()
 
 		// Generate items for this page based on skip/limit
 		items := []interface{}{}
@@ -558,15 +565,26 @@ func TestFDA_AC002_OffsetPaginationSendsSkipLimit(t *testing.T) {
 		t.Fatalf("expected 3 requests, got %d", len(requests))
 	}
 
-	expectedSkips := []string{"0", "10", "20"}
-	for i, expected := range expectedSkips {
-		got := requests[i].Get("skip")
-		if got != expected {
-			t.Errorf("request %d: expected skip=%s, got skip=%s", i, expected, got)
-		}
-		limit := requests[i].Get("limit")
+	// First request is always sequential (skip=0)
+	if requests[0].Get("skip") != "0" {
+		t.Errorf("first request: expected skip=0, got skip=%s", requests[0].Get("skip"))
+	}
+
+	// Collect all skip values and verify the expected set is present
+	var skips []string
+	for _, q := range requests {
+		skips = append(skips, q.Get("skip"))
+		limit := q.Get("limit")
 		if limit != "10" {
-			t.Errorf("request %d: expected limit=10, got limit=%s", i, limit)
+			t.Errorf("expected limit=10, got limit=%s", limit)
+		}
+	}
+	sort.Strings(skips)
+	expectedSkips := []string{"0", "10", "20"}
+	sort.Strings(expectedSkips)
+	for i, expected := range expectedSkips {
+		if skips[i] != expected {
+			t.Errorf("expected skip=%s in sorted requests, got skip=%s", expected, skips[i])
 		}
 	}
 
@@ -672,12 +690,15 @@ func TestFDA_AC004_AC016_ConfigurableTotalKeyDotNotation(t *testing.T) {
 
 // AC-005: Backward compatibility — page-based pagination still works when no PaginationStyle is set
 func TestFDA_AC005_BackwardCompatPagePagination(t *testing.T) {
+	var mu sync.Mutex
 	var requests []url.Values
 	pageCount := 0
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		requests = append(requests, r.URL.Query())
 		pageCount++
+		mu.Unlock()
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []interface{}{
 				map[string]interface{}{"item": pageCount},
@@ -802,10 +823,13 @@ func TestFDA_AC012_GracefulSkipLimitHandling(t *testing.T) {
 
 // AC-017: Offset skip calculation is (page-1) * pagesize
 func TestFDA_AC017_OffsetSkipCalculation(t *testing.T) {
+	var mu sync.Mutex
 	var receivedSkips []string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		receivedSkips = append(receivedSkips, r.URL.Query().Get("skip"))
+		mu.Unlock()
 
 		items := []interface{}{map[string]interface{}{"id": 1}}
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -841,10 +865,21 @@ func TestFDA_AC017_OffsetSkipCalculation(t *testing.T) {
 		t.Fatalf("expected 3 requests, got %d", len(receivedSkips))
 	}
 
-	expectedSkips := []string{"0", "25", "50"}
-	for i, expected := range expectedSkips {
-		if receivedSkips[i] != expected {
-			t.Errorf("request %d: expected skip=%s, got skip=%s", i, expected, receivedSkips[i])
+	// With parallel fetching, request order is non-deterministic after page 1.
+	// Verify first request is skip=0 (sequential), then remaining contain 25 and 50.
+	if receivedSkips[0] != "0" {
+		t.Errorf("first request: expected skip=0, got skip=%s", receivedSkips[0])
+	}
+	expectedRemaining := map[string]bool{"25": false, "50": false}
+	for _, skip := range receivedSkips[1:] {
+		if _, ok := expectedRemaining[skip]; !ok {
+			t.Errorf("unexpected skip value: %s", skip)
+		}
+		expectedRemaining[skip] = true
+	}
+	for skip, found := range expectedRemaining {
+		if !found {
+			t.Errorf("expected skip=%s in requests, not found", skip)
 		}
 	}
 }
@@ -1114,5 +1149,398 @@ func TestSearchParams_NoneResolved(t *testing.T) {
 
 	if receivedQuery.Has("search") {
 		t.Errorf("expected no search param when all clauses unresolved, got %q", receivedQuery.Get("search"))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// M10: Parallel Page Fetches — RED phase tests
+// Spec: specs/parallel-page-fetches.md
+// ---------------------------------------------------------------------------
+
+// M10-AC-001/AC-002/AC-004: First page sequential, remaining concurrent, results in page order
+func TestM10_AC001_AC002_AC004_ParallelPageFetchPageOrder(t *testing.T) {
+	pageCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pageCount++
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []interface{}{fmt.Sprintf("item-page-%d", pageCount)},
+			"metadata": map[string]interface{}{
+				"total_pages":  6,
+				"current_page": pageCount,
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:       "test-parallel",
+		BaseURL:    server.URL,
+		Path:       "/api",
+		Format:     "json",
+		Pagination: "all",
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := upstream.NewHTTPFetcher()
+	fetcher.FetchConcurrency = 3
+
+	result, err := fetcher.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.PageCount != 6 {
+		t.Errorf("expected 6 pages, got %d", result.PageCount)
+	}
+	// Verify all pages present in order
+	if len(result.Pages) != 6 {
+		t.Fatalf("expected 6 pages in Pages slice, got %d", len(result.Pages))
+	}
+	for i, p := range result.Pages {
+		if p.Page != i+1 {
+			t.Errorf("expected page %d at index %d, got page %d", i+1, i, p.Page)
+		}
+	}
+	// Combined data should have items from all 6 pages
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	if len(allData) != 6 {
+		t.Errorf("expected 6 combined items, got %d", len(allData))
+	}
+}
+
+// M10-AC-003: Concurrency cap is respected
+func TestM10_AC003_ConcurrencyCapRespected(t *testing.T) {
+	var maxConcurrent atomic.Int32
+	var currentConcurrent atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cur := currentConcurrent.Add(1)
+		// Track max concurrent
+		for {
+			old := maxConcurrent.Load()
+			if cur <= old || maxConcurrent.CompareAndSwap(old, cur) {
+				break
+			}
+		}
+		time.Sleep(50 * time.Millisecond) // simulate work
+		currentConcurrent.Add(-1)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []interface{}{"item"},
+			"metadata": map[string]interface{}{
+				"total_pages": 10,
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:       "test-cap",
+		BaseURL:    server.URL,
+		Path:       "/api",
+		Format:     "json",
+		Pagination: "all",
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := upstream.NewHTTPFetcher()
+	fetcher.FetchConcurrency = 3
+
+	result, err := fetcher.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.PageCount != 10 {
+		t.Errorf("expected 10 pages, got %d", result.PageCount)
+	}
+	// Max concurrent should not exceed cap + 1 (the first sequential page may overlap briefly)
+	// But after first page, at most 3 should be in-flight
+	if maxConcurrent.Load() > 4 {
+		t.Errorf("expected max concurrent <= 4 (1 sequential + 3 parallel), got %d", maxConcurrent.Load())
+	}
+}
+
+// M10-AC-005: Error on any page fails entire fetch (page-style pagination)
+func TestM10_AC005_ErrorFailsEntireFetch(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		if requestCount == 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []interface{}{"item"},
+			"metadata": map[string]interface{}{
+				"total_pages": 4,
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:       "test-error",
+		BaseURL:    server.URL,
+		Path:       "/api",
+		Format:     "json",
+		Pagination: "all",
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := upstream.NewHTTPFetcher()
+	fetcher.FetchConcurrency = 3
+
+	_, err := fetcher.Fetch(ep, nil)
+	if err == nil {
+		t.Fatal("expected error when a page fails, got nil")
+	}
+}
+
+// M10-AC-006: Offset pagination returns partial results on error
+func TestM10_AC006_OffsetPartialResultsOnError(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		if requestCount == 3 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{map[string]interface{}{"id": requestCount}},
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": 200,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:            "test-offset-partial",
+		BaseURL:         server.URL,
+		Path:            "/api",
+		Format:          "json",
+		PaginationStyle: "offset",
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		Pagination:      "all",
+		Pagesize:        50,
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := upstream.NewHTTPFetcher()
+	fetcher.FetchConcurrency = 3
+
+	result, err := fetcher.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error for offset partial results, got %v", err)
+	}
+	// Should have partial data (pages before the error)
+	if result.PageCount < 1 {
+		t.Errorf("expected at least 1 page of partial data, got %d", result.PageCount)
+	}
+}
+
+// M10-AC-007: Single-page endpoints unaffected (no goroutines spawned)
+func TestM10_AC007_SinglePageUnaffected(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":     []interface{}{"single-item"},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-single",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := upstream.NewHTTPFetcher()
+	fetcher.FetchConcurrency = 3
+
+	result, err := fetcher.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.PageCount != 1 {
+		t.Errorf("expected 1 page, got %d", result.PageCount)
+	}
+}
+
+// M10-AC-013: Timing — 6 pages with concurrency=3 completes in ~2x single-page latency
+func TestM10_AC013_TimingBenchmark(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond) // simulate latency
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []interface{}{"item"},
+			"metadata": map[string]interface{}{
+				"total_pages": 6,
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:       "test-timing",
+		BaseURL:    server.URL,
+		Path:       "/api",
+		Format:     "json",
+		Pagination: "all",
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := upstream.NewHTTPFetcher()
+	fetcher.FetchConcurrency = 3
+
+	start := time.Now()
+	result, err := fetcher.Fetch(ep, nil)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.PageCount != 6 {
+		t.Errorf("expected 6 pages, got %d", result.PageCount)
+	}
+
+	// Sequential would be ~300ms (6 * 50ms)
+	// Parallel should be ~150ms (1 sequential + ceil(5/3)*50ms = 1+2 batches = 150ms)
+	// Allow generous margin for CI: should be under 250ms (not 300ms+)
+	if elapsed > 250*time.Millisecond {
+		t.Errorf("expected parallel fetch to complete under 250ms, took %v (sequential would be ~300ms)", elapsed)
+	}
+}
+
+// M10-AC-008: Raw/XML format endpoints are unaffected
+func TestM10_AC008_RawXMLUnaffected(t *testing.T) {
+	xmlBody := `<document><title>Test</title></document>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.Write([]byte(xmlBody))
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-raw",
+		BaseURL: server.URL,
+		Path:    "/doc.xml",
+		Format:  "raw",
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := upstream.NewHTTPFetcher()
+	fetcher.FetchConcurrency = 3
+
+	result, err := fetcher.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.Data != xmlBody {
+		t.Errorf("expected raw body, got %v", result.Data)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// M10: Empty Upstream Results — fetcher-level tests
+// Spec: specs/empty-upstream-results.md
+// ---------------------------------------------------------------------------
+
+// M10-AC-001: Upstream returns 200 with empty data array → valid CachedResponse
+func TestM10_EmptyResults_AC001_FetcherReturnsEmptyData(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{},
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": 0,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:            "fda-ndc",
+		BaseURL:         server.URL,
+		Path:            "/drug/ndc.json",
+		Format:          "json",
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		PaginationStyle: "offset",
+		Pagesize:        100,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error for empty results, got %v", err)
+	}
+
+	// Data should be an empty slice, not nil
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	if allData == nil {
+		t.Error("expected Data to be empty slice (not nil)")
+	}
+	if len(allData) != 0 {
+		t.Errorf("expected 0 items, got %d", len(allData))
+	}
+}
+
+// M10: Offset pagination also parallelized after first page
+func TestM10_OffsetPaginationParallelized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{map[string]interface{}{"id": 1}},
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": 150,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:            "test-offset-parallel",
+		BaseURL:         server.URL,
+		Path:            "/api",
+		Format:          "json",
+		PaginationStyle: "offset",
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		Pagination:      "all",
+		Pagesize:        50,
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := upstream.NewHTTPFetcher()
+	fetcher.FetchConcurrency = 3
+
+	start := time.Now()
+	result, err := fetcher.Fetch(ep, nil)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.PageCount != 3 {
+		t.Errorf("expected 3 pages, got %d", result.PageCount)
+	}
+	// Sequential would be ~150ms (3 * 50ms)
+	// Parallel: 1 sequential + 1 batch of 2 = ~100ms
+	// Allow margin: should be under 140ms
+	if elapsed > 140*time.Millisecond {
+		t.Errorf("expected parallel offset fetch under 140ms, took %v", elapsed)
 	}
 }

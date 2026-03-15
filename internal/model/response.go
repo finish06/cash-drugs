@@ -8,12 +8,13 @@ type APIResponse struct {
 
 // ResponseMeta contains metadata about the cached response.
 type ResponseMeta struct {
-	Slug        string `json:"slug"`
-	SourceURL   string `json:"source_url"`
-	FetchedAt   string `json:"fetched_at"`
-	PageCount   int    `json:"page_count"`
-	Stale       bool   `json:"stale"`
-	StaleReason string `json:"stale_reason,omitempty"`
+	Slug         string `json:"slug"`
+	SourceURL    string `json:"source_url"`
+	FetchedAt    string `json:"fetched_at"`
+	PageCount    int    `json:"page_count"`
+	ResultsCount int    `json:"results_count"`
+	Stale        bool   `json:"stale"`
+	StaleReason  string `json:"stale_reason,omitempty"`
 }
 
 // ErrorResponse is returned for error conditions.
