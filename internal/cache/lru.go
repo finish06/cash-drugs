@@ -2,6 +2,7 @@ package cache
 
 import (
 	"container/list"
+	"hash/fnv"
 	"sync"
 	"time"
 
@@ -23,32 +24,95 @@ type lruEntry struct {
 	size      int64
 }
 
-type lruCache struct {
-	mu       sync.Mutex
-	maxBytes int64
-	curBytes int64
-	items    map[string]*list.Element
-	order    *list.List // front = most recently used
-}
-
-// NewLRUCache creates a new LRU cache bounded by maxBytes.
+// NewLRUCache creates a new sharded LRU cache bounded by maxBytes with 16 shards.
 // When maxBytes <= 0, returns a no-op implementation that always misses.
 func NewLRUCache(maxBytes int64) LRUCache {
 	if maxBytes <= 0 {
 		return &noopLRU{}
 	}
-	return &lruCache{
-		maxBytes: maxBytes,
-		items:    make(map[string]*list.Element),
-		order:    list.New(),
+	return NewShardedLRUCache(maxBytes, 16)
+}
+
+// minShardBytes is the minimum number of bytes a shard should hold to be
+// effective. If maxBytes / shardCount would give less than this, the shard
+// count is reduced so each shard is at least this size.
+const minShardBytes = 32768 // 32KB
+
+// NewShardedLRUCache creates a sharded LRU cache with the given shard count.
+// Each shard has its own mutex, map, and list for independent locking.
+// The total memory budget is divided evenly across shards.
+func NewShardedLRUCache(maxBytes int64, shardCount int) LRUCache {
+	// Clamp shard count to sensible bounds
+	if shardCount <= 0 {
+		shardCount = 1
+	}
+	if int64(shardCount) > maxBytes {
+		shardCount = int(maxBytes)
+		if shardCount <= 0 {
+			shardCount = 1
+		}
+	}
+	// Reduce shard count if per-shard budget would be too small
+	if maxBytes/int64(shardCount) < minShardBytes && maxBytes > 0 {
+		shardCount = int(maxBytes / minShardBytes)
+		if shardCount <= 0 {
+			shardCount = 1
+		}
+	}
+
+	perShard := maxBytes / int64(shardCount)
+	if perShard <= 0 {
+		perShard = 1
+	}
+
+	shards := make([]*lruShard, shardCount)
+	for i := range shards {
+		shards[i] = &lruShard{
+			maxBytes: perShard,
+			items:    make(map[string]*list.Element),
+			order:    list.New(),
+		}
+	}
+
+	return &shardedLRUCache{
+		shards:     shards,
+		shardCount: shardCount,
 	}
 }
 
-func (c *lruCache) Get(key string) (*model.CachedResponse, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+// shardedLRUCache distributes cache entries across multiple shards
+// to reduce lock contention under concurrent access.
+type shardedLRUCache struct {
+	shards     []*lruShard
+	shardCount int
+}
 
-	elem, ok := c.items[key]
+// lruShard is a single shard with its own mutex and LRU data structures.
+type lruShard struct {
+	mu       sync.Mutex
+	maxBytes int64
+	curBytes int64
+	items    map[string]*list.Element
+	order    *list.List
+}
+
+// shardIndex returns the shard index for a given key using FNV-1a hash.
+func shardIndex(key string, shardCount int) int {
+	h := fnv.New32a()
+	h.Write([]byte(key))
+	return int(h.Sum32()) % shardCount
+}
+
+func (s *shardedLRUCache) getShard(key string) *lruShard {
+	return s.shards[shardIndex(key, s.shardCount)]
+}
+
+func (s *shardedLRUCache) Get(key string) (*model.CachedResponse, bool) {
+	shard := s.getShard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	elem, ok := shard.items[key]
 	if !ok {
 		return nil, false
 	}
@@ -57,29 +121,30 @@ func (c *lruCache) Get(key string) (*model.CachedResponse, bool) {
 
 	// Check TTL
 	if time.Now().After(entry.expiresAt) {
-		c.removeElement(elem)
+		shard.removeElement(elem)
 		return nil, false
 	}
 
 	// Move to front (most recently used)
-	c.order.MoveToFront(elem)
+	shard.order.MoveToFront(elem)
 	return entry.resp, true
 }
 
-func (c *lruCache) Set(key string, resp *model.CachedResponse, ttl time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *shardedLRUCache) Set(key string, resp *model.CachedResponse, ttl time.Duration) {
+	shard := s.getShard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
 
 	size := estimateSize(resp)
 
 	// If entry already exists, remove it first
-	if elem, ok := c.items[key]; ok {
-		c.removeElement(elem)
+	if elem, ok := shard.items[key]; ok {
+		shard.removeElement(elem)
 	}
 
 	// Evict LRU entries until we have room
-	for c.curBytes+size > c.maxBytes && c.order.Len() > 0 {
-		c.removeLRU()
+	for shard.curBytes+size > shard.maxBytes && shard.order.Len() > 0 {
+		shard.removeLRU()
 	}
 
 	entry := &lruEntry{
@@ -89,37 +154,42 @@ func (c *lruCache) Set(key string, resp *model.CachedResponse, ttl time.Duration
 		size:      size,
 	}
 
-	elem := c.order.PushFront(entry)
-	c.items[key] = elem
-	c.curBytes += size
+	elem := shard.order.PushFront(entry)
+	shard.items[key] = elem
+	shard.curBytes += size
 }
 
-func (c *lruCache) Invalidate(key string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *shardedLRUCache) Invalidate(key string) {
+	shard := s.getShard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
 
-	if elem, ok := c.items[key]; ok {
-		c.removeElement(elem)
+	if elem, ok := shard.items[key]; ok {
+		shard.removeElement(elem)
 	}
 }
 
-func (c *lruCache) SizeBytes() int64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.curBytes
+func (s *shardedLRUCache) SizeBytes() int64 {
+	var total int64
+	for _, shard := range s.shards {
+		shard.mu.Lock()
+		total += shard.curBytes
+		shard.mu.Unlock()
+	}
+	return total
 }
 
-func (c *lruCache) removeElement(elem *list.Element) {
+func (shard *lruShard) removeElement(elem *list.Element) {
 	entry := elem.Value.(*lruEntry)
-	c.order.Remove(elem)
-	delete(c.items, entry.key)
-	c.curBytes -= entry.size
+	shard.order.Remove(elem)
+	delete(shard.items, entry.key)
+	shard.curBytes -= entry.size
 }
 
-func (c *lruCache) removeLRU() {
-	back := c.order.Back()
+func (shard *lruShard) removeLRU() {
+	back := shard.order.Back()
 	if back != nil {
-		c.removeElement(back)
+		shard.removeElement(back)
 	}
 }
 

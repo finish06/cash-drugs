@@ -14,6 +14,7 @@ type CachedResponse struct {
 	Slug        string            `bson:"slug" json:"slug"`
 	Params      map[string]string `bson:"params,omitempty" json:"params,omitempty"`
 	CacheKey    string            `bson:"cache_key" json:"cache_key"`
+	BaseKey     string            `bson:"base_key" json:"base_key"`
 	Page        int               `bson:"page" json:"page"`
 	PageCount   int               `bson:"page_count" json:"page_count"`
 	Data        interface{}       `bson:"data" json:"data"`

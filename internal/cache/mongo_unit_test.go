@@ -336,44 +336,6 @@ func TestBuildPageUpdate(t *testing.T) {
 	}
 }
 
-// --- buildRegexFilter tests ---
-
-func TestBuildRegexFilter_SimpleKey(t *testing.T) {
-	filter := buildRegexFilter("mykey")
-	regex, ok := filter["cache_key"].(bson.M)
-	if !ok {
-		t.Fatal("expected cache_key to be bson.M")
-	}
-	expected := "^mykey(:|$)"
-	if regex["$regex"] != expected {
-		t.Errorf("expected regex %q, got %v", expected, regex["$regex"])
-	}
-}
-
-func TestBuildRegexFilter_KeyWithSpecialChars(t *testing.T) {
-	filter := buildRegexFilter("key.with+special")
-	regex, ok := filter["cache_key"].(bson.M)
-	if !ok {
-		t.Fatal("expected cache_key to be bson.M")
-	}
-	expected := `^key\.with\+special(:|$)`
-	if regex["$regex"] != expected {
-		t.Errorf("expected regex %q, got %v", expected, regex["$regex"])
-	}
-}
-
-func TestBuildRegexFilter_KeyWithColons(t *testing.T) {
-	filter := buildRegexFilter("slug:param=value")
-	regex, ok := filter["cache_key"].(bson.M)
-	if !ok {
-		t.Fatal("expected cache_key to be bson.M")
-	}
-	expected := "^slug:param=value(:|$)"
-	if regex["$regex"] != expected {
-		t.Errorf("expected regex %q, got %v", expected, regex["$regex"])
-	}
-}
-
 // --- MongoRepository accessor tests ---
 
 func TestMongoRepository_Names(t *testing.T) {
@@ -815,6 +777,244 @@ func TestNoopLRU_InvalidateDoesNotPanic(t *testing.T) {
 }
 
 // --- LRU Set replacing existing entry ---
+
+// =============================================================================
+// MongoDB Query Optimization Tests (specs/mongodb-query-optimization.md)
+// =============================================================================
+
+// AC-001: BaseKey field exists on CachedResponse model
+func TestAC001_BaseKeyFieldOnModel(t *testing.T) {
+	resp := model.CachedResponse{
+		CacheKey: "drugnames",
+		BaseKey:  "drugnames",
+	}
+	if resp.BaseKey != "drugnames" {
+		t.Errorf("expected BaseKey 'drugnames', got %q", resp.BaseKey)
+	}
+}
+
+// AC-003: Get uses base_key exact match instead of regex
+func TestAC003_GetUsesBaseKeyFilter(t *testing.T) {
+	doc := model.CachedResponse{
+		Slug:     "test",
+		CacheKey: "test-key",
+		BaseKey:  "test-key",
+		Page:     0,
+		Data:     "raw data",
+	}
+	mock := &mockCollection{findDocs: []any{doc}}
+	repo := newTestRepo(mock)
+
+	_, err := repo.Get("test-key")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify the filter uses base_key exact match, not regex
+	filter, ok := mock.lastFindFilter.(bson.M)
+	if !ok {
+		t.Fatalf("expected filter to be bson.M, got %T", mock.lastFindFilter)
+	}
+	if _, hasBaseKey := filter["base_key"]; !hasBaseKey {
+		t.Error("expected filter to use 'base_key' field")
+	}
+	if _, hasRegex := filter["cache_key"]; hasRegex {
+		t.Error("expected filter to NOT use 'cache_key' regex")
+	}
+}
+
+// AC-004: FetchedAt uses base_key exact match instead of regex
+func TestAC004_FetchedAtUsesBaseKeyFilter(t *testing.T) {
+	now := time.Now().Truncate(time.Millisecond)
+	doc := bson.M{"fetched_at": now}
+	mock := &mockCollection{findOneDoc: doc}
+	repo := newTestRepo(mock)
+
+	_, _, err := repo.FetchedAt("some-key")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify the filter uses base_key exact match, not regex
+	filter, ok := mock.lastFindOneFilter.(bson.M)
+	if !ok {
+		t.Fatalf("expected filter to be bson.M, got %T", mock.lastFindOneFilter)
+	}
+	if _, hasBaseKey := filter["base_key"]; !hasBaseKey {
+		t.Error("expected filter to use 'base_key' field")
+	}
+	if _, hasRegex := filter["cache_key"]; hasRegex {
+		t.Error("expected filter to NOT use 'cache_key' regex")
+	}
+}
+
+// AC-005: Upsert for multi-page sets base_key to resp.CacheKey
+func TestAC005_UpsertMultiPageSetsBaseKey(t *testing.T) {
+	mock := &mockCollection{}
+	repo := newTestRepo(mock)
+
+	resp := &model.CachedResponse{
+		Slug:        "multi",
+		CacheKey:    "multi-key",
+		ContentType: "application/json",
+		FetchedAt:   time.Now(),
+		SourceURL:   "http://example.com",
+		HTTPStatus:  200,
+		PageCount:   2,
+		Pages: []model.PageData{
+			{Page: 1, Data: []interface{}{"a1"}},
+			{Page: 2, Data: []interface{}{"b1"}},
+		},
+	}
+
+	err := repo.Upsert(resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify base_key is set in the update for each page
+	for i, update := range mock.updateOneUpdates {
+		updateDoc, ok := update.(bson.M)
+		if !ok {
+			t.Fatalf("page %d: expected update to be bson.M, got %T", i, update)
+		}
+		setFields, ok := updateDoc["$set"].(bson.M)
+		if !ok {
+			t.Fatalf("page %d: expected $set to be bson.M", i)
+		}
+		baseKey, exists := setFields["base_key"]
+		if !exists {
+			t.Errorf("page %d: expected base_key field in $set", i)
+		}
+		if baseKey != "multi-key" {
+			t.Errorf("page %d: expected base_key 'multi-key', got %v", i, baseKey)
+		}
+	}
+}
+
+// AC-006: Upsert for single document sets base_key equal to cache_key
+func TestAC006_UpsertSingleDocSetsBaseKey(t *testing.T) {
+	mock := &mockCollection{}
+	repo := newTestRepo(mock)
+
+	resp := &model.CachedResponse{
+		Slug:        "single",
+		CacheKey:    "single-key",
+		Data:        "data",
+		ContentType: "text/plain",
+		FetchedAt:   time.Now(),
+		SourceURL:   "http://example.com",
+		HTTPStatus:  200,
+		PageCount:   1,
+	}
+
+	err := repo.Upsert(resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(mock.updateOneUpdates) != 1 {
+		t.Fatalf("expected 1 update, got %d", len(mock.updateOneUpdates))
+	}
+
+	updateDoc, ok := mock.updateOneUpdates[0].(bson.M)
+	if !ok {
+		t.Fatalf("expected update to be bson.M, got %T", mock.updateOneUpdates[0])
+	}
+	setFields, ok := updateDoc["$set"].(bson.M)
+	if !ok {
+		t.Fatal("expected $set to be bson.M")
+	}
+	baseKey, exists := setFields["base_key"]
+	if !exists {
+		t.Error("expected base_key field in $set for single document upsert")
+	}
+	if baseKey != "single-key" {
+		t.Errorf("expected base_key 'single-key', got %v", baseKey)
+	}
+}
+
+// AC-007: Stale page deletion uses base_key filter instead of regex
+func TestAC007_StalePageDeletionUsesBaseKey(t *testing.T) {
+	mock := &mockCollection{}
+	repo := newTestRepo(mock)
+
+	resp := &model.CachedResponse{
+		Slug:     "multi",
+		CacheKey: "multi-key",
+		Pages: []model.PageData{
+			{Page: 1, Data: []interface{}{"a1"}},
+			{Page: 2, Data: []interface{}{"b1"}},
+		},
+	}
+
+	_ = repo.Upsert(resp)
+
+	if !mock.deleteManyCalled {
+		t.Fatal("expected DeleteMany to be called for stale page cleanup")
+	}
+
+	// Verify the stale page filter uses base_key, not regex
+	filter, ok := mock.lastDeleteManyFilter.(bson.M)
+	if !ok {
+		t.Fatalf("expected filter to be bson.M, got %T", mock.lastDeleteManyFilter)
+	}
+	if _, hasBaseKey := filter["base_key"]; !hasBaseKey {
+		t.Error("expected stale page filter to use 'base_key' field")
+	}
+	// Should NOT have cache_key regex
+	if cacheKeyFilter, hasCacheKey := filter["cache_key"]; hasCacheKey {
+		if _, isMap := cacheKeyFilter.(bson.M); isMap {
+			t.Error("expected stale page filter to NOT use regex on cache_key")
+		}
+	}
+}
+
+// AC-008, AC-009: backfillBaseKey populates base_key for existing documents
+func TestAC008_BackfillBaseKeyPopulatesField(t *testing.T) {
+	// Test that extractBaseKey correctly handles various cache_key patterns
+	tests := []struct {
+		cacheKey string
+		expected string
+	}{
+		{"drugnames", "drugnames"},
+		{"drugnames:page:1", "drugnames"},
+		{"drugnames:page:2", "drugnames"},
+		{"fda-ndc:NDC=12345", "fda-ndc:NDC=12345"},
+		{"some:page:key:page:2", "some:page:key"}, // multiple :page: — split on last
+	}
+
+	for _, tt := range tests {
+		got := extractBaseKey(tt.cacheKey)
+		if got != tt.expected {
+			t.Errorf("extractBaseKey(%q) = %q, want %q", tt.cacheKey, got, tt.expected)
+		}
+	}
+}
+
+// AC-010: buildRegexFilter and escapeRegex are removed
+func TestAC010_RegexHelpersRemoved(t *testing.T) {
+	// This test verifies that buildRegexFilter is no longer used in Get/FetchedAt.
+	// After GREEN phase, we'll verify the functions are removed by checking compilation.
+	// For now, we test that the new code path does NOT produce regex filters.
+	mock := &mockCollection{findDocs: []any{}}
+	repo := newTestRepo(mock)
+
+	_, _ = repo.Get("test-key")
+
+	filter, ok := mock.lastFindFilter.(bson.M)
+	if !ok {
+		t.Fatalf("expected filter to be bson.M, got %T", mock.lastFindFilter)
+	}
+	// Should not contain $regex anywhere
+	if cacheKeyVal, has := filter["cache_key"]; has {
+		if m, ok := cacheKeyVal.(bson.M); ok {
+			if _, hasRegex := m["$regex"]; hasRegex {
+				t.Error("Get filter should not use $regex after optimization")
+			}
+		}
+	}
+}
 
 func TestLRU_SetReplacesExistingEntry(t *testing.T) {
 	lru := NewLRUCache(1024 * 1024)
