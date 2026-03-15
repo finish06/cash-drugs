@@ -1447,6 +1447,55 @@ func TestM10_AC008_RawXMLUnaffected(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// M10: Empty Upstream Results — fetcher-level tests
+// Spec: specs/empty-upstream-results.md
+// ---------------------------------------------------------------------------
+
+// M10-AC-001: Upstream returns 200 with empty data array → valid CachedResponse
+func TestM10_EmptyResults_AC001_FetcherReturnsEmptyData(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{},
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": 0,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:            "fda-ndc",
+		BaseURL:         server.URL,
+		Path:            "/drug/ndc.json",
+		Format:          "json",
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		PaginationStyle: "offset",
+		Pagesize:        100,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error for empty results, got %v", err)
+	}
+
+	// Data should be an empty slice, not nil
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	if allData == nil {
+		t.Error("expected Data to be empty slice (not nil)")
+	}
+	if len(allData) != 0 {
+		t.Errorf("expected 0 items, got %d", len(allData))
+	}
+}
+
 // M10: Offset pagination also parallelized after first page
 func TestM10_OffsetPaginationParallelized(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

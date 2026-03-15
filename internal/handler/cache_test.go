@@ -1197,6 +1197,333 @@ func TestM9_AC016_ForceRefreshAfterCooldownExpires(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// M10: Empty Upstream Result Handling — RED phase tests
+// Spec: specs/empty-upstream-results.md
+// ---------------------------------------------------------------------------
+
+// M10-AC-001/AC-002: Empty upstream result returns 200 with empty data array
+func TestM10_EmptyResults_AC001_AC002_Returns200WithEmptyData(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "fda-ndc",
+		BaseURL: "http://example.com",
+		Path:    "/drug/ndc.json",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	// Fetcher returns valid response with empty data
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:        "fda-ndc",
+			CacheKey:    "fda-ndc:NDC=99999999",
+			Data:        []interface{}{},
+			ContentType: "application/json",
+			FetchedAt:   time.Now(),
+			SourceURL:   "http://example.com/drug/ndc.json",
+			PageCount:   1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?NDC=99999999", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for empty results, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	// Data should be empty array, not nil
+	dataArr, ok := resp.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", resp.Data)
+	}
+	if len(dataArr) != 0 {
+		t.Errorf("expected empty data array, got %d items", len(dataArr))
+	}
+}
+
+// M10-AC-003/AC-004: ResultsCount present in meta for all responses
+func TestM10_EmptyResults_AC003_AC004_ResultsCountInMeta(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	t.Run("empty results have results_count=0", func(t *testing.T) {
+		fetcher := &mockFetcher{
+			result: &model.CachedResponse{
+				Slug:        "drugnames",
+				CacheKey:    "drugnames",
+				Data:        []interface{}{},
+				ContentType: "application/json",
+				FetchedAt:   time.Now(),
+				SourceURL:   "http://example.com/v2/drugnames",
+				PageCount:   1,
+			},
+		}
+
+		h := handler.NewCacheHandler(
+			[]config.Endpoint{ep},
+			&mockCacheRepo{},
+			fetcher,
+		)
+
+		req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+
+		var resp model.APIResponse
+		json.NewDecoder(w.Body).Decode(&resp)
+
+		if resp.Meta.ResultsCount != 0 {
+			t.Errorf("expected results_count=0 for empty results, got %d", resp.Meta.ResultsCount)
+		}
+	})
+
+	t.Run("non-empty results have correct results_count", func(t *testing.T) {
+		fetcher := &mockFetcher{
+			result: &model.CachedResponse{
+				Slug:        "drugnames",
+				CacheKey:    "drugnames",
+				Data:        []interface{}{"drug1", "drug2", "drug3"},
+				ContentType: "application/json",
+				FetchedAt:   time.Now(),
+				SourceURL:   "http://example.com/v2/drugnames",
+				PageCount:   1,
+			},
+		}
+
+		h := handler.NewCacheHandler(
+			[]config.Endpoint{ep},
+			&mockCacheRepo{},
+			fetcher,
+		)
+
+		req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+
+		var resp model.APIResponse
+		json.NewDecoder(w.Body).Decode(&resp)
+
+		if resp.Meta.ResultsCount != 3 {
+			t.Errorf("expected results_count=3, got %d", resp.Meta.ResultsCount)
+		}
+	})
+}
+
+// M10-AC-007: Upstream errors still return 502
+func TestM10_EmptyResults_AC007_UpstreamErrorStill502(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "fda-ndc",
+		BaseURL: "http://example.com",
+		Path:    "/drug/ndc.json",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		&mockFetcher{err: fmt.Errorf("upstream unavailable")},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?NDC=12345", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadGateway {
+		t.Errorf("expected 502 for upstream error, got %d", w.Code)
+	}
+}
+
+// M10-AC-005: Empty results are cached in MongoDB
+func TestM10_EmptyResults_AC005_CachedInMongoDB(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "fda-ndc",
+		BaseURL: "http://example.com",
+		Path:    "/drug/ndc.json",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	repo := &mockCacheRepo{}
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:        "fda-ndc",
+			CacheKey:    "fda-ndc:NDC=99999999",
+			Data:        []interface{}{},
+			ContentType: "application/json",
+			FetchedAt:   time.Now(),
+			SourceURL:   "http://example.com/drug/ndc.json",
+			PageCount:   1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		repo,
+		fetcher,
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?NDC=99999999", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if !repo.upsertCalled {
+		t.Error("expected cache upsert for empty results")
+	}
+}
+
+// M10-AC-006: Empty results cached with short LRU TTL
+func TestM10_EmptyResults_AC006_ShortLRUTTL(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:        "fda-ndc",
+		BaseURL:     "http://example.com",
+		Path:        "/drug/ndc.json",
+		Format:      "json",
+		TTL:         "10m",
+		TTLDuration: 10 * time.Minute,
+	}
+	config.ApplyDefaults(&ep)
+
+	lru := cache.NewLRUCache(1024 * 1024)
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:        "fda-ndc",
+			CacheKey:    "fda-ndc:NDC=99999999",
+			Data:        []interface{}{},
+			ContentType: "application/json",
+			FetchedAt:   time.Now(),
+			SourceURL:   "http://example.com/drug/ndc.json",
+			PageCount:   1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+		handler.WithLRU(lru),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?NDC=99999999", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Verify LRU was populated (entry exists)
+	cacheKey := "fda-ndc:NDC=99999999"
+	_, ok := lru.Get(cacheKey)
+	if !ok {
+		t.Error("expected empty result to be cached in LRU")
+	}
+}
+
+// M10-AC-008: ResultsCount in meta for cached responses
+func TestM10_EmptyResults_AC008_ResultsCountOnCachedResponse(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:        "drugnames",
+		CacheKey:    "drugnames",
+		Data:        []interface{}{"drug1", "drug2"},
+		ContentType: "application/json",
+		FetchedAt:   time.Now(),
+		SourceURL:   "http://example.com/v2/drugnames",
+		PageCount:   1,
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	var resp model.APIResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	if resp.Meta.ResultsCount != 2 {
+		t.Errorf("expected results_count=2 for cached response, got %d", resp.Meta.ResultsCount)
+	}
+}
+
+// M10-AC-012: Cache outcome metric labels empty-result cache hits as "hit"
+func TestM10_EmptyResults_AC012_CacheHitMetricCorrect(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	ep := config.Endpoint{
+		Slug:    "fda-ndc",
+		BaseURL: "http://example.com",
+		Path:    "/drug/ndc.json",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:        "fda-ndc",
+		CacheKey:    "fda-ndc:NDC=99999999",
+		Data:        []interface{}{},
+		ContentType: "application/json",
+		FetchedAt:   time.Now(),
+		SourceURL:   "http://example.com/drug/ndc.json",
+		PageCount:   1,
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{},
+		handler.WithMetrics(m),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?NDC=99999999", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	hitVal := testutil.ToFloat64(m.CacheHitsTotal.WithLabelValues("fda-ndc", "hit"))
+	if hitVal != 1 {
+		t.Errorf("expected cache hit=1 for empty result cache hit, got %f", hitVal)
+	}
+
+	// Should be counted as 200, not error
+	httpVal := testutil.ToFloat64(m.HTTPRequestsTotal.WithLabelValues("fda-ndc", "GET", "200"))
+	if httpVal != 1 {
+		t.Errorf("expected HTTP 200 count=1, got %f", httpVal)
+	}
+}
+
 // --- Mock implementations ---
 
 // slowMockFetcher simulates a slow upstream fetch for singleflight tests
