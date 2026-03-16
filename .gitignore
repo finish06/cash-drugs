@@ -35,3 +35,5 @@ tests/screenshots/errors/
 # docs/plans/
 # tests/screenshots/{feature}/
 /server
+staging-key
+staging-key.pub

@@ -1,20 +1,28 @@
+networks:
+  internal:
+    name: internal
+    driver: bridge
+    external: true
+
 services:
   mongodb:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
+    image: mongo:4.4
+    container_name: cash-drugs-mongo
     volumes:
       - mongo-staging-data:/data/db
     restart: unless-stopped
+    networks:
+      - internal
 
   drugs:
     image: dockerhub.calebdunn.tech/finish06/cash-drugs:beta
+    container_name: cash-drugs
     ports:
       - "8083:8080"
     volumes:
       - ./config.yaml:/config.yaml:ro
     environment:
-      - MONGO_URI=mongodb://mongodb:27017/drugs_staging
+      - MONGO_URI=mongodb://cash-drugs-mongo:27017/drugs_staging
       - CONFIG_PATH=/config.yaml
       - LISTEN_ADDR=:8080
       - LOG_LEVEL=debug
@@ -22,6 +30,8 @@ services:
     depends_on:
       - mongodb
     restart: unless-stopped
+    networks:
+      - internal
 
 volumes:
   mongo-staging-data:
