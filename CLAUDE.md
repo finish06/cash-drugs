@@ -84,7 +84,8 @@ cash-drugs/
 ### Environments
 
 - **Local:** Docker Compose (http://localhost:8080)
-- **Production:** Homelab, pulls from `dockerhub.calebdunn.tech/finish06/cash-drugs`
+- **Staging:** 192.168.1.145:8083 — auto-deploys `:beta` via cron. See `docs/staging-deployment.md`
+- **Production:** 192.168.1.86:8083 — pulls from `dockerhub.calebdunn.tech/finish06/cash-drugs:latest`
 
 ### CI/CD
 
