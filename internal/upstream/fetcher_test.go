@@ -1544,3 +1544,288 @@ func TestM10_OffsetPaginationParallelized(t *testing.T) {
 		t.Errorf("expected parallel offset fetch under 140ms, took %v", elapsed)
 	}
 }
+
+// ============================================================================
+// Response Normalization — Flatten Tests (specs/response-normalization.md)
+// ============================================================================
+
+// AC-RN-003: When flatten: true, conceptGroup[*].conceptProperties[*] is flattened
+// into a single array with tty preserved on each item
+func TestAC_RN003_FlattenConceptGroups(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"allRelatedGroup": map[string]interface{}{
+				"conceptGroup": []interface{}{
+					map[string]interface{}{
+						"tty": "BN",
+						"conceptProperties": []interface{}{
+							map[string]interface{}{"rxcui": "12345", "name": "Lipitor"},
+						},
+					},
+					map[string]interface{}{
+						"tty": "IN",
+						"conceptProperties": []interface{}{
+							map[string]interface{}{"rxcui": "67890", "name": "Atorvastatin"},
+							map[string]interface{}{"rxcui": "67891", "name": "Atorvastatin Calcium"},
+						},
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "rxnorm-all-related",
+		BaseURL: server.URL,
+		Path:    "/REST/rxcui/197381/allrelated.json",
+		Format:  "json",
+		DataKey: "allRelatedGroup.conceptGroup",
+		Flatten: true,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	data, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be []interface{}, got %T", result.Data)
+	}
+
+	if len(data) != 3 {
+		t.Fatalf("expected 3 flattened items, got %d", len(data))
+	}
+
+	// Verify tty is preserved on each item
+	first, ok := data[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be map, got %T", data[0])
+	}
+	if first["tty"] != "BN" {
+		t.Errorf("expected first item tty='BN', got '%v'", first["tty"])
+	}
+	if first["rxcui"] != "12345" {
+		t.Errorf("expected first item rxcui='12345', got '%v'", first["rxcui"])
+	}
+
+	// Verify second group items have tty=IN
+	third, ok := data[2].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be map, got %T", data[2])
+	}
+	if third["tty"] != "IN" {
+		t.Errorf("expected third item tty='IN', got '%v'", third["tty"])
+	}
+}
+
+// AC-RN-004: When flatten: true and data is already flat, no change
+func TestAC_RN004_FlattenAlreadyFlatNoOp(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"approximateGroup": map[string]interface{}{
+				"candidate": []interface{}{
+					map[string]interface{}{"rxcui": "111", "name": "Aspirin"},
+					map[string]interface{}{"rxcui": "222", "name": "Aspirin 325mg"},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "rxnorm-approximate-match",
+		BaseURL: server.URL,
+		Path:    "/REST/approximateTerm.json",
+		Format:  "json",
+		DataKey: "approximateGroup.candidate",
+		Flatten: true,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	data, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be []interface{}, got %T", result.Data)
+	}
+
+	// Already flat — should be unchanged, 2 items
+	if len(data) != 2 {
+		t.Fatalf("expected 2 items (no-op flatten), got %d", len(data))
+	}
+
+	item, ok := data[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be map, got %T", data[0])
+	}
+	if item["rxcui"] != "111" {
+		t.Errorf("expected rxcui='111', got '%v'", item["rxcui"])
+	}
+}
+
+// AC-RN-005: When flatten: false (default), data is unchanged
+func TestAC_RN005_FlattenFalseUnchanged(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"allRelatedGroup": map[string]interface{}{
+				"conceptGroup": []interface{}{
+					map[string]interface{}{
+						"tty": "BN",
+						"conceptProperties": []interface{}{
+							map[string]interface{}{"rxcui": "12345", "name": "Lipitor"},
+						},
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "rxnorm-all-related",
+		BaseURL: server.URL,
+		Path:    "/REST/rxcui/197381/allrelated.json",
+		Format:  "json",
+		DataKey: "allRelatedGroup.conceptGroup",
+		Flatten: false, // explicitly false
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	data, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be []interface{}, got %T", result.Data)
+	}
+
+	// Should NOT be flattened — the conceptGroup object should be present as-is
+	if len(data) != 1 {
+		t.Fatalf("expected 1 item (conceptGroup object), got %d", len(data))
+	}
+
+	group, ok := data[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be map, got %T", data[0])
+	}
+	// The group should still have conceptProperties (not flattened)
+	if _, hasCPs := group["conceptProperties"]; !hasCPs {
+		t.Error("expected conceptProperties key to be present (not flattened)")
+	}
+}
+
+// AC-RN-003 edge case: conceptGroup with no conceptProperties is skipped
+func TestAC_RN003_FlattenSkipsEmptyConceptProperties(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"allRelatedGroup": map[string]interface{}{
+				"conceptGroup": []interface{}{
+					map[string]interface{}{
+						"tty": "BN",
+						"conceptProperties": []interface{}{
+							map[string]interface{}{"rxcui": "12345", "name": "Lipitor"},
+						},
+					},
+					map[string]interface{}{
+						"tty": "DF",
+						// No conceptProperties field at all
+					},
+					map[string]interface{}{
+						"tty": "SY",
+						"conceptProperties": nil, // null conceptProperties
+					},
+					map[string]interface{}{
+						"tty": "IN",
+						"conceptProperties": []interface{}{}, // empty array
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "rxnorm-all-related",
+		BaseURL: server.URL,
+		Path:    "/REST/rxcui/197381/allrelated.json",
+		Format:  "json",
+		DataKey: "allRelatedGroup.conceptGroup",
+		Flatten: true,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	data, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be []interface{}, got %T", result.Data)
+	}
+
+	// Only the BN group had actual conceptProperties — 1 item
+	if len(data) != 1 {
+		t.Fatalf("expected 1 flattened item (empty groups skipped), got %d", len(data))
+	}
+}
+
+// AC-RN-007: results_count reflects flattened count
+func TestAC_RN007_ResultsCountReflectsFlattenedCount(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"allRelatedGroup": map[string]interface{}{
+				"conceptGroup": []interface{}{
+					map[string]interface{}{
+						"tty": "BN",
+						"conceptProperties": []interface{}{
+							map[string]interface{}{"rxcui": "1", "name": "A"},
+						},
+					},
+					map[string]interface{}{
+						"tty": "IN",
+						"conceptProperties": []interface{}{
+							map[string]interface{}{"rxcui": "2", "name": "B"},
+							map[string]interface{}{"rxcui": "3", "name": "C"},
+						},
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "rxnorm-all-related",
+		BaseURL: server.URL,
+		Path:    "/REST/rxcui/197381/allrelated.json",
+		Format:  "json",
+		DataKey: "allRelatedGroup.conceptGroup",
+		Flatten: true,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	data, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be []interface{}, got %T", result.Data)
+	}
+
+	// 3 flattened items — the Data slice length IS the results_count
+	// (the handler computes results_count from len(data))
+	if len(data) != 3 {
+		t.Errorf("expected 3 items for results_count, got %d", len(data))
+	}
+}

@@ -141,6 +141,11 @@ func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*
 		allData = append(allData, p.Data...)
 	}
 
+	// Apply flatten post-processing if configured (AC-002, AC-003, AC-006)
+	if ep.Flatten {
+		allData = flattenConceptGroups(allData)
+	}
+
 	return &model.CachedResponse{
 		Slug:        ep.Slug,
 		Params:      params,
@@ -244,7 +249,15 @@ func (f *HTTPFetcher) fetchJSONPage(reqURL string, dataKey string) ([]interface{
 	}
 
 	var items []interface{}
-	if data, ok := parsed[dataKey]; ok {
+	// Support dot-path data keys (e.g., "allRelatedGroup.conceptGroup")
+	if data, ok := resolveByDotPath(parsed, dataKey); ok {
+		if arr, ok := data.([]interface{}); ok {
+			items = arr
+		} else {
+			items = []interface{}{data}
+		}
+	} else if data, ok := parsed[dataKey]; ok {
+		// Fallback to simple top-level lookup
 		if arr, ok := data.([]interface{}); ok {
 			items = arr
 		} else {
@@ -255,6 +268,66 @@ func (f *HTTPFetcher) fetchJSONPage(reqURL string, dataKey string) ([]interface{
 	}
 
 	return items, parsed, nil
+}
+
+// flattenConceptGroups flattens nested conceptGroup structures into a single array.
+// For each item in data that has a "conceptProperties" array, it extracts those
+// properties and copies the "tty" field from the parent group onto each child.
+// Items without conceptProperties or that are already flat pass through unchanged.
+func flattenConceptGroups(data []interface{}) []interface{} {
+	result := make([]interface{}, 0)
+	hasConceptGroups := false
+
+	for _, item := range data {
+		group, ok := item.(map[string]interface{})
+		if !ok {
+			// Not a map — include as-is (already flat)
+			result = append(result, item)
+			continue
+		}
+
+		cpRaw, hasCPs := group["conceptProperties"]
+		if !hasCPs {
+			// No conceptProperties — check if this looks like a conceptGroup
+			// (has tty field). If so, skip it (empty group). Otherwise include as-is.
+			if _, hasTTY := group["tty"]; hasTTY {
+				hasConceptGroups = true
+				continue // skip empty conceptGroup
+			}
+			result = append(result, item)
+			continue
+		}
+
+		// conceptProperties exists but could be nil
+		cpArr, ok := cpRaw.([]interface{})
+		if !ok || len(cpArr) == 0 {
+			hasConceptGroups = true
+			continue // skip null or empty conceptProperties
+		}
+
+		hasConceptGroups = true
+		tty, _ := group["tty"]
+
+		for _, cp := range cpArr {
+			cpMap, ok := cp.(map[string]interface{})
+			if !ok {
+				result = append(result, cp)
+				continue
+			}
+			// Copy tty from parent group onto each child
+			if tty != nil {
+				cpMap["tty"] = tty
+			}
+			result = append(result, cpMap)
+		}
+	}
+
+	// If no conceptGroups were detected, return original data unchanged
+	if !hasConceptGroups {
+		return data
+	}
+
+	return result
 }
 
 func hasMorePages(parsed map[string]interface{}, currentPage int, totalKey string, isOffset bool, pagesize int) bool {
