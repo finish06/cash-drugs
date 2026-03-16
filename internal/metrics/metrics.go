@@ -53,6 +53,10 @@ type Metrics struct {
 	// Singleflight metrics
 	SingleflightDedupTotal *prometheus.CounterVec
 
+	// Warmup query metrics
+	WarmupQueriesTotal   *prometheus.CounterVec
+	WarmupQueriesPending prometheus.Gauge
+
 	// Build and uptime metrics
 	BuildInfo      *prometheus.GaugeVec
 	UptimeSeconds  prometheus.Gauge
@@ -346,6 +350,23 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			[]string{"slug"},
 		),
 
+		// Warmup query metrics
+		WarmupQueriesTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "warmup_queries_total",
+				Help:      "Total warmup query outcomes by slug and result.",
+			},
+			[]string{"slug", "result"},
+		),
+		WarmupQueriesPending: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "warmup_queries_pending",
+				Help:      "Number of warmup queries still in progress.",
+			},
+		),
+
 		// Build and uptime metrics
 		BuildInfo: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -399,6 +420,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.LRUCacheMissesTotal,
 		m.LRUCacheSizeBytes,
 		m.SingleflightDedupTotal,
+		m.WarmupQueriesTotal,
+		m.WarmupQueriesPending,
 		m.BuildInfo,
 		m.UptimeSeconds,
 	)
