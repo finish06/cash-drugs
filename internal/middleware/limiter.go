@@ -68,5 +68,6 @@ func (cl *ConcurrencyLimiter) Wrap(next http.Handler) http.Handler {
 
 // isExempt returns true for paths that should bypass the concurrency limiter.
 func isExempt(path string) bool {
-	return path == "/health" || path == "/metrics" || strings.HasPrefix(path, "/health/") || strings.HasPrefix(path, "/metrics/")
+	return path == "/health" || path == "/metrics" || path == "/ready" ||
+		strings.HasPrefix(path, "/health/") || strings.HasPrefix(path, "/metrics/") || strings.HasPrefix(path, "/ready/")
 }
