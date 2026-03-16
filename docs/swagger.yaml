@@ -147,6 +147,41 @@ paths:
       summary: List configured endpoints
       tags:
       - system
+  /api/warmup:
+    post:
+      consumes:
+      - application/json
+      description: 'Triggers background warm-up of cached endpoints. With no body,
+        warms all scheduled endpoints. With {"slugs": [...]}, warms specific slugs.'
+      parameters:
+      - description: Optional slug filter
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Warmup started
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid slug
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "405":
+          description: Method not allowed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Trigger cache warmup
+      tags:
+      - system
   /health:
     get:
       description: Returns service health status including database connectivity.
@@ -179,6 +214,27 @@ paths:
           schema:
             type: object
       summary: OpenAPI specification
+      tags:
+      - system
+  /ready:
+    get:
+      description: Returns whether the service has finished warming its cache.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Ready
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Warming
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Readiness probe
       tags:
       - system
   /version:
