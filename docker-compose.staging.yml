@@ -1,0 +1,27 @@
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-staging-data:/data/db
+    restart: unless-stopped
+
+  drugs:
+    image: dockerhub.calebdunn.tech/finish06/cash-drugs:beta
+    ports:
+      - "8083:8080"
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/drugs_staging
+      - CONFIG_PATH=/config.yaml
+      - LISTEN_ADDR=:8080
+      - LOG_LEVEL=debug
+      - MAX_CONCURRENT_REQUESTS=150
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+
+volumes:
+  mongo-staging-data:

@@ -65,15 +65,21 @@
       "verify": ["unit_tests"]
     },
     "staging": {
-      "deploy_trigger": null,
-      "url": null,
-      "verify": ["unit_tests", "integration_tests"]
+      "deploy_trigger": "push to main (beta tag)",
+      "url": "http://192.168.1.145:8083",
+      "image_tag": "beta",
+      "compose_file": "docker-compose.staging.yml",
+      "verify": ["unit_tests", "integration_tests", "smoke_tests"],
+      "autoPromote": false
     },
     "production": {
-      "deploy_trigger": "merge to main",
+      "deploy_trigger": "push git tag v*",
       "verify": ["smoke_tests"],
-      "url": "TBD",
-      "requires_approval": true
+      "url": "http://192.168.1.86:8083",
+      "image_tag": "latest",
+      "compose_file": "docker-compose.prod.yml",
+      "requires_approval": true,
+      "autoPromote": false
     }
   },
   "quality": {
