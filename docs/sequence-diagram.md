@@ -178,7 +178,7 @@ sequenceDiagram
         GZ-->>Client: 503 (gzip compressed)
     end
 
-    Note over LIM: Exempt paths: /health, /metrics, /version<br/>bypass the limiter entirely
+    Note over LIM: Exempt paths: /health, /metrics, /ready<br/>bypass the limiter entirely<br/>(/version also exempt — registered on outer mux)
 ```
 
 ## Circuit Breaker Flow

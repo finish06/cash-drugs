@@ -77,6 +77,7 @@ cash-drugs/
 ├── docker-compose.prod.yml     # Production (pulls from registry)
 ├── docker-compose.test.yml     # Test MongoDB
 ├── Dockerfile                  # Multi-stage alpine build
+├── warmup-queries.yaml              # Parameterized warmup queries (top 100 drugs)
 ├── Makefile                    # Test commands
 └── go.mod                      # github.com/finish06/cash-drugs
 ```

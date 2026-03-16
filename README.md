@@ -37,6 +37,8 @@ Service starts at **http://localhost:8080**. Explore:
 - **Swagger UI:** http://localhost:8080/swagger/
 - **All endpoints:** http://localhost:8080/api/endpoints
 - **Health:** http://localhost:8080/health
+- **Readiness:** http://localhost:8080/ready
+- **Version:** http://localhost:8080/version
 - **Metrics:** http://localhost:8080/metrics
 
 ## Configure Any API
@@ -237,7 +239,8 @@ JSON endpoints return:
     "source_url": "https://api.example.com/v1/products",
     "fetched_at": "2026-03-07T15:59:13Z",
     "page_count": 12,
-    "stale": false
+    "stale": false,
+    "results_count": 1234
   }
 }
 ```
@@ -274,6 +277,7 @@ json.NewDecoder(resp.Body).Decode(&result)
 | `pagesize` | no | `100` | Items per page (or limit for offset style) |
 | `data_key` | no | `data` | JSON key containing the items array |
 | `total_key` | no | `metadata.total_pages` | Dot-path to total count (pages or items) |
+| `flatten` | no | `false` | Flatten nested arrays in response data |
 | `refresh` | no | — | Cron expression for background refresh |
 | `ttl` | no | — | Go duration (`1h`, `30m`) for staleness |
 | `log_level` | no | `warn` | Log level: `debug`, `info`, `warn`, `error` |
@@ -287,6 +291,12 @@ json.NewDecoder(resp.Body).Decode(&result)
 | `LISTEN_ADDR` | `:8080` | Server listen address |
 | `LOG_LEVEL` | `warn` | Overrides config file log level |
 | `LOG_FORMAT` | `json` | `json` or `text` |
+| `MAX_CONCURRENT_REQUESTS` | `50` | Max in-flight requests (concurrency limiter) |
+| `LRU_CACHE_SIZE_MB` | `256` | In-memory LRU cache size |
+| `SYSTEM_METRICS_INTERVAL` | `15s` | System metrics collection interval |
+| `CIRCUIT_FAILURE_THRESHOLD` | `5` | Consecutive failures before circuit opens |
+| `CIRCUIT_OPEN_DURATION` | `30s` | How long circuit stays open |
+| `FORCE_REFRESH_COOLDOWN` | `30s` | Cooldown between forced refreshes per key |
 
 ## Architecture
 
@@ -299,6 +309,7 @@ graph LR
     DB[(MongoDB)]
     DM[DailyMed API]
     FDA[openFDA API]
+    RX[RxNorm API]
     Prom[Prometheus]
     Graf[Grafana]
 
@@ -306,6 +317,7 @@ graph LR
     CD -->|read/write cache| DB
     CD -->|on-demand fetch| DM
     CD -->|on-demand fetch| FDA
+    CD -->|on-demand fetch| RX
     CD -.->|scheduled refresh| DM
     CD -.->|scheduled refresh| FDA
     Prom -->|/metrics| CD
