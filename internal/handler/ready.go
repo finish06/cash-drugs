@@ -10,8 +10,10 @@ import (
 type WarmupState interface {
 	// IsReady returns true when warm-up is complete.
 	IsReady() bool
-	// Progress returns the number of completed and total endpoints in the current warm-up.
+	// Progress returns the number of completed and total items in the current warm-up.
 	Progress() (done, total int)
+	// Phase returns the current warmup phase: "scheduled", "queries", or "ready".
+	Phase() string
 }
 
 // ReadyHandler handles GET /ready requests.
@@ -45,9 +47,14 @@ func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	done, total := h.state.Progress()
+	phase := h.state.Phase()
 	w.WriteHeader(http.StatusServiceUnavailable)
-	json.NewEncoder(w).Encode(map[string]string{
+	resp := map[string]string{
 		"status":   "warming",
 		"progress": fmt.Sprintf("%d/%d", done, total),
-	})
+	}
+	if phase != "" {
+		resp["phase"] = phase
+	}
+	json.NewEncoder(w).Encode(resp)
 }

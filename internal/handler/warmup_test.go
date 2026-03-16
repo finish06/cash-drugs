@@ -17,16 +17,18 @@ import (
 // --- Mock WarmupTrigger ---
 
 type mockWarmupTrigger struct {
-	mu           sync.Mutex
-	triggeredAll bool
+	mu             sync.Mutex
+	triggeredAll   bool
 	triggeredSlugs []string
-	callCount    int32
+	skipQueries    bool
+	callCount      int32
 }
 
-func (m *mockWarmupTrigger) TriggerWarmup(slugs []string) {
+func (m *mockWarmupTrigger) TriggerWarmup(slugs []string, skipQueries bool) {
 	atomic.AddInt32(&m.callCount, 1)
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.skipQueries = skipQueries
 	if slugs == nil {
 		m.triggeredAll = true
 	} else {
@@ -219,5 +221,123 @@ func TestAC009_WarmupDeduplicates(t *testing.T) {
 	h.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusAccepted {
 		t.Errorf("second call: expected 202, got %d", w2.Code)
+	}
+}
+
+// --- Parameterized Warmup Tests (specs/parameterized-warmup.md) ---
+
+// AC-003: POST /api/warmup with no body warms scheduled + parameterized queries
+func TestAC003_WarmupIncludesParameterizedQueries(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "drugnames", Refresh: "*/5 * * * *", Format: "json", BaseURL: "http://example.com", Path: "/api"},
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api"},
+	}
+	trigger := &mockWarmupTrigger{}
+	warmupQueries := map[string][]map[string]string{
+		"fda-ndc": {
+			{"GENERIC_NAME": "METFORMIN"},
+			{"GENERIC_NAME": "LISINOPRIL"},
+		},
+	}
+	h := handler.NewWarmupHandler(endpoints, trigger, handler.WithWarmupQueries(warmupQueries))
+
+	req := httptest.NewRequest("POST", "/api/warmup", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d", w.Code)
+	}
+
+	var resp struct {
+		Status         string `json:"status"`
+		Warming        int    `json:"warming"`
+		WarmingQueries int    `json:"warming_queries"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.WarmingQueries != 2 {
+		t.Errorf("expected warming_queries 2, got %d", resp.WarmingQueries)
+	}
+}
+
+// AC-004 (parameterized): POST /api/warmup with specific slugs includes only that slug's queries
+func TestAC004_WarmupSpecificSlugIncludesQueries(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api"},
+		{Slug: "rxnorm-find-drug", Format: "json", BaseURL: "http://example.com", Path: "/api"},
+	}
+	trigger := &mockWarmupTrigger{}
+	warmupQueries := map[string][]map[string]string{
+		"fda-ndc": {
+			{"GENERIC_NAME": "METFORMIN"},
+			{"GENERIC_NAME": "LISINOPRIL"},
+			{"GENERIC_NAME": "ATORVASTATIN"},
+		},
+		"rxnorm-find-drug": {
+			{"DRUG_NAME": "metformin"},
+		},
+	}
+	h := handler.NewWarmupHandler(endpoints, trigger, handler.WithWarmupQueries(warmupQueries))
+
+	body := `{"slugs": ["fda-ndc"]}`
+	req := httptest.NewRequest("POST", "/api/warmup", bytes.NewReader([]byte(body)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d", w.Code)
+	}
+
+	var resp struct {
+		WarmingQueries int `json:"warming_queries"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	// Only fda-ndc queries, not rxnorm-find-drug
+	if resp.WarmingQueries != 3 {
+		t.Errorf("expected warming_queries 3 (fda-ndc only), got %d", resp.WarmingQueries)
+	}
+}
+
+// AC-005: POST /api/warmup with skip_queries=true skips parameterized queries
+func TestAC005_WarmupSkipQueries(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api"},
+	}
+	trigger := &mockWarmupTrigger{}
+	warmupQueries := map[string][]map[string]string{
+		"fda-ndc": {{"GENERIC_NAME": "METFORMIN"}},
+	}
+	h := handler.NewWarmupHandler(endpoints, trigger, handler.WithWarmupQueries(warmupQueries))
+
+	body := `{"slugs": ["fda-ndc"], "skip_queries": true}`
+	req := httptest.NewRequest("POST", "/api/warmup", bytes.NewReader([]byte(body)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d", w.Code)
+	}
+
+	var resp struct {
+		WarmingQueries int `json:"warming_queries"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.WarmingQueries != 0 {
+		t.Errorf("expected warming_queries 0 with skip_queries=true, got %d", resp.WarmingQueries)
+	}
+
+	// Verify trigger was called with skipQueries=true
+	trigger.mu.Lock()
+	defer trigger.mu.Unlock()
+	if !trigger.skipQueries {
+		t.Error("expected trigger to be called with skipQueries=true")
 	}
 }
