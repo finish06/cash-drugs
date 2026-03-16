@@ -1,0 +1,283 @@
+{
+  "$schema": "https://github.com/MountainUnicorn/add/docs-manifest.schema.json",
+  "version": "1.0.0",
+  "generated": "2026-03-16T17:50:00Z",
+  "stack": {
+    "language": "go",
+    "framework": "net/http",
+    "frontend": null,
+    "database": "mongodb",
+    "doc_tools": ["swaggo/swag"]
+  },
+  "directories": {
+    "handlers": ["internal/handler/"],
+    "models": ["internal/model/"],
+    "schemas": [],
+    "services": ["internal/cache/", "internal/upstream/", "internal/scheduler/", "internal/fetchlock/", "internal/metrics/"],
+    "templates": [],
+    "static": [],
+    "tests": ["internal/handler/", "internal/cache/", "internal/upstream/", "internal/middleware/", "internal/config/", "tests/e2e/"],
+    "docs": ["docs/"]
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/cache/{slug}",
+      "handler_file": "internal/handler/cache.go",
+      "handler_function": "CacheHandler.ServeHTTP",
+      "middleware": ["GzipMiddleware", "ConcurrencyLimiter"],
+      "tags": ["cache"],
+      "response_model": "model.APIResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/endpoints",
+      "handler_file": "internal/handler/endpoints.go",
+      "handler_function": "EndpointsHandler.ServeHTTP",
+      "middleware": ["GzipMiddleware", "ConcurrencyLimiter"],
+      "tags": ["discovery"],
+      "response_model": "[]EndpointInfo"
+    },
+    {
+      "method": "GET",
+      "path": "/swagger/",
+      "handler_file": "external (swaggo/http-swagger)",
+      "handler_function": "httpSwagger.WrapHandler",
+      "middleware": ["GzipMiddleware", "ConcurrencyLimiter"],
+      "tags": ["docs"],
+      "response_model": null
+    },
+    {
+      "method": "GET",
+      "path": "/openapi.json",
+      "handler_file": "internal/handler/openapi.go",
+      "handler_function": "ServeOpenAPISpec",
+      "middleware": ["GzipMiddleware", "ConcurrencyLimiter"],
+      "tags": ["docs"],
+      "response_model": null
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "handler_file": "internal/handler/health.go",
+      "handler_function": "HealthHandler.ServeHTTP",
+      "middleware": ["GzipMiddleware"],
+      "tags": ["ops"],
+      "response_model": null
+    },
+    {
+      "method": "GET",
+      "path": "/metrics",
+      "handler_file": "external (prometheus/promhttp)",
+      "handler_function": "promhttp.Handler",
+      "middleware": ["GzipMiddleware"],
+      "tags": ["ops"],
+      "response_model": null
+    },
+    {
+      "method": "GET",
+      "path": "/version",
+      "handler_file": "internal/handler/version.go",
+      "handler_function": "VersionHandler.ServeHTTP",
+      "middleware": ["GzipMiddleware"],
+      "tags": ["ops"],
+      "response_model": "VersionInfo"
+    },
+    {
+      "method": "GET",
+      "path": "/ready",
+      "handler_file": "internal/handler/ready.go",
+      "handler_function": "ReadyHandler.ServeHTTP",
+      "middleware": ["GzipMiddleware"],
+      "tags": ["ops"],
+      "response_model": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/warmup",
+      "handler_file": "internal/handler/warmup.go",
+      "handler_function": "WarmupHandler.ServeHTTP",
+      "middleware": ["GzipMiddleware"],
+      "tags": ["ops"],
+      "response_model": null
+    }
+  ],
+  "middleware_chain": [
+    {
+      "name": "GzipMiddleware",
+      "file": "internal/middleware/gzip.go",
+      "order": 1,
+      "purpose": "Compresses responses >= 1KB for compressible content types (JSON, XML)"
+    },
+    {
+      "name": "ConcurrencyLimiter",
+      "file": "internal/middleware/limiter.go",
+      "order": 2,
+      "purpose": "Limits in-flight requests via channel semaphore; returns 503 when full. Exempt: /health, /metrics, /ready"
+    }
+  ],
+  "models": [
+    {
+      "name": "APIResponse",
+      "file": "internal/model/response.go",
+      "field_count": 2,
+      "relationships": ["ResponseMeta"]
+    },
+    {
+      "name": "ResponseMeta",
+      "file": "internal/model/response.go",
+      "field_count": 7,
+      "relationships": []
+    },
+    {
+      "name": "ErrorResponse",
+      "file": "internal/model/response.go",
+      "field_count": 4,
+      "relationships": []
+    },
+    {
+      "name": "CachedResponse",
+      "file": "internal/model/cache.go",
+      "field_count": 13,
+      "relationships": ["PageData"]
+    },
+    {
+      "name": "PageData",
+      "file": "internal/model/cache.go",
+      "field_count": 2,
+      "relationships": []
+    },
+    {
+      "name": "VersionInfo",
+      "file": "internal/handler/version.go",
+      "field_count": 13,
+      "relationships": []
+    },
+    {
+      "name": "EndpointInfo",
+      "file": "internal/handler/endpoints.go",
+      "field_count": 6,
+      "relationships": []
+    },
+    {
+      "name": "Endpoint",
+      "file": "internal/model/config.go",
+      "field_count": 18,
+      "relationships": []
+    }
+  ],
+  "services": [
+    {
+      "name": "cache (MongoRepository)",
+      "file": "internal/cache/mongo.go",
+      "public_functions": ["NewMongoRepository", "Get", "Upsert", "Ping", "Client", "Database", "Names", "Close"]
+    },
+    {
+      "name": "cache (LRUCache)",
+      "file": "internal/cache/lru.go",
+      "public_functions": ["NewLRUCache", "Get", "Set", "Invalidate", "SizeBytes"]
+    },
+    {
+      "name": "upstream (HTTPFetcher)",
+      "file": "internal/upstream/fetcher.go",
+      "public_functions": ["NewHTTPFetcher", "Fetch"]
+    },
+    {
+      "name": "upstream (CircuitRegistry)",
+      "file": "internal/upstream/circuit.go",
+      "public_functions": ["NewCircuitRegistry", "Execute", "IsOpen", "State"]
+    },
+    {
+      "name": "upstream (CooldownTracker)",
+      "file": "internal/upstream/cooldown.go",
+      "public_functions": ["NewCooldownTracker", "Check"]
+    },
+    {
+      "name": "scheduler",
+      "file": "internal/scheduler/scheduler.go",
+      "public_functions": ["New", "Start", "Stop", "TriggerWarmup"]
+    },
+    {
+      "name": "fetchlock",
+      "file": "internal/fetchlock/fetchlock.go",
+      "public_functions": ["New", "Get"]
+    },
+    {
+      "name": "metrics",
+      "file": "internal/metrics/metrics.go",
+      "public_functions": ["NewMetrics"]
+    }
+  ],
+  "existing_docs": [
+    {
+      "path": "docs/sequence-diagram.md",
+      "topic": "request-flows",
+      "type": "diagram"
+    },
+    {
+      "path": "docs/swagger.json",
+      "topic": "api-spec",
+      "type": "api"
+    },
+    {
+      "path": "docs/swagger.yaml",
+      "topic": "api-spec",
+      "type": "api"
+    },
+    {
+      "path": "docs/prd.md",
+      "topic": "product-requirements",
+      "type": "other"
+    },
+    {
+      "path": "docs/staging-deployment.md",
+      "topic": "deployment",
+      "type": "other"
+    },
+    {
+      "path": "docs/prometheus-setup.md",
+      "topic": "monitoring",
+      "type": "other"
+    },
+    {
+      "path": "CLAUDE.md",
+      "topic": "project-overview",
+      "type": "readme"
+    },
+    {
+      "path": "README.md",
+      "topic": "project-overview",
+      "type": "readme"
+    }
+  ],
+  "flows": {
+    "documented": [
+      "GET /api/cache/{slug}",
+      "GET /api/endpoints",
+      "GET /health",
+      "GET /metrics",
+      "GET /version",
+      "GET /ready",
+      "POST /api/warmup"
+    ],
+    "undocumented": [],
+    "stale": []
+  },
+  "fingerprints": {
+    "cmd/server/main.go": "099dd88eafb2e2838a475b7af1006e7d2a0e2afd5d07d413476a461c15f39445",
+    "internal/handler/cache.go": "63e8c3c34a3d4faf106b3c9cc0d3326825fc94c7ba54e8b0c98496bf0d095d01",
+    "internal/handler/endpoints.go": "2fa3cadd282c5adf6dd184695fde8de1631777bfc8129b5468327ecc2fac4a68",
+    "internal/handler/health.go": "b851dd0a65648de8dd334d1607f78dce51c10f44e45fb2b8f5ee46b7c1766cf8",
+    "internal/handler/openapi.go": "4a677c2058358ffc6c1c5c1cd8999af874c60efcaadfb46251d8a21bc25f8b0b",
+    "internal/handler/ready.go": "7e6a7fde646d964feb8fff6e6487f2c599dde08dca669fd7da613094bd0b7da1",
+    "internal/handler/version.go": "b992fc325622014fe309121c40dceb36e23201ab24d04aaf669f5e02d98efcb9",
+    "internal/handler/warmup.go": "5695261c33654157f02336fc590236f08c30cd457eb37dbf02237703ee661703",
+    "internal/handler/warmup_queries.go": "82e0d905729ddb63398f51f34dd2478e836a75c00431379ed71e670547325096",
+    "internal/middleware/gzip.go": "7680c8591f5730931d895e77c2036e2e14b9f0619eb3441e617f6f082afb483a",
+    "internal/middleware/limiter.go": "fffc4ba57ac895bd376904092105640b07aa3fb0fb4016187580eeb8dee59c11",
+    "internal/model/cache.go": "af63f5476e2787a8d2f41765c26f199c3039d9958853f510e5f387f7171a1e9d",
+    "internal/model/config.go": "b79e407ce2918646918138bd51bcaf03027a0e7ff5798663b1af2e22696b7e12",
+    "internal/model/response.go": "32d1a2aca76c5856f4fd88de4805983bc1d31390d808808a452628aa1b2dbab6",
+    "internal/config/loader.go": "48d4b64fdb9e2481f1b2720e3e478852851b8685f80f43fed7e10beaf8bee189"
+  }
+}
