@@ -120,3 +120,57 @@ endpoints:
       - "openfda.brand_name:\"{BRAND_NAME}\""
       - "openfda.generic_name:\"{GENERIC_NAME}\""
       - "openfda.product_ndc:\"{NDC}\""
+
+  # RxNorm API Endpoints (NLM)
+  # No auth required, no pagination, monthly data updates
+
+  - slug: rxnorm-find-drug
+    base_url: https://rxnav.nlm.nih.gov
+    path: /REST/rxcui.json
+    format: json
+    query_params:
+      name: "{DRUG_NAME}"
+      search: "1"
+    data_key: idGroup.rxnormId
+    ttl: "720h"
+
+  - slug: rxnorm-approximate-match
+    base_url: https://rxnav.nlm.nih.gov
+    path: /REST/approximateTerm.json
+    format: json
+    query_params:
+      term: "{DRUG_NAME}"
+      maxEntries: "20"
+      option: "1"
+    data_key: approximateGroup.candidate
+    ttl: "168h"
+
+  - slug: rxnorm-spelling-suggestions
+    base_url: https://rxnav.nlm.nih.gov
+    path: /REST/spellingsuggestions.json
+    format: json
+    query_params:
+      name: "{DRUG_NAME}"
+    data_key: suggestionGroup.suggestionList.suggestion
+    ttl: "720h"
+
+  - slug: rxnorm-ndcs
+    base_url: https://rxnav.nlm.nih.gov
+    path: /REST/rxcui/{RXCUI}/ndcs.json
+    format: json
+    data_key: ndcGroup.ndcList.ndc
+    ttl: "168h"
+
+  - slug: rxnorm-generic-product
+    base_url: https://rxnav.nlm.nih.gov
+    path: /REST/rxcui/{RXCUI}/generic.json
+    format: json
+    data_key: minConceptGroup.minConcept
+    ttl: "720h"
+
+  - slug: rxnorm-all-related
+    base_url: https://rxnav.nlm.nih.gov
+    path: /REST/rxcui/{RXCUI}/allrelated.json
+    format: json
+    data_key: relatedGroup.conceptGroup
+    ttl: "336h"
