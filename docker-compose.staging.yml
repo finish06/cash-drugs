@@ -21,6 +21,7 @@ services:
       - "8083:8080"
     volumes:
       - ./config.yaml:/config.yaml:ro
+      - ./warmup-queries.yaml:/warmup-queries.yaml:ro
     environment:
       - MONGO_URI=mongodb://cash-drugs-mongo:27017/drugs_staging
       - CONFIG_PATH=/config.yaml
