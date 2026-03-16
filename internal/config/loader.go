@@ -25,6 +25,7 @@ type Endpoint struct {
 	Pagesize        int               `yaml:"pagesize"`
 	SearchParams    []string          `yaml:"search_params"`
 	DataKey         string            `yaml:"data_key"`
+	Flatten         bool              `yaml:"flatten"`
 	TotalKey        string            `yaml:"total_key"`
 	Refresh         string            `yaml:"refresh"`
 	TTL             string            `yaml:"ttl"`

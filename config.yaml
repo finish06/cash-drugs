@@ -173,4 +173,5 @@ endpoints:
     path: /REST/rxcui/{RXCUI}/allrelated.json
     format: json
     data_key: allRelatedGroup.conceptGroup
+    flatten: true
     ttl: "336h"
