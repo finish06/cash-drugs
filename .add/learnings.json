@@ -249,6 +249,19 @@
       "date": "2026-03-15",
       "classified_by": "agent",
       "checkpoint_type": "post-deploy"
+    },
+    {
+      "id": "L-020",
+      "title": "Warmup orchestrator: separate from scheduler for parameterized query support",
+      "body": "Scheduler handles cron-based refresh of non-parameterized endpoints only. WarmupOrchestrator is a separate component that warms both scheduled endpoints AND parameterized queries from warmup-queries.yaml. This separation keeps the scheduler simple while the orchestrator handles the full warmup lifecycle with progress tracking, phase transitions, and semaphore-bounded concurrency (cap 5).",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "architecture",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-16",
+      "classified_by": "agent",
+      "checkpoint_type": "feature-complete"
     }
   ]
 }
