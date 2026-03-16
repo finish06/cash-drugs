@@ -7,7 +7,9 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Added
+- 6 RxNorm API endpoints (NLM): `rxnorm-find-drug`, `rxnorm-approximate-match`, `rxnorm-spelling-suggestions`, `rxnorm-ndcs`, `rxnorm-generic-product`, `rxnorm-all-related` — config-only, no code changes
+- Fuzzy drug name search, spelling suggestions, brand→generic mapping, RxCUI→NDC mapping via RxNorm
 
 ## [0.8.0] — 2026-03-15 — M10: Performance Optimization
 

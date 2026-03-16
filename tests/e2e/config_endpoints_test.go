@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,27 +104,42 @@ func validateJSONResponse(t *testing.T, resp *http.Response, ep config.Endpoint)
 		t.Fatalf("response is not valid JSON: %v", err)
 	}
 
-	// Check that the expected data key exists
+	// Traverse dot-path data key to find the expected data
 	dataKey := ep.DataKey
 	if dataKey == "" {
 		dataKey = "data"
 	}
-	data, ok := parsed[dataKey]
-	if !ok {
-		t.Errorf("expected key '%s' in response, got keys: %v", dataKey, mapKeys(parsed))
-		return
+
+	var data interface{} = parsed
+	for _, part := range strings.Split(dataKey, ".") {
+		m, ok := data.(map[string]interface{})
+		if !ok {
+			t.Errorf("expected object at '%s' in path '%s', got %T", part, dataKey, data)
+			return
+		}
+		data, ok = m[part]
+		if !ok {
+			t.Errorf("key '%s' not found in path '%s', available keys: %v", part, dataKey, mapKeys(m))
+			return
+		}
 	}
 
-	// Verify it's an array with at least one item
-	arr, ok := data.([]interface{})
-	if !ok {
-		t.Errorf("expected '%s' to be an array, got %T", dataKey, data)
-		return
-	}
-	if len(arr) == 0 {
-		t.Logf("warning: '%s' array is empty for %s", dataKey, ep.Slug)
-	} else {
-		t.Logf("ok: %s returned %d items", ep.Slug, len(arr))
+	// Data can be an array, object, or string array — all are valid
+	switch v := data.(type) {
+	case []interface{}:
+		if len(v) == 0 {
+			t.Logf("warning: '%s' array is empty for %s", dataKey, ep.Slug)
+		} else {
+			t.Logf("ok: %s returned %d items", ep.Slug, len(v))
+		}
+	case map[string]interface{}:
+		t.Logf("ok: %s returned object with %d fields", ep.Slug, len(v))
+	case string:
+		t.Logf("ok: %s returned string value", ep.Slug)
+	case nil:
+		t.Errorf("'%s' is null for %s", dataKey, ep.Slug)
+	default:
+		t.Logf("ok: %s returned %T", ep.Slug, data)
 	}
 }
 
@@ -175,6 +191,22 @@ func getTestParams(slug string) map[string]string {
 		return map[string]string{"DRUG_NAME": "aspirin"}
 	case "fda-events-by-drug":
 		return map[string]string{"DRUG_NAME": "aspirin"}
+	case "fda-ndc":
+		return map[string]string{"BRAND_NAME": "aspirin"}
+	case "fda-label":
+		return map[string]string{"BRAND_NAME": "aspirin"}
+	case "rxnorm-find-drug":
+		return map[string]string{"DRUG_NAME": "metformin"}
+	case "rxnorm-approximate-match":
+		return map[string]string{"DRUG_NAME": "ambienn"}
+	case "rxnorm-spelling-suggestions":
+		return map[string]string{"DRUG_NAME": "ambienn"}
+	case "rxnorm-ndcs":
+		return map[string]string{"RXCUI": "861004"}
+	case "rxnorm-generic-product":
+		return map[string]string{"RXCUI": "213269"}
+	case "rxnorm-all-related":
+		return map[string]string{"RXCUI": "161"}
 	default:
 		// Check if it has params we don't know about
 		return nil
