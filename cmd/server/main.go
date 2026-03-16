@@ -174,14 +174,39 @@ func main() {
 	cooldownTracker := upstream.NewCooldownTracker(cooldownDuration)
 	slog.Info("force-refresh cooldown configured", "component", "server", "duration", cooldownDuration)
 
-	// Start background scheduler
+	// Start background scheduler (handles cron-based refresh only; warmup is separate)
 	sched := scheduler.New(endpoints, fetcher, repo, locks, scheduler.WithMetrics(m), scheduler.WithLRU(lruCache), scheduler.WithCircuit(circuitReg))
 	sched.Start(context.Background())
+
+	// Note: initial warmup with parameterized queries is triggered below after handler setup
 
 	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m), handler.WithLRU(lruCache), handler.WithCircuit(circuitReg), handler.WithCooldown(cooldownTracker))
 	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
 	endpointsHandler := handler.NewEndpointsHandler(endpoints)
 	versionHandler := handler.NewVersionHandler(version, gitCommit, gitBranch, buildDate, len(endpoints))
+
+	// Load parameterized warmup queries
+	warmupQueriesPath := os.Getenv("WARMUP_QUERIES_PATH")
+	if warmupQueriesPath == "" {
+		warmupQueriesPath = "warmup-queries.yaml"
+	}
+	warmupQueries, err := handler.LoadWarmupQueries(warmupQueriesPath)
+	if err != nil {
+		slog.Warn("failed to load warmup queries — proceeding without parameterized warmup", "component", "warmup", "path", warmupQueriesPath, "error", err)
+		warmupQueries = make(map[string][]map[string]string)
+	} else {
+		slog.Info("warmup queries loaded", "component", "warmup", "path", warmupQueriesPath, "total_queries", handler.TotalQueryCount(warmupQueries))
+	}
+
+	// Create warmup state tracker, orchestrator, and handlers
+	warmupState := handler.NewWarmupStateTracker()
+	warmupOrchestrator := handler.NewWarmupOrchestrator(
+		endpoints, fetcher, repo, locks, circuitReg,
+		warmupQueries, warmupState, m,
+		handler.WithOrchestratorLRU(lruCache),
+	)
+	readyHandler := handler.NewReadyHandler(warmupState)
+	warmupHandler := handler.NewWarmupHandler(endpoints, warmupOrchestrator, handler.WithWarmupQueries(warmupQueries))
 
 	// Set build info Prometheus gauge
 	m.BuildInfo.WithLabelValues(version, gitCommit, runtime.Version(), buildDate).Set(1)
@@ -204,12 +229,14 @@ func main() {
 	appMux := http.NewServeMux()
 	appMux.Handle("/api/cache/", cacheHandler)
 	appMux.Handle("/api/endpoints", endpointsHandler)
+	appMux.Handle("/api/warmup", warmupHandler)
 	appMux.Handle("/swagger/", httpSwagger.WrapHandler)
 	appMux.HandleFunc("/openapi.json", handler.ServeOpenAPISpec)
 
 	// Outer mux: exempt paths registered directly, app routes wrapped with limiter
 	mux := http.NewServeMux()
 	mux.Handle("/health", healthHandler)
+	mux.Handle("/ready", readyHandler)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.Handle("/version", versionHandler)
 	mux.Handle("/", limiter.Wrap(appMux))
@@ -229,6 +256,10 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
+
+	// Trigger initial warmup (includes parameterized queries) in background
+	warmupOrchestrator.TriggerWarmup(nil, false)
+	slog.Info("initial warmup triggered", "component", "warmup")
 
 	go func() {
 		sigCh := make(chan os.Signal, 1)
