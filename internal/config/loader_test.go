@@ -800,6 +800,49 @@ endpoints:
 	}
 }
 
+// AC-RN-001: Flatten bool field parsed from YAML (specs/response-normalization.md)
+func TestAC_RN001_FlattenFieldParsed(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: rxnorm-all-related
+    base_url: https://rxnav.nlm.nih.gov
+    path: /REST/rxcui/{RXCUI}/allrelated.json
+    format: json
+    data_key: allRelatedGroup.conceptGroup
+    flatten: true
+    ttl: "336h"
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !endpoints[0].Flatten {
+		t.Error("expected Flatten=true when flatten: true in config")
+	}
+}
+
+// AC-RN-001: Flatten defaults to false when absent (specs/response-normalization.md)
+func TestAC_RN001_FlattenDefaultFalse(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if endpoints[0].Flatten {
+		t.Error("expected Flatten=false when flatten is absent from config")
+	}
+}
+
 // Helper functions
 
 const validConfig = `
