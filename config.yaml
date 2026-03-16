@@ -172,5 +172,5 @@ endpoints:
     base_url: https://rxnav.nlm.nih.gov
     path: /REST/rxcui/{RXCUI}/allrelated.json
     format: json
-    data_key: relatedGroup.conceptGroup
+    data_key: allRelatedGroup.conceptGroup
     ttl: "336h"
