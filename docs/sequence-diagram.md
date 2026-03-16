@@ -488,7 +488,7 @@ sequenceDiagram
     Note over GW: Exempt from concurrency limiter
     GW->>VH: ServeHTTP(w, r)
     VH->>VH: Collect runtime info<br/>(version, git_commit, git_branch,<br/>build_date, go_version, os, arch,<br/>hostname, GOMAXPROCS, uptime)
-    VH-->>Client: 200 {"version": "v0.8.0", "git_commit": "abc1234",<br/>"uptime_seconds": 3600, "endpoint_count": 13, ...}
+    VH-->>Client: 200 {"version": "v0.8.0", "git_commit": "abc1234",<br/>"uptime_seconds": 3600, "endpoint_count": 17, ...}
 
     Note over VH: Prometheus gauges updated independently:<br/>cashdrugs_build_info (labels: version, commit, go, date)<br/>cashdrugs_uptime_seconds (updated every 15s)
 ```
@@ -518,6 +518,56 @@ sequenceDiagram
     Note over CH: Previous behavior returned 502 for empty results.<br/>Now correctly distinguishes "no results" from "upstream error".
 ```
 
+## RxNorm Lookup Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant CH as CacheHandler
+    participant LRU as Sharded LRU Cache
+    participant DB as MongoDB
+    participant SF as Singleflight
+    participant RX as RxNorm API<br/>(rxnav.nlm.nih.gov)
+
+    Client->>CH: GET /api/cache/{rxnorm-slug}?name=aspirin
+
+    CH->>LRU: Get(cacheKey)
+    alt LRU hit (subsequent request)
+        LRU-->>CH: CachedResponse (fresh)
+        CH-->>Client: 200 {"data": [...], "meta": {stale: false}}
+        Note over LRU,CH: Fast path — no MongoDB or API call
+    end
+
+    alt LRU miss
+        LRU-->>CH: nil
+        CH->>DB: Get(cacheKey) via base_key index
+        alt MongoDB hit
+            DB-->>CH: CachedResponse (fresh)
+            CH->>LRU: Set(cacheKey, response)
+            CH-->>Client: 200 {"data": [...], "meta": {stale: false}}
+        end
+
+        alt MongoDB miss (first request)
+            DB-->>CH: nil
+            CH->>SF: Do(cacheKey, fetchFn)
+            Note over SF,RX: Single request — no pagination<br/>RxNorm returns all results in one response
+
+            SF->>RX: GET /REST/{path}?name=aspirin
+            RX-->>SF: 200 {rxnormdata: {idGroup: {rxnormId: [...]}}}
+
+            Note over SF: Dot-path data_key extraction<br/>(e.g., "rxnormdata.idGroup.rxnormId")
+            SF->>SF: Extract nested data via data_key
+
+            SF->>DB: Upsert(response) with base_key
+            SF->>LRU: Set(cacheKey, response)
+            Note over LRU,DB: Cache populated for subsequent requests
+
+            SF-->>CH: CachedResponse
+            CH-->>Client: 200 {"data": [...], "meta": {results_count: N, stale: false}}
+        end
+    end
+```
+
 ## System Overview
 
 ```mermaid
@@ -533,6 +583,7 @@ sequenceDiagram
     participant DB as MongoDB
     participant API1 as DailyMed API
     participant API2 as openFDA API
+    participant API3 as RxNorm API
 
     Dev->>CD: GET /swagger/
     CD-->>Dev: Swagger UI
@@ -560,6 +611,22 @@ sequenceDiagram
     LIM->>CD: ServeHTTP
     CD->>LRU: Hash key → shard → check
     LRU-->>CD: Cache hit (fresh)
+    CD-->>GZ: {"data": [...], "meta": {results_count: M, stale: false}}
+    GZ-->>Svc: 200 (gzip compressed)
+
+    Svc->>GZ: GET /api/cache/rxnorm-interaction
+    GZ->>LIM: pass through
+    LIM->>CD: ServeHTTP
+    CD->>LRU: Hash key → shard → check
+    LRU-->>CD: miss
+    CD->>DB: base_key exact match (indexed)
+    DB-->>CD: Cache miss
+    Note over CD: Single request — no pagination
+    CD->>API3: GET /REST/interaction/list.json?rxcui=123
+    API3-->>CD: {interactionTypeGroup: [...]}
+    Note over CD: Dot-path data_key extraction
+    CD->>DB: Store response with base_key
+    CD->>LRU: Populate shard
     CD-->>GZ: {"data": [...], "meta": {results_count: M, stale: false}}
     GZ-->>Svc: 200 (gzip compressed)
 

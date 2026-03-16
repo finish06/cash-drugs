@@ -2,6 +2,8 @@ FROM golang:1.24-alpine AS builder
 
 ARG VERSION=dev
 
+RUN apk add --no-cache git
+
 WORKDIR /app
 
 RUN go install github.com/swaggo/swag/cmd/swag@latest

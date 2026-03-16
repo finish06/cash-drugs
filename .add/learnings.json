@@ -184,6 +184,71 @@
       "date": "2026-03-14",
       "classified_by": "agent",
       "checkpoint_type": "post-deploy"
+    },
+    {
+      "id": "L-015",
+      "title": "MongoDB base_key optimization: replace regex with indexed exact match",
+      "body": "Regex queries on cache_key can't use MongoDB indexes effectively. Adding a base_key field (slug+params without page suffix) with compound index on base_key+page enables $eq matching. Startup migration backfills existing documents idempotently. Removed escapeRegex/buildRegexFilter helpers entirely.",
+      "scope": "project",
+      "stack": ["go", "mongodb"],
+      "category": "performance",
+      "severity": "high",
+      "source": "drugs",
+      "date": "2026-03-15",
+      "classified_by": "agent",
+      "checkpoint_type": "post-tdd"
+    },
+    {
+      "id": "L-016",
+      "title": "LRU sharding: FNV-1a hash to N buckets eliminates single-mutex contention",
+      "body": "Single-mutex LRU serializes all concurrent cache access. Sharding into 16 buckets via FNV-1a hash gives each shard its own mutex. Size budget splits evenly (maxBytes/shardCount per shard). Implements same LRUCache interface — drop-in replacement. Minimum 32KB per shard to avoid degenerate cases.",
+      "scope": "workstation",
+      "stack": ["go"],
+      "category": "performance",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-15",
+      "classified_by": "agent",
+      "checkpoint_type": "post-tdd"
+    },
+    {
+      "id": "L-017",
+      "title": "Parallel page fetches: sequential first page, concurrent rest with semaphore",
+      "body": "First page must be sequential to discover total_pages from response metadata. Remaining pages can be fetched concurrently via goroutine pool with channel semaphore (cap 3). Results combined in page order. Any page error fails entire fetch. Works for both page-style and offset-style pagination.",
+      "scope": "workstation",
+      "stack": ["go"],
+      "category": "architecture",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-15",
+      "classified_by": "agent",
+      "checkpoint_type": "post-tdd"
+    },
+    {
+      "id": "L-018",
+      "title": "RxNorm API: config-only integration validates architecture",
+      "body": "6 RxNorm endpoints added purely through config.yaml with zero code changes. Dot-path data_key extraction (e.g., suggestionGroup.suggestionList.suggestion) handles nested JSON. No pagination needed. E2E tests pass against live API. Validates that the config-driven fetcher architecture scales to new API providers.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "architecture",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-15",
+      "classified_by": "agent",
+      "checkpoint_type": "post-tdd"
+    },
+    {
+      "id": "L-019",
+      "title": "Deploy v0.8.0: 3-track parallel execution, 68 ACs, 5 features",
+      "body": "M10 delivered via 3 parallel worktree tracks (MongoDB+LRU, fetcher+empty results, version endpoint). All CI passed. Merge sequence Track3→Track2→Track1 with zero-conflict rebases on independent work. K6 stress-heavy showed 85% success at 150 VUs. Dockerfile needed git added for ldflags.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "process",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-15",
+      "classified_by": "agent",
+      "checkpoint_type": "post-deploy"
     }
   ]
 }

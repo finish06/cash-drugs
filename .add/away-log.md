@@ -18,3 +18,18 @@
 ## Progress Log
 | Time | Task | Status | Notes |
 |------|------|--------|-------|
+| 00:00 | CHANGELOG unreleased RxNorm | Done | Added to unreleased section |
+| 00:05 | RxNorm E2E tests | Done | c837789 — 6/6 RxNorm endpoints pass against live API, 17/17 total |
+| 00:20 | Grafana dashboard | Done | Build Info + Uptime panels added |
+| 00:25 | Sequence diagrams | Done | RxNorm Lookup Flow + system overview updated |
+| 00:30 | CLAUDE.md | Done | No changes needed (no endpoint count refs) |
+| 00:32 | Dockerfile ldflags fix | Done | Added `apk add git` to builder stage |
+| 00:40 | Learning checkpoints | Done | L-015 through L-019 (M10 TDD + deploy) |
+| 00:45 | Handoff update | Done | Current state documented |
+
+## Summary
+All 9 tasks completed. Key outcomes:
+- RxNorm E2E: 17/17 endpoints validated against live APIs
+- Grafana: build_info + uptime panels
+- Dockerfile: git installed for ldflags resolution
+- 5 new learning entries (total now 19)
