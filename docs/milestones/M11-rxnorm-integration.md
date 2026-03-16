@@ -1,8 +1,8 @@
 # M11 — RxNorm API Integration
 
-**Goal:** Integrate NLM RxNorm REST API endpoints into cash-drugs, providing standardized drug identifier lookups, fuzzy name search, spelling suggestions, NDC mapping, brand/generic mapping, and drug relationship data — all via config-only changes.
+**Goal:** Integrate NLM RxNorm REST API endpoints and add parameterized query warmup for top 100 drugs — config-driven endpoints plus pre-caching popular lookups on startup.
 
-**Appetite:** Small — config-driven, no code changes required (existing fetcher handles all patterns)
+**Appetite:** Small-Medium — config-driven endpoints + warmup infrastructure
 
 **Target Maturity:** Beta
 
@@ -19,8 +19,12 @@
 - [ ] `rxnorm-generic-product?RXCUI=213269` maps branded to generic
 - [ ] `rxnorm-all-related?RXCUI=161` returns ingredient/brand/form relationships
 - [ ] TTLs configured appropriately (7d for NDCs, 14d for relationships, 30d for stable lookups)
-- [ ] No code changes needed — existing fetcher, cache, and handler work as-is
-- [ ] E2E tests validate all 6 endpoints against live RxNorm API
+- [x] No code changes needed for RxNorm endpoints — existing fetcher handles all patterns
+- [x] E2E tests validate all 6 endpoints against live RxNorm API (17/17 pass)
+- [ ] `warmup-queries.yaml` pre-caches top 100 drugs across fda-ndc, fda-label, rxnorm-find-drug, rxnorm-approximate-match
+- [ ] `POST /api/warmup` supports parameterized queries from `warmup-queries.yaml`
+- [ ] `/ready` progress includes parameterized query count
+- [ ] Failed warmup queries don't block readiness
 
 ## Endpoints
 
@@ -57,11 +61,32 @@ Since this is config-only, validation is:
 3. Verify data_key extraction produces expected results
 4. Add E2E test cases for all 6 endpoints
 
+## Parameterized Warmup
+
+Pre-cache the top 100 most prescribed drugs (ClinCalc/IQVIA 2023) on startup via `warmup-queries.yaml`:
+
+| Slug | Queries | Source |
+|------|---------|--------|
+| fda-ndc | 86 | Top 86 by GENERIC_NAME |
+| fda-label | 30 | Top 30 by GENERIC_NAME |
+| rxnorm-find-drug | 50 | Top 50 drug name lookups |
+| rxnorm-approximate-match | 30 | Top 30 fuzzy search |
+
+- **Spec:** `specs/parameterized-warmup.md` (15 ACs)
+- **Config:** `warmup-queries.yaml` (196 total queries)
+- **Concurrency:** 5 concurrent upstream requests during warmup
+- **Ordering:** Scheduled endpoints first, then parameterized queries
+- **Resilience:** Failed queries logged but don't block readiness
+
+## Cycles
+
+**Cycle 3:** RxNorm config + parameterized warmup
+
 ## Dependencies
 
 - Requires existing fetcher to handle RxNorm's JSON response structure
 - `data_key` dot-path traversal must work for paths like `idGroup.rxnormId` and `suggestionGroup.suggestionList.suggestion`
-- No new Go dependencies
+- Requires readiness-warmup endpoints (M12, merged)
 
 ---
-*Milestone for cash-drugs. Adds NLM RxNorm standardized drug data alongside existing DailyMed + FDA endpoints.*
+*Milestone for cash-drugs. Adds NLM RxNorm standardized drug data + parameterized warmup for top 100 drugs.*
