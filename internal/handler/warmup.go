@@ -9,28 +9,45 @@ import (
 
 // WarmupTrigger starts a background warm-up for the given slugs.
 // If slugs is nil, all scheduled endpoints are warmed.
+// If skipQueries is true, parameterized queries from warmup-queries.yaml are skipped.
 type WarmupTrigger interface {
-	TriggerWarmup(slugs []string)
+	TriggerWarmup(slugs []string, skipQueries bool)
+}
+
+// WarmupHandlerOption configures optional WarmupHandler behavior.
+type WarmupHandlerOption func(*WarmupHandler)
+
+// WithWarmupQueries sets the parameterized warmup queries for the handler.
+func WithWarmupQueries(queries map[string][]map[string]string) WarmupHandlerOption {
+	return func(h *WarmupHandler) {
+		h.warmupQueries = queries
+	}
 }
 
 // WarmupHandler handles POST /api/warmup requests.
 type WarmupHandler struct {
-	endpoints []config.Endpoint
-	trigger   WarmupTrigger
-	slugSet   map[string]bool // valid slugs for validation
+	endpoints     []config.Endpoint
+	trigger       WarmupTrigger
+	slugSet       map[string]bool // valid slugs for validation
+	warmupQueries map[string][]map[string]string
 }
 
 // NewWarmupHandler creates a new WarmupHandler.
-func NewWarmupHandler(endpoints []config.Endpoint, trigger WarmupTrigger) *WarmupHandler {
+func NewWarmupHandler(endpoints []config.Endpoint, trigger WarmupTrigger, opts ...WarmupHandlerOption) *WarmupHandler {
 	slugSet := make(map[string]bool)
 	for _, ep := range endpoints {
 		slugSet[ep.Slug] = true
 	}
-	return &WarmupHandler{
-		endpoints: endpoints,
-		trigger:   trigger,
-		slugSet:   slugSet,
+	h := &WarmupHandler{
+		endpoints:     endpoints,
+		trigger:       trigger,
+		slugSet:       slugSet,
+		warmupQueries: make(map[string][]map[string]string),
 	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 // ServeHTTP handles warmup trigger requests.
@@ -59,7 +76,8 @@ func (h *WarmupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Parse optional request body
 	var reqBody struct {
-		Slugs []string `json:"slugs"`
+		Slugs       []string `json:"slugs"`
+		SkipQueries bool     `json:"skip_queries"`
 	}
 
 	if r.Body != nil && r.ContentLength != 0 {
@@ -83,22 +101,32 @@ func (h *WarmupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Trigger warmup for specific slugs
-		h.trigger.TriggerWarmup(reqBody.Slugs)
+		h.trigger.TriggerWarmup(reqBody.Slugs, reqBody.SkipQueries)
+		queryCount := 0
+		if !reqBody.SkipQueries {
+			queryCount = QueryCountForSlugs(h.warmupQueries, reqBody.Slugs)
+		}
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":  "accepted",
-			"warming": len(reqBody.Slugs),
+			"status":          "accepted",
+			"warming":         len(reqBody.Slugs),
+			"warming_queries": queryCount,
 		})
 		return
 	}
 
 	// Warm all scheduled endpoints (those with a Refresh field)
 	scheduled := h.scheduledSlugs()
-	h.trigger.TriggerWarmup(nil)
+	h.trigger.TriggerWarmup(nil, reqBody.SkipQueries)
+	queryCount := 0
+	if !reqBody.SkipQueries {
+		queryCount = QueryCountForSlugs(h.warmupQueries, nil)
+	}
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":  "accepted",
-		"warming": len(scheduled),
+		"status":          "accepted",
+		"warming":         len(scheduled),
+		"warming_queries": queryCount,
 	})
 }
 
