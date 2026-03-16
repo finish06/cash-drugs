@@ -568,6 +568,75 @@ sequenceDiagram
     end
 ```
 
+## Readiness Check Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant GW as cash-drugs<br/>:8080
+    participant RH as ReadyHandler
+    participant WS as WarmupState
+
+    Client->>GW: GET /ready
+    Note over GW: Exempt from concurrency limiter
+    GW->>RH: ServeHTTP(w, r)
+    RH->>WS: IsReady()
+
+    alt Warmup complete
+        WS-->>RH: true
+        RH-->>Client: 200 {"status": "ready"}
+    end
+
+    alt Warmup in progress
+        WS-->>RH: false
+        RH->>WS: Progress()
+        WS-->>RH: done, total
+        RH-->>Client: 503 {"status": "warming", "progress": "5/17"}
+    end
+```
+
+## Cache Warmup Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant GW as cash-drugs<br/>:8080
+    participant WH as WarmupHandler
+    participant WS as WarmupState
+    participant UF as HTTPFetcher
+    participant API as Upstream API
+    participant DB as MongoDB
+
+    Client->>GW: POST /api/warmup
+    GW->>WH: ServeHTTP(w, r)
+
+    alt Request body has slugs
+        WH->>WH: Validate slugs against config
+        alt Unknown slug
+            WH-->>Client: 400 {"error": "unknown slug", "slug": "bad-slug"}
+        end
+        WH->>WH: TriggerWarmup(slugs)
+        WH-->>Client: 202 {"status": "accepted", "warming": N}
+    end
+
+    alt No body (warm all scheduled)
+        WH->>WH: Collect scheduled slugs<br/>(endpoints with Refresh field)
+        WH->>WH: TriggerWarmup(nil)
+        WH-->>Client: 202 {"status": "accepted", "warming": N}
+    end
+
+    Note over WH,API: Background goroutine(s)
+    loop For each slug to warm
+        WH-)UF: Fetch(endpoint, params)
+        UF-)API: GET {base_url}{path}
+        API--)UF: 200 {data}
+        UF--)WH: CachedResponse
+        WH-)DB: Upsert(response)
+        WH-)WS: Update progress (done++)
+    end
+    Note over WS: IsReady() returns true<br/>when done == total
+```
+
 ## System Overview
 
 ```mermaid

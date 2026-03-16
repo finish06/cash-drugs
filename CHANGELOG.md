@@ -10,6 +10,13 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 ### Added
 - 6 RxNorm API endpoints (NLM): `rxnorm-find-drug`, `rxnorm-approximate-match`, `rxnorm-spelling-suggestions`, `rxnorm-ndcs`, `rxnorm-generic-product`, `rxnorm-all-related` — config-only, no code changes
 - Fuzzy drug name search, spelling suggestions, brand→generic mapping, RxCUI→NDC mapping via RxNorm
+- **Readiness endpoint:** `GET /ready` returns 503 with progress (`{"status": "warming", "progress": "5/17"}`) during cache warmup, 200 when ready — suitable for Kubernetes readiness probes and load balancer health checks
+- **Cache warmup endpoint:** `POST /api/warmup` triggers background pre-fetch of cached endpoints. Accepts optional `{"slugs": [...]}` to warm specific slugs, or warms all scheduled endpoints when called with no body. Returns 202 immediately.
+- **Response normalization:** `flatten` config flag per endpoint — when enabled, flattens nested upstream response arrays into a single top-level array for consistent client consumption
+- Swagger docs: documented `drugclasses` response shape, added `search` query parameter guidance for drug lookup endpoints
+
+### Fixed
+- Dot-path `data_key` resolution in `fetchJSONPage` — nested keys like `rxnormdata.idGroup.rxnormId` now resolve correctly through intermediate map layers
 
 ## [0.8.0] — 2026-03-15 — M10: Performance Optimization
 
