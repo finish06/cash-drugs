@@ -89,6 +89,12 @@ func NewCacheHandler(endpoints []config.Endpoint, repo cache.Repository, fetcher
 //
 // @Summary      Get cached data for an endpoint
 // @Description  Returns cached upstream API data. Fetches from upstream if not cached.
+// @Description  The response data shape depends on the upstream API. For example, the
+// @Description  `drugclasses` endpoint returns objects with fields: `name` (string),
+// @Description  `type` (string), `code` (string), `codingSystem` (string).
+// @Description  Available query parameters vary by endpoint — use `GET /api/endpoints`
+// @Description  to discover each endpoint's supported params (e.g. BRAND_NAME, GENERIC_NAME,
+// @Description  NDC, PHARM_CLASS for fda-ndc; SETID for spl-detail).
 // @Tags         cache
 // @Produce      json
 // @Param        slug   path      string  true   "Endpoint slug from config"

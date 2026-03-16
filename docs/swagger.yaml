@@ -88,8 +88,14 @@ info:
 paths:
   /api/cache/{slug}:
     get:
-      description: Returns cached upstream API data. Fetches from upstream if not
-        cached.
+      description: |-
+        Returns cached upstream API data. Fetches from upstream if not cached.
+        The response data shape depends on the upstream API. For example, the
+        `drugclasses` endpoint returns objects with fields: `name` (string),
+        `type` (string), `code` (string), `codingSystem` (string).
+        Available query parameters vary by endpoint — use `GET /api/endpoints`
+        to discover each endpoint's supported params (e.g. BRAND_NAME, GENERIC_NAME,
+        NDC, PHARM_CLASS for fda-ndc; SETID for spl-detail).
       parameters:
       - description: Endpoint slug from config
         in: path

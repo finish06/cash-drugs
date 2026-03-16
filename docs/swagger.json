@@ -11,7 +11,7 @@
     "paths": {
         "/api/cache/{slug}": {
             "get": {
-                "description": "Returns cached upstream API data. Fetches from upstream if not cached.",
+                "description": "Returns cached upstream API data. Fetches from upstream if not cached.\nThe response data shape depends on the upstream API. For example, the\n`drugclasses` endpoint returns objects with fields: `name` (string),\n`type` (string), `code` (string), `codingSystem` (string).\nAvailable query parameters vary by endpoint — use `GET /api/endpoints`\nto discover each endpoint's supported params (e.g. BRAND_NAME, GENERIC_NAME,\nNDC, PHARM_CLASS for fda-ndc; SETID for spl-detail).",
                 "produces": [
                     "application/json"
                 ],
