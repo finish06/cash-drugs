@@ -843,6 +843,71 @@ endpoints:
 	}
 }
 
+// AC-MI-001: EnableScheduler *bool field parsed from YAML
+func TestAC_MI001_EnableSchedulerParsed(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+enable_scheduler: false
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if appCfg.EnableScheduler == nil {
+		t.Fatal("expected EnableScheduler to be non-nil")
+	}
+	if *appCfg.EnableScheduler != false {
+		t.Errorf("expected EnableScheduler=false, got %v", *appCfg.EnableScheduler)
+	}
+}
+
+// AC-MI-001: EnableScheduler defaults to nil (caller treats nil as true)
+func TestAC_MI001_EnableSchedulerDefaultNil(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if appCfg.EnableScheduler != nil {
+		t.Errorf("expected EnableScheduler=nil when absent, got %v", *appCfg.EnableScheduler)
+	}
+}
+
+// AC-MI-001: EnableScheduler true is parsed correctly
+func TestAC_MI001_EnableSchedulerTrue(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+enable_scheduler: true
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	appCfg, err := config.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if appCfg.EnableScheduler == nil {
+		t.Fatal("expected EnableScheduler to be non-nil")
+	}
+	if *appCfg.EnableScheduler != true {
+		t.Errorf("expected EnableScheduler=true, got %v", *appCfg.EnableScheduler)
+	}
+}
+
 // Helper functions
 
 const validConfig = `
