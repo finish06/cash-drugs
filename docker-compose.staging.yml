@@ -14,11 +14,25 @@ services:
     networks:
       - internal
 
-  drugs:
-    image: dockerhub.calebdunn.tech/finish06/cash-drugs:beta
+  cash-drugs:
+    image: nginx:alpine
     container_name: cash-drugs
     ports:
       - "8083:8080"
+    volumes:
+      - ./nginx-lb.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - drugs-leader
+      - drugs-replica
+    restart: unless-stopped
+    networks:
+      - internal
+
+  drugs-leader:
+    image: dockerhub.calebdunn.tech/finish06/cash-drugs:beta
+    container_name: cash-drugs-leader
+    ports:
+      - "8085:8080"
     volumes:
       - ./config.yaml:/config.yaml:ro
       - ./warmup-queries.yaml:/warmup-queries.yaml:ro
@@ -28,6 +42,28 @@ services:
       - LISTEN_ADDR=:8080
       - LOG_LEVEL=debug
       - MAX_CONCURRENT_REQUESTS=150
+      - ENABLE_SCHEDULER=true
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - internal
+
+  drugs-replica:
+    image: dockerhub.calebdunn.tech/finish06/cash-drugs:beta
+    container_name: cash-drugs-replica
+    ports:
+      - "8086:8080"
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+      - ./warmup-queries.yaml:/warmup-queries.yaml:ro
+    environment:
+      - MONGO_URI=mongodb://cash-drugs-mongo:27017/drugs_staging
+      - CONFIG_PATH=/config.yaml
+      - LISTEN_ADDR=:8080
+      - LOG_LEVEL=debug
+      - MAX_CONCURRENT_REQUESTS=150
+      - ENABLE_SCHEDULER=false
     depends_on:
       - mongodb
     restart: unless-stopped
