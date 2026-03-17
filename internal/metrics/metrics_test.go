@@ -240,6 +240,41 @@ func TestM9_AC016_ForceRefreshCooldownCounter(t *testing.T) {
 	}
 }
 
+// AC-MI-006: Instance leader gauge exists as cashdrugs_instance_leader
+func TestAC_MI006_InstanceLeaderGauge(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	m.InstanceLeader.Set(1)
+	val := testutil.ToFloat64(m.InstanceLeader)
+	if val != 1 {
+		t.Errorf("expected instance_leader=1, got %f", val)
+	}
+
+	m.InstanceLeader.Set(0)
+	val = testutil.ToFloat64(m.InstanceLeader)
+	if val != 0 {
+		t.Errorf("expected instance_leader=0, got %f", val)
+	}
+}
+
+// AC-MI-006: Instance leader gauge has correct name and help
+func TestAC_MI006_InstanceLeaderGaugeName(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	m.InstanceLeader.Set(1)
+
+	expected := `
+		# HELP cashdrugs_instance_leader Whether this instance is the scheduler leader (1 = leader, 0 = follower).
+		# TYPE cashdrugs_instance_leader gauge
+		cashdrugs_instance_leader 1
+	`
+	if err := testutil.CollectAndCompare(m.InstanceLeader, strings.NewReader(expected)); err != nil {
+		t.Errorf("unexpected instance_leader metric: %v", err)
+	}
+}
+
 // AC-013: Fetch lock dedup counter
 func TestAC013_FetchLockDedupCounter(t *testing.T) {
 	reg := prometheus.NewRegistry()

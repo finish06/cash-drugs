@@ -29,6 +29,7 @@ type VersionResponse struct {
 	UptimeSeconds  float64 `json:"uptime_seconds"`
 	EndpointCount  int     `json:"endpoint_count"`
 	StartTime      string  `json:"start_time"`
+	Leader         bool    `json:"leader"`
 }
 
 // AC-001: GET /version returns HTTP 200 with JSON body containing all required fields
@@ -274,6 +275,59 @@ func TestAC015_ContentTypeJSON(t *testing.T) {
 	ct := w.Header().Get("Content-Type")
 	if ct != "application/json" {
 		t.Errorf("expected Content-Type 'application/json', got '%s'", ct)
+	}
+}
+
+// AC-MI-005: Version response includes leader=true when WithLeader(true)
+func TestAC_MI005_VersionLeaderTrue(t *testing.T) {
+	vh := handler.NewVersionHandler("v0.8.0", "abc123", "main", "2026-03-15T12:00:00Z", 8,
+		handler.WithLeader(true))
+
+	req := httptest.NewRequest("GET", "/version", nil)
+	w := httptest.NewRecorder()
+	vh.ServeHTTP(w, req)
+
+	var resp VersionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !resp.Leader {
+		t.Error("expected leader=true when WithLeader(true)")
+	}
+}
+
+// AC-MI-005: Version response includes leader=false when WithLeader(false)
+func TestAC_MI005_VersionLeaderFalse(t *testing.T) {
+	vh := handler.NewVersionHandler("v0.8.0", "abc123", "main", "2026-03-15T12:00:00Z", 8,
+		handler.WithLeader(false))
+
+	req := httptest.NewRequest("GET", "/version", nil)
+	w := httptest.NewRecorder()
+	vh.ServeHTTP(w, req)
+
+	var resp VersionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Leader {
+		t.Error("expected leader=false when WithLeader(false)")
+	}
+}
+
+// AC-MI-005: Version response defaults leader=false without WithLeader option
+func TestAC_MI005_VersionLeaderDefault(t *testing.T) {
+	vh := handler.NewVersionHandler("v0.8.0", "abc123", "main", "2026-03-15T12:00:00Z", 8)
+
+	req := httptest.NewRequest("GET", "/version", nil)
+	w := httptest.NewRecorder()
+	vh.ServeHTTP(w, req)
+
+	var resp VersionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Leader {
+		t.Error("expected leader=false by default (no WithLeader option)")
 	}
 }
 
