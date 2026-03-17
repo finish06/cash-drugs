@@ -19,8 +19,14 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 - `GET /ready` now includes `phase` field (`scheduled`, `queries`, `ready`) and parameterized query count in progress
 - `POST /api/warmup` response includes `warming_queries` count; supports `skip_queries: true` to skip parameterized queries
 
+### Changed
+- Staging environment deployed at 192.168.1.145:8083 with `:beta` image, `internal` Docker network, and cron-based auto-pull (replaces Watchtower)
+- MongoDB on staging uses `mongo:4.4` (host CPU lacks AVX for 5.0+)
+
 ### Fixed
 - Dot-path `data_key` resolution in `fetchJSONPage` — nested keys like `rxnormdata.idGroup.rxnormId` now resolve correctly through intermediate map layers
+- Corrected `rxnorm-all-related` data_key from `relatedGroup.conceptGroup` to `allRelatedGroup.conceptGroup`
+- Mounted `warmup-queries.yaml` in staging Docker compose (was missing volume mount)
 
 ## [0.8.0] — 2026-03-15 — M10: Performance Optimization
 
