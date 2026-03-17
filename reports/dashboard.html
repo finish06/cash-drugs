@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cash-drugs Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f23;
+    --bg-card: rgba(255,255,255,0.05);
+    --bg-card-hover: rgba(255,255,255,0.08);
+    --border: rgba(255,255,255,0.08);
+    --border-light: rgba(255,255,255,0.12);
+    --text: #ffffff;
+    --text-secondary: rgba(255,255,255,0.6);
+    --text-muted: rgba(255,255,255,0.35);
+    --accent: #b00149;
+    --accent-light: #d4326d;
+    --success: #22c55e;
+    --info: #0ea5e9;
+    --warning: #f59e0b;
+    --purple: #a855f7;
+    --radius: 16px;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Header */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(15,15,35,0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .badge-beta { background: rgba(168,85,247,0.2); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); }
+  .badge-done { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.25); }
+  .badge-now { background: rgba(14,165,233,0.15); color: var(--info); border: 1px solid rgba(14,165,233,0.25); }
+  .badge-later { background: rgba(255,255,255,0.08); color: var(--text-secondary); border: 1px solid var(--border); }
+  .badge-draft { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid rgba(245,158,11,0.25); }
+  .badge-complete { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.25); }
+  .header-nav { display: flex; gap: 20px; font-size: 13px; }
+  .header-nav a { color: var(--text-secondary); transition: color 0.2s; }
+  .header-nav a:hover { color: var(--text); text-decoration: none; }
+  .timestamp { font-size: 12px; color: var(--text-muted); }
+
+  /* Main */
+  .container { max-width: 1280px; margin: 0 auto; padding: 32px; }
+  .section { margin-bottom: 48px; }
+  .section-title {
+    font-size: 20px; font-weight: 700; margin-bottom: 20px;
+    letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: background 0.2s;
+  }
+  .card:hover { background: var(--bg-card-hover); }
+
+  /* Grid layouts */
+  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .container { padding: 16px; }
+    .header { padding: 12px 16px; flex-direction: column; gap: 8px; }
+  }
+
+  /* Metric cards */
+  .metric-card { text-align: center; }
+  .metric-value { font-size: 36px; font-weight: 700; letter-spacing: -1px; }
+  .metric-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+  .metric-accent { color: var(--accent-light); }
+  .metric-success { color: var(--success); }
+  .metric-info { color: var(--info); }
+  .metric-purple { color: var(--purple); }
+  .metric-warning { color: var(--warning); }
+
+  /* Outcome health */
+  .outcome-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .outcome-step {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 16px 24px; border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    min-width: 140px;
+  }
+  .outcome-step .num { font-size: 28px; font-weight: 700; }
+  .outcome-step .lbl { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+  .outcome-arrow { font-size: 20px; color: var(--text-muted); }
+  .donut-container { display: flex; align-items: center; justify-content: center; padding: 20px; }
+
+  /* Hill chart */
+  .hill-chart-wrap { overflow-x: auto; }
+  .hill-svg { width: 100%; max-width: 900px; margin: 0 auto; display: block; }
+  .hill-tooltip {
+    position: absolute;
+    background: rgba(15,15,35,0.95);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 200;
+    white-space: nowrap;
+  }
+
+  /* Milestones table */
+  .ms-table { width: 100%; border-collapse: collapse; }
+  .ms-table th, .ms-table td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .ms-table th { color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; font-size: 11px; }
+  .ms-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* Cycle */
+  .cycle-card { border-left: 3px solid var(--info); }
+  .cycle-card.past { border-left-color: var(--success); opacity: 0.8; }
+  .cycle-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .cycle-features { display: flex; flex-direction: column; gap: 6px; }
+  .cycle-feature { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,0.03); }
+  .cycle-feature .name { color: var(--text); }
+
+  /* Decision queue */
+  .decision-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-radius: 10px;
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.15);
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .decision-icon { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); flex-shrink: 0; }
+
+  /* Maturity timeline */
+  .maturity-line { display: flex; align-items: center; gap: 0; margin: 20px 0; }
+  .maturity-step {
+    flex: 1; text-align: center; padding: 12px 0;
+    position: relative;
+    font-size: 13px; font-weight: 600;
+    color: var(--text-muted);
+  }
+  .maturity-step.active { color: var(--purple); }
+  .maturity-step.passed { color: var(--success); }
+  .maturity-step::after {
+    content: '';
+    position: absolute; top: 50%; right: 0;
+    width: 100%; height: 2px;
+    background: var(--border);
+    z-index: 0;
+  }
+  .maturity-step:last-child::after { display: none; }
+  .maturity-step.active::after, .maturity-step.passed::after { background: var(--success); }
+  .maturity-dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--border);
+    margin: 0 auto 6px;
+    position: relative; z-index: 1;
+  }
+  .maturity-step.active .maturity-dot { background: var(--purple); box-shadow: 0 0 12px rgba(168,85,247,0.5); }
+  .maturity-step.passed .maturity-dot { background: var(--success); }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 24px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
+    width: 2px; background: var(--border);
+  }
+  .timeline-item {
+    position: relative; margin-bottom: 16px; padding: 12px 16px;
+    background: rgba(255,255,255,0.03); border-radius: 10px;
+    font-size: 13px;
+  }
+  .timeline-item::before {
+    content: ''; position: absolute; left: -21px; top: 18px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--border-light);
+  }
+  .timeline-item.milestone::before { background: var(--info); }
+  .timeline-item.release::before { background: var(--success); }
+  .timeline-item.retro::before { background: var(--purple); }
+  .timeline-date { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+  .timeline-text { color: var(--text-secondary); }
+  .timeline-text strong { color: var(--text); }
+
+  /* Filter buttons */
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .filter-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    background: rgba(176,1,73,0.15);
+    border-color: rgba(176,1,73,0.3);
+    color: var(--accent-light);
+  }
+
+  /* Learnings breakdown */
+  .learnings-bar {
+    display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 8px 0;
+  }
+  .learnings-bar div { transition: width 0.3s; }
+
+  /* Commits list */
+  .commit-list { font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace; font-size: 12px; }
+  .commit-list li { list-style: none; padding: 4px 0; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .commit-list .hash { color: var(--warning); margin-right: 8px; }
+
+  /* Spec grid */
+  .spec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .spec-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px; border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    font-size: 13px;
+  }
+  .spec-item .name { color: var(--text-secondary); }
+  .spec-item .acs { color: var(--text-muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>cash-drugs</h1>
+    <span class="badge badge-beta">Beta</span>
+    <span class="timestamp">Generated 2026-03-16</span>
+  </div>
+  <nav class="header-nav">
+    <a href="#outcome">Outcome Health</a>
+    <a href="#hill">Hill Chart</a>
+    <a href="#cycles">Cycles</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#intelligence">Intelligence</a>
+    <a href="#timeline">Timeline</a>
+  </nav>
+</div>
+
+<div class="container">
+
+  <!-- SECTION: Outcome Health -->
+  <div class="section" id="outcome">
+    <div class="section-title">Outcome Health</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="outcome-row" style="justify-content:center;">
+          <div class="outcome-step">
+            <div class="num" style="color:var(--info);">10</div>
+            <div class="lbl">PRD Milestones</div>
+          </div>
+          <div class="outcome-arrow">&rarr;</div>
+          <div class="outcome-step">
+            <div class="num" style="color:var(--purple);">23</div>
+            <div class="lbl">Specs</div>
+          </div>
+          <div class="outcome-arrow">&rarr;</div>
+          <div class="outcome-step">
+            <div class="num" style="color:var(--warning);">348</div>
+            <div class="lbl">ACs Total</div>
+          </div>
+          <div class="outcome-arrow">&rarr;</div>
+          <div class="outcome-step">
+            <div class="num" style="color:var(--success);">19</div>
+            <div class="lbl">Verified Specs</div>
+          </div>
+        </div>
+      </div>
+      <div class="card donut-container">
+        <svg width="180" height="180" viewBox="0 0 180 180">
+          <circle cx="90" cy="90" r="70" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="16"/>
+          <circle cx="90" cy="90" r="70" fill="none" stroke="url(#donutGrad)" stroke-width="16"
+            stroke-dasharray="363.17 440" stroke-dashoffset="0" stroke-linecap="round"
+            transform="rotate(-90 90 90)"/>
+          <defs>
+            <linearGradient id="donutGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#22c55e"/>
+              <stop offset="100%" stop-color="#0ea5e9"/>
+            </linearGradient>
+          </defs>
+          <text x="90" y="84" text-anchor="middle" fill="#fff" font-size="32" font-weight="700">83%</text>
+          <text x="90" y="106" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="12">Specs Complete</text>
+        </svg>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;">
+      <div class="section-title" style="font-size:15px; margin-bottom:12px;">All Specs (23)</div>
+      <div class="spec-grid">
+        <div class="spec-item"><span class="name">upstream-api-config</span><span class="badge badge-complete">Complete</span><span class="acs">21 ACs</span></div>
+        <div class="spec-item"><span class="name">prometheus-metrics</span><span class="badge badge-complete">Complete</span><span class="acs">26 ACs</span></div>
+        <div class="spec-item"><span class="name">version-endpoint</span><span class="badge badge-complete">Complete</span><span class="acs">20 ACs</span></div>
+        <div class="spec-item"><span class="name">lru-cache-sharding</span><span class="badge badge-complete">Complete</span><span class="acs">19 ACs</span></div>
+        <div class="spec-item"><span class="name">readiness-warmup</span><span class="badge badge-draft">Draft</span><span class="acs">19 ACs</span></div>
+        <div class="spec-item"><span class="name">mongodb-query-optimization</span><span class="badge badge-complete">Complete</span><span class="acs">18 ACs</span></div>
+        <div class="spec-item"><span class="name">parallel-page-fetches</span><span class="badge badge-complete">Complete</span><span class="acs">18 ACs</span></div>
+        <div class="spec-item"><span class="name">response-optimization</span><span class="badge badge-complete">Complete</span><span class="acs">18 ACs</span></div>
+        <div class="spec-item"><span class="name">upstream-resilience</span><span class="badge badge-complete">Complete</span><span class="acs">18 ACs</span></div>
+        <div class="spec-item"><span class="name">empty-upstream-results</span><span class="badge badge-complete">Complete</span><span class="acs">18 ACs</span></div>
+        <div class="spec-item"><span class="name">fda-api-integration</span><span class="badge badge-complete">Complete</span><span class="acs">17 ACs</span></div>
+        <div class="spec-item"><span class="name">openapi-docs</span><span class="badge badge-complete">Complete</span><span class="acs">16 ACs</span></div>
+        <div class="spec-item"><span class="name">cache-ttl</span><span class="badge badge-complete">Complete</span><span class="acs">16 ACs</span></div>
+        <div class="spec-item"><span class="name">container-system-metrics</span><span class="badge badge-complete">Complete</span><span class="acs">15 ACs</span></div>
+        <div class="spec-item"><span class="name">parameterized-warmup</span><span class="badge badge-draft">Draft</span><span class="acs">15 ACs</span></div>
+        <div class="spec-item"><span class="name">structured-logging</span><span class="badge badge-complete">Complete</span><span class="acs">14 ACs</span></div>
+        <div class="spec-item"><span class="name">response-normalization</span><span class="badge badge-draft">Draft</span><span class="acs">13 ACs</span></div>
+        <div class="spec-item"><span class="name">mongodb-persistence</span><span class="badge badge-complete">Complete</span><span class="acs">12 ACs</span></div>
+        <div class="spec-item"><span class="name">docker-publish</span><span class="badge badge-complete">Complete</span><span class="acs">12 ACs</span></div>
+        <div class="spec-item"><span class="name">connection-resilience</span><span class="badge badge-complete">Complete</span><span class="acs">11 ACs</span></div>
+        <div class="spec-item"><span class="name">scheduled-fetch</span><span class="badge badge-complete">Complete</span><span class="acs">10 ACs</span></div>
+        <div class="spec-item"><span class="name">upstream-404-handling</span><span class="badge badge-draft">Draft</span><span class="acs">10 ACs</span></div>
+        <div class="spec-item"><span class="name">optional-query-params</span><span class="badge badge-complete">Complete</span><span class="acs">7 ACs</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: Hill Chart -->
+  <div class="section" id="hill">
+    <div class="section-title">Hill Chart</div>
+    <div class="card hill-chart-wrap" style="position:relative;">
+      <div class="hill-tooltip" id="hillTooltip"></div>
+      <svg class="hill-svg" viewBox="0 0 900 320" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="hillGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.03)"/>
+            <stop offset="100%" stop-color="rgba(255,255,255,0.0)"/>
+          </linearGradient>
+        </defs>
+        <!-- Hill curve -->
+        <path d="M 50 260 Q 250 260 450 80 Q 650 260 850 260" fill="url(#hillGrad)" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+        <!-- Labels -->
+        <text x="200" y="290" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="11" font-weight="600" letter-spacing="1">FIGURING IT OUT</text>
+        <text x="450" y="60" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="11" font-weight="600" letter-spacing="1">PEAK</text>
+        <text x="700" y="290" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="11" font-weight="600" letter-spacing="1">EXECUTING</text>
+        <!-- Divider -->
+        <line x1="450" y1="70" x2="450" y2="270" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="4,4"/>
+
+        <!-- Complete specs clustered at ~90% (right side, downhill done) -->
+        <circle cx="800" cy="232" r="6" fill="#22c55e" opacity="0.85" class="hill-dot" data-name="upstream-api-config" data-status="Complete (M1)"/>
+        <circle cx="788" cy="240" r="6" fill="#22c55e" opacity="0.85" class="hill-dot" data-name="mongodb-persistence" data-status="Complete (M1)"/>
+        <circle cx="812" cy="224" r="6" fill="#22c55e" opacity="0.85" class="hill-dot" data-name="scheduled-fetch" data-status="Complete (M2)"/>
+        <circle cx="776" cy="248" r="6" fill="#22c55e" opacity="0.85" class="hill-dot" data-name="cache-ttl" data-status="Complete (M2)"/>
+        <circle cx="824" cy="216" r="6" fill="#22c55e" opacity="0.85" class="hill-dot" data-name="openapi-docs" data-status="Complete (M3)"/>
+        <circle cx="836" cy="209" r="6" fill="#22c55e" opacity="0.85" class="hill-dot" data-name="structured-logging" data-status="Complete (M4)"/>
+        <circle cx="764" cy="253" r="6" fill="#22c55e" opacity="0.85" class="hill-dot" data-name="optional-query-params" data-status="Complete (M5)"/>
+        <circle cx="805" cy="228" r="6" fill="#0ea5e9" opacity="0.85" class="hill-dot" data-name="fda-api-integration" data-status="Complete (M5)"/>
+        <circle cx="793" cy="236" r="6" fill="#0ea5e9" opacity="0.85" class="hill-dot" data-name="docker-publish" data-status="Complete (M6)"/>
+        <circle cx="817" cy="220" r="6" fill="#a855f7" opacity="0.85" class="hill-dot" data-name="prometheus-metrics" data-status="Complete (M8)"/>
+        <circle cx="829" cy="213" r="6" fill="#a855f7" opacity="0.85" class="hill-dot" data-name="connection-resilience" data-status="Complete (M9)"/>
+        <circle cx="781" cy="244" r="6" fill="#a855f7" opacity="0.85" class="hill-dot" data-name="response-optimization" data-status="Complete (M9)"/>
+        <circle cx="841" cy="205" r="6" fill="#a855f7" opacity="0.85" class="hill-dot" data-name="upstream-resilience" data-status="Complete (M9)"/>
+        <circle cx="769" cy="251" r="6" fill="#a855f7" opacity="0.85" class="hill-dot" data-name="container-system-metrics" data-status="Complete (M9)"/>
+        <circle cx="810" cy="226" r="6" fill="#f59e0b" opacity="0.85" class="hill-dot" data-name="mongodb-query-optimization" data-status="Complete (M10)"/>
+        <circle cx="822" cy="218" r="6" fill="#f59e0b" opacity="0.85" class="hill-dot" data-name="lru-cache-sharding" data-status="Complete (M10)"/>
+        <circle cx="834" cy="211" r="6" fill="#f59e0b" opacity="0.85" class="hill-dot" data-name="parallel-page-fetches" data-status="Complete (M10)"/>
+        <circle cx="846" cy="203" r="6" fill="#f59e0b" opacity="0.85" class="hill-dot" data-name="empty-upstream-results" data-status="Complete (M10)"/>
+        <circle cx="798" cy="234" r="6" fill="#f59e0b" opacity="0.85" class="hill-dot" data-name="version-endpoint" data-status="Complete (M10)"/>
+
+        <!-- Draft specs on the left (figuring it out, ~10%) -->
+        <circle cx="120" cy="256" r="7" fill="#f59e0b" opacity="0.9" class="hill-dot" data-name="upstream-404-handling" data-status="Draft (M12)"/>
+        <circle cx="155" cy="251" r="7" fill="#0ea5e9" opacity="0.9" class="hill-dot" data-name="readiness-warmup" data-status="Draft (M12) - Implemented"/>
+        <circle cx="140" cy="254" r="7" fill="#0ea5e9" opacity="0.9" class="hill-dot" data-name="response-normalization" data-status="Draft (M12) - Implemented"/>
+        <circle cx="170" cy="248" r="7" fill="#0ea5e9" opacity="0.9" class="hill-dot" data-name="parameterized-warmup" data-status="Draft (M12) - Implemented"/>
+
+        <!-- Legend -->
+        <circle cx="60" cy="18" r="5" fill="#22c55e"/>
+        <text x="72" y="22" fill="rgba(255,255,255,0.5)" font-size="10">M1-M4</text>
+        <circle cx="135" cy="18" r="5" fill="#0ea5e9"/>
+        <text x="147" y="22" fill="rgba(255,255,255,0.5)" font-size="10">M5-M6, M12</text>
+        <circle cx="240" cy="18" r="5" fill="#a855f7"/>
+        <text x="252" y="22" fill="rgba(255,255,255,0.5)" font-size="10">M8-M9</text>
+        <circle cx="315" cy="18" r="5" fill="#f59e0b"/>
+        <text x="327" y="22" fill="rgba(255,255,255,0.5)" font-size="10">M10-M11</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- SECTION: Milestones -->
+  <div class="section" id="milestones">
+    <div class="section-title">Milestones</div>
+    <div class="card" style="overflow-x:auto;">
+      <table class="ms-table">
+        <thead>
+          <tr><th>Milestone</th><th>Goal</th><th>Status</th><th>Target</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>M1</td><td>Config + Fetch + Store</td><td><span class="badge badge-done">Done</span></td><td>Alpha</td></tr>
+          <tr><td>M2</td><td>Scheduling + Staleness</td><td><span class="badge badge-done">Done</span></td><td>Beta</td></tr>
+          <tr><td>M3</td><td>Documentation + Onboarding</td><td><span class="badge badge-done">Done</span></td><td>Beta</td></tr>
+          <tr><td>M4</td><td>Structured Logging</td><td><span class="badge badge-done">Done</span></td><td>Beta</td></tr>
+          <tr><td>M5</td><td>FDA API Integration</td><td><span class="badge badge-done">Done</span></td><td>Beta</td></tr>
+          <tr><td>M6</td><td>Docker Build &amp; Publish</td><td><span class="badge badge-done">Done</span></td><td>Beta</td></tr>
+          <tr><td>M7</td><td>Auth + Transforms</td><td><span class="badge badge-later">Later</span></td><td>GA</td></tr>
+          <tr><td>M8</td><td>Prometheus Metrics</td><td><span class="badge badge-done">Done</span></td><td>Beta</td></tr>
+          <tr><td>M9</td><td>Performance &amp; Resilience</td><td><span class="badge badge-done">Done</span></td><td>Beta</td></tr>
+          <tr><td>M10</td><td>Performance Optimization</td><td><span class="badge badge-done">Done</span></td><td>Beta</td></tr>
+          <tr><td>M11</td><td>RxNorm API Integration</td><td><span class="badge badge-now">Now</span></td><td>Beta</td></tr>
+          <tr><td>M12</td><td>Client Enhancements</td><td><span class="badge badge-now">Now</span></td><td>Beta</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION: Cycle Progress -->
+  <div class="section" id="cycles">
+    <div class="section-title">Cycle Progress</div>
+    <div class="grid-2">
+      <div class="card cycle-card past">
+        <div class="cycle-header">
+          <div>
+            <strong>Cycle 1</strong> <span style="color:var(--text-muted); font-size:13px;">M9 Performance &amp; Resilience</span>
+          </div>
+          <span class="badge badge-done">Done</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Budget: 3 days | 62 ACs | 2 parallel tracks</div>
+        <div class="cycle-features">
+          <div class="cycle-feature"><span class="name">Connection Resilience</span><span class="badge badge-done">Verified</span></div>
+          <div class="cycle-feature"><span class="name">Response Optimization</span><span class="badge badge-done">Verified</span></div>
+          <div class="cycle-feature"><span class="name">Upstream Resilience</span><span class="badge badge-done">Verified</span></div>
+          <div class="cycle-feature"><span class="name">Container System Metrics</span><span class="badge badge-done">Verified</span></div>
+        </div>
+      </div>
+      <div class="card cycle-card past">
+        <div class="cycle-header">
+          <div>
+            <strong>Cycle 2</strong> <span style="color:var(--text-muted); font-size:13px;">M10 Query &amp; Fetch Optimization</span>
+          </div>
+          <span class="badge badge-done">Done</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Budget: 2 days | 68 ACs | 3 parallel tracks</div>
+        <div class="cycle-features">
+          <div class="cycle-feature"><span class="name">MongoDB Query Optimization</span><span class="badge badge-done">Verified</span></div>
+          <div class="cycle-feature"><span class="name">LRU Cache Sharding</span><span class="badge badge-done">Verified</span></div>
+          <div class="cycle-feature"><span class="name">Parallel Page Fetches</span><span class="badge badge-done">Verified</span></div>
+          <div class="cycle-feature"><span class="name">Empty Upstream Results</span><span class="badge badge-done">Verified</span></div>
+          <div class="cycle-feature"><span class="name">Version Endpoint</span><span class="badge badge-done">Verified</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: Decision Queue -->
+  <div class="section" id="decisions">
+    <div class="section-title">Decision Queue</div>
+    <div class="card">
+      <div class="decision-item"><div class="decision-icon"></div><strong>readiness-warmup</strong> &mdash; Draft spec, but implementation merged (PR #15). Mark spec Complete?</div>
+      <div class="decision-item"><div class="decision-icon"></div><strong>response-normalization</strong> &mdash; Draft spec, but implementation merged (PR #14). Mark spec Complete?</div>
+      <div class="decision-item"><div class="decision-icon"></div><strong>parameterized-warmup</strong> &mdash; Draft spec, but implementation merged (PR #16). Mark spec Complete?</div>
+      <div class="decision-item"><div class="decision-icon"></div><strong>upstream-404-handling</strong> &mdash; Draft spec in M12, not yet implemented or planned for a cycle</div>
+      <div class="decision-item"><div class="decision-icon"></div><strong>M7: Auth + Transforms</strong> &mdash; Milestone marked LATER (GA target), no specs or cycle planned</div>
+    </div>
+  </div>
+
+  <!-- SECTION: Project Intelligence -->
+  <div class="section" id="intelligence">
+    <div class="section-title">Project Intelligence</div>
+    <div class="grid-4">
+      <div class="card metric-card">
+        <div class="metric-value metric-purple">19</div>
+        <div class="metric-label">Learnings</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-value metric-info">2</div>
+        <div class="metric-label">Cycles Completed</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-value metric-success">19</div>
+        <div class="metric-label">Specs Complete</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-value metric-warning">7</div>
+        <div class="metric-label">Releases</div>
+      </div>
+    </div>
+
+    <!-- Maturity Timeline -->
+    <div class="card" style="margin-top:16px;">
+      <div style="font-size:14px; font-weight:600; margin-bottom:12px;">Maturity Progression</div>
+      <div class="maturity-line">
+        <div class="maturity-step passed"><div class="maturity-dot"></div>POC</div>
+        <div class="maturity-step passed"><div class="maturity-dot"></div>Alpha</div>
+        <div class="maturity-step active"><div class="maturity-dot"></div>Beta</div>
+        <div class="maturity-step"><div class="maturity-dot"></div>GA</div>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); text-align:center; margin-top:8px;">
+        Promoted to Beta on 2026-03-07 &mdash; Next: 30+ days stability, SLAs, full CI/CD
+      </div>
+    </div>
+
+    <!-- Learnings breakdown -->
+    <div class="card" style="margin-top:16px;">
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">Learnings by Category</div>
+      <div class="learnings-bar">
+        <div style="width:31.6%; background:var(--info);" title="Technical (6)"></div>
+        <div style="width:31.6%; background:var(--purple);" title="Architecture (6)"></div>
+        <div style="width:15.8%; background:var(--accent);" title="Anti-pattern (3)"></div>
+        <div style="width:15.8%; background:var(--success);" title="Performance (3)"></div>
+        <div style="width:5.2%; background:var(--warning);" title="Process (1)"></div>
+      </div>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--text-secondary); margin-top:8px;">
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--info);display:inline-block;"></span> Technical (6)</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--purple);display:inline-block;"></span> Architecture (6)</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--accent);display:inline-block;"></span> Anti-pattern (3)</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--success);display:inline-block;"></span> Performance (3)</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--warning);display:inline-block;"></span> Process (1)</span>
+      </div>
+    </div>
+
+    <!-- Score trends -->
+    <div class="card" style="margin-top:16px;">
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">Retro Score Trends</div>
+      <svg viewBox="0 0 600 200" style="width:100%;max-width:600px;">
+        <!-- Grid -->
+        <line x1="60" y1="20" x2="60" y2="170" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+        <line x1="60" y1="170" x2="560" y2="170" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+        <line x1="60" y1="95" x2="560" y2="95" stroke="rgba(255,255,255,0.04)" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="60" y1="20" x2="560" y2="20" stroke="rgba(255,255,255,0.04)" stroke-width="1" stroke-dasharray="4,4"/>
+        <!-- Y labels -->
+        <text x="50" y="174" text-anchor="end" fill="rgba(255,255,255,0.3)" font-size="10">0</text>
+        <text x="50" y="99" text-anchor="end" fill="rgba(255,255,255,0.3)" font-size="10">5</text>
+        <text x="50" y="24" text-anchor="end" fill="rgba(255,255,255,0.3)" font-size="10">10</text>
+        <!-- X labels -->
+        <text x="210" y="190" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">2026-03-07</text>
+        <text x="410" y="190" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10">2026-03-14</text>
+
+        <!-- Collab score line (8.0 -> 9.0) -->
+        <line x1="210" y1="50" x2="410" y2="35" stroke="#0ea5e9" stroke-width="2"/>
+        <circle cx="210" cy="50" r="4" fill="#0ea5e9"/>
+        <circle cx="410" cy="35" r="4" fill="#0ea5e9"/>
+        <text x="425" y="39" fill="#0ea5e9" font-size="10">Collab 9.0</text>
+
+        <!-- ADD effectiveness line (4.5 -> 6.5) -->
+        <line x1="210" y1="103" x2="410" y2="73" stroke="#a855f7" stroke-width="2"/>
+        <circle cx="210" cy="103" r="4" fill="#a855f7"/>
+        <circle cx="410" cy="73" r="4" fill="#a855f7"/>
+        <text x="425" y="77" fill="#a855f7" font-size="10">ADD 6.5</text>
+
+        <!-- Swarm effectiveness line (3.0 -> 5.0) -->
+        <line x1="210" y1="125" x2="410" y2="95" stroke="#f59e0b" stroke-width="2"/>
+        <circle cx="210" cy="125" r="4" fill="#f59e0b"/>
+        <circle cx="410" cy="95" r="4" fill="#f59e0b"/>
+        <text x="425" y="99" fill="#f59e0b" font-size="10">Swarm 5.0</text>
+      </svg>
+    </div>
+
+    <!-- Coverage -->
+    <div class="card" style="margin-top:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:14px; font-weight:600;">Test Coverage</div>
+        <div style="font-size:28px; font-weight:700; color:var(--success);">81.9%</div>
+      </div>
+      <div style="height:8px; border-radius:4px; background:rgba(255,255,255,0.06); margin-top:10px; overflow:hidden;">
+        <div style="width:81.9%; height:100%; border-radius:4px; background:linear-gradient(90deg, #22c55e, #0ea5e9);"></div>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Threshold: 80% | 17 configured API endpoints</div>
+    </div>
+  </div>
+
+  <!-- SECTION: Project Timeline -->
+  <div class="section" id="timeline">
+    <div class="section-title">Project Timeline</div>
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="filterTimeline('all', this)">All</button>
+      <button class="filter-btn" onclick="filterTimeline('milestone', this)">Milestones</button>
+      <button class="filter-btn" onclick="filterTimeline('release', this)">Releases</button>
+      <button class="filter-btn" onclick="filterTimeline('retro', this)">Retros</button>
+    </div>
+    <div class="card">
+      <div class="timeline" id="timelineList">
+        <div class="timeline-item milestone" data-type="milestone">
+          <div class="timeline-date">2026-03-16</div>
+          <div class="timeline-text"><strong>M12: Client Enhancements</strong> &mdash; Readiness endpoint, response normalization, warmup API (in progress)</div>
+        </div>
+        <div class="timeline-item release" data-type="release">
+          <div class="timeline-date">2026-03-16</div>
+          <div class="timeline-text"><strong>v0.9.0</strong> &mdash; RxNorm integration, readiness endpoint, response normalization, parameterized warmup</div>
+        </div>
+        <div class="timeline-item retro" data-type="retro">
+          <div class="timeline-date">2026-03-15</div>
+          <div class="timeline-text"><strong>Retro</strong> &mdash; Period 03-14 to 03-15 | 4 specs, 33 commits, 8 learnings</div>
+        </div>
+        <div class="timeline-item milestone" data-type="milestone">
+          <div class="timeline-date">2026-03-15</div>
+          <div class="timeline-text"><strong>M10: Performance Optimization</strong> &mdash; MongoDB base_key, LRU sharding, parallel fetches, version endpoint (Done)</div>
+        </div>
+        <div class="timeline-item release" data-type="release">
+          <div class="timeline-date">2026-03-15</div>
+          <div class="timeline-text"><strong>v0.8.0</strong> &mdash; MongoDB query optimization, LRU sharding, parallel page fetches, version endpoint</div>
+        </div>
+        <div class="timeline-item milestone" data-type="milestone">
+          <div class="timeline-date">2026-03-15</div>
+          <div class="timeline-text"><strong>M11: RxNorm Integration</strong> &mdash; 6 RxNorm endpoints, config-only, zero code changes (in progress)</div>
+        </div>
+        <div class="timeline-item release" data-type="release">
+          <div class="timeline-date">2026-03-14</div>
+          <div class="timeline-text"><strong>v0.7.1</strong> &mdash; Performance quick wins: LRU size heuristic, handler dedup, gzip pool</div>
+        </div>
+        <div class="timeline-item release" data-type="release">
+          <div class="timeline-date">2026-03-14</div>
+          <div class="timeline-text"><strong>v0.7.0</strong> &mdash; M9: Concurrency limiter, gzip, singleflight, LRU cache, circuit breakers</div>
+        </div>
+        <div class="timeline-item milestone" data-type="milestone">
+          <div class="timeline-date">2026-03-14</div>
+          <div class="timeline-text"><strong>M9: Performance &amp; Resilience</strong> &mdash; 4 features, 62 ACs, 2 parallel tracks (Done)</div>
+        </div>
+        <div class="timeline-item retro" data-type="retro">
+          <div class="timeline-date">2026-03-14</div>
+          <div class="timeline-text"><strong>Retro</strong> &mdash; Collab 9.0, ADD 6.5, Swarm 5.0</div>
+        </div>
+        <div class="timeline-item release" data-type="release">
+          <div class="timeline-date">2026-03-14</div>
+          <div class="timeline-text"><strong>v0.6.1</strong> &mdash; M8 polish: MongoCollector fixes, Grafana slug variable</div>
+        </div>
+        <div class="timeline-item release" data-type="release">
+          <div class="timeline-date">2026-03-14</div>
+          <div class="timeline-text"><strong>v0.6.0</strong> &mdash; M8: Prometheus metrics, Grafana dashboard, /metrics endpoint</div>
+        </div>
+        <div class="timeline-item milestone" data-type="milestone">
+          <div class="timeline-date">2026-03-14</div>
+          <div class="timeline-text"><strong>M8: Prometheus Metrics</strong> &mdash; Full operational observability (Done)</div>
+        </div>
+        <div class="timeline-item retro" data-type="retro">
+          <div class="timeline-date">2026-03-07</div>
+          <div class="timeline-text"><strong>Retro</strong> &mdash; Collab 8.0, ADD 4.5, Swarm 3.0 | Alpha to Beta promotion</div>
+        </div>
+        <div class="timeline-item milestone" data-type="milestone">
+          <div class="timeline-date">2026-03-07</div>
+          <div class="timeline-text"><strong>Maturity: Alpha &rarr; Beta</strong> &mdash; Feature specs, >50% coverage, PR workflow established</div>
+        </div>
+        <div class="timeline-item release" data-type="release">
+          <div class="timeline-date">2026-03-07</div>
+          <div class="timeline-text"><strong>v0.5.0</strong> &mdash; FDA API integration, offset pagination, 13 endpoints</div>
+        </div>
+        <div class="timeline-item milestone" data-type="milestone">
+          <div class="timeline-date">2026-03-07</div>
+          <div class="timeline-text"><strong>M4-M6 Complete</strong> &mdash; Structured logging, FDA integration, Docker publishing</div>
+        </div>
+        <div class="timeline-item milestone" data-type="milestone">
+          <div class="timeline-date">2026-03-05</div>
+          <div class="timeline-text"><strong>M1: Config + Fetch + Store</strong> &mdash; Project initialized, core API caching flow (Done)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: Recent Commits -->
+  <div class="section" id="commits">
+    <div class="section-title">Recent Commits</div>
+    <div class="card">
+      <ul class="commit-list">
+        <li><span class="hash">e092d3f</span>Merge pull request #16 from finish06/feature/parameterized-warmup</li>
+        <li><span class="hash">4332977</span>feat: add Prometheus metrics for parameterized warmup queries (GREEN)</li>
+        <li><span class="hash">8acbb7b</span>test: add failing tests for parameterized query warmup (RED)</li>
+        <li><span class="hash">f014dd2</span>docs: add parameterized warmup spec (15 ACs, 6 TCs)</li>
+        <li><span class="hash">29d141d</span>feat: add warmup-queries.yaml with top 100 prescribed drugs</li>
+        <li><span class="hash">2e28e3f</span>docs: add staging environment guide, update CLAUDE.md environments</li>
+        <li><span class="hash">364a8a8</span>ops: fix staging compose -- mongo:4.4 for non-AVX CPU, internal network</li>
+        <li><span class="hash">a4707b6</span>ops: add staging environment (192.168.1.145:8083, :beta tag)</li>
+        <li><span class="hash">3a960ad</span>Merge pull request #15 from finish06/feature/readiness-warmup</li>
+        <li><span class="hash">a1cffa4</span>docs: M12 milestone, sequence diagrams, changelog, swagger regen</li>
+        <li><span class="hash">7d3f7e5</span>feat: add /ready endpoint and POST /api/warmup with background warming (GREEN)</li>
+        <li><span class="hash">7e182ad</span>test: add failing tests for readiness and warmup endpoints (RED)</li>
+        <li><span class="hash">19d35e5</span>Merge pull request #14 from finish06/feature/response-normalization</li>
+        <li><span class="hash">eddedcb</span>feat: implement flatten config flag for nested upstream responses (GREEN)</li>
+        <li><span class="hash">59c647c</span>test: add failing tests for response normalization flatten flag (RED)</li>
+        <li><span class="hash">e217001</span>docs: API doc fixes + readiness-warmup and response-normalization specs</li>
+        <li><span class="hash">45700f5</span>docs: update 9 spec statuses from Draft to Complete</li>
+        <li><span class="hash">8379616</span>docs: Grafana build panels, RxNorm diagrams, Dockerfile git fix, M10 learnings</li>
+        <li><span class="hash">c837789</span>test: add RxNorm E2E tests, update CHANGELOG with unreleased</li>
+        <li><span class="hash">aca59e6</span>fix: correct rxnorm-all-related data_key to allRelatedGroup</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- SECTION: Releases -->
+  <div class="section" id="releases">
+    <div class="section-title">Releases</div>
+    <div class="grid-4">
+      <div class="card metric-card" style="border-top:3px solid var(--success);">
+        <div class="metric-value metric-success" style="font-size:20px;">v0.9.0</div>
+        <div class="metric-label">Latest</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-value" style="font-size:20px; color:var(--text-secondary);">v0.8.0</div>
+        <div class="metric-label">M10</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-value" style="font-size:20px; color:var(--text-secondary);">v0.7.1</div>
+        <div class="metric-label">Perf Fixes</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-value" style="font-size:20px; color:var(--text-secondary);">v0.7.0</div>
+        <div class="metric-label">M9</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-value" style="font-size:20px; color:var(--text-secondary);">v0.6.1</div>
+        <div class="metric-label">M8 Polish</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-value" style="font-size:20px; color:var(--text-secondary);">v0.6.0</div>
+        <div class="metric-label">M8</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-value" style="font-size:20px; color:var(--text-secondary);">v0.5.0</div>
+        <div class="metric-label">M5 FDA</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Hill chart tooltips
+  document.querySelectorAll('.hill-dot').forEach(function(dot) {
+    var tooltip = document.getElementById('hillTooltip');
+    dot.addEventListener('mouseenter', function(e) {
+      var name = dot.getAttribute('data-name');
+      var status = dot.getAttribute('data-status');
+      tooltip.textContent = name + ' \u2014 ' + status;
+      tooltip.style.opacity = '1';
+      var rect = dot.closest('.card').getBoundingClientRect();
+      var dotRect = dot.getBoundingClientRect();
+      tooltip.style.left = (dotRect.left - rect.left + 14) + 'px';
+      tooltip.style.top = (dotRect.top - rect.top - 32) + 'px';
+    });
+    dot.addEventListener('mouseleave', function() {
+      tooltip.style.opacity = '0';
+    });
+    dot.style.cursor = 'pointer';
+  });
+
+  // Timeline filter
+  function filterTimeline(type, btn) {
+    document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.querySelectorAll('.timeline-item').forEach(function(item) {
+      if (type === 'all') {
+        item.style.display = '';
+      } else {
+        item.style.display = item.getAttribute('data-type') === type ? '' : 'none';
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
