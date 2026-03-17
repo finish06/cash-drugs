@@ -14,6 +14,10 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 - **Cache warmup endpoint:** `POST /api/warmup` triggers background pre-fetch of cached endpoints. Accepts optional `{"slugs": [...]}` to warm specific slugs, or warms all scheduled endpoints when called with no body. Returns 202 immediately.
 - **Response normalization:** `flatten` config flag per endpoint — when enabled, flattens nested upstream response arrays into a single top-level array for consistent client consumption
 - Swagger docs: documented `drugclasses` response shape, added `search` query parameter guidance for drug lookup endpoints
+- **Parameterized warmup:** `warmup-queries.yaml` pre-caches top 100 most prescribed drugs (196 queries across fda-ndc, fda-label, rxnorm-find-drug, rxnorm-approximate-match) on startup
+- **Warmup orchestrator:** `WarmupOrchestrator` runs scheduled endpoints then parameterized queries with semaphore cap 5, circuit breaker awareness, and `/ready` progress tracking
+- `GET /ready` now includes `phase` field (`scheduled`, `queries`, `ready`) and parameterized query count in progress
+- `POST /api/warmup` response includes `warming_queries` count; supports `skip_queries: true` to skip parameterized queries
 
 ### Fixed
 - Dot-path `data_key` resolution in `fetchJSONPage` — nested keys like `rxnormdata.idGroup.rxnormId` now resolve correctly through intermediate map layers
