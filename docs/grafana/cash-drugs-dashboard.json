@@ -52,7 +52,10 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -69,628 +72,446 @@
   "panels": [
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 100,
       "title": "Overview",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           },
           "mappings": [
-            { "options": { "0": { "text": "DOWN" } }, "type": "value" },
-            { "options": { "1": { "text": "UP" } }, "type": "value" }
+            {
+              "options": {
+                "0": {
+                  "text": "DOWN"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "1": {
+                  "text": "UP"
+                }
+              },
+              "type": "value"
+            }
           ]
         }
       },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
       "id": 1,
-      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
       "title": "MongoDB Status",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_mongodb_up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_mongodb_up{instance=~\"$instance\"}",
           "legendFormat": ""
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "s" }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
       "id": 2,
-      "options": { "colorMode": "value", "graphMode": "area", "textMode": "value" },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
       "title": "MongoDB Ping Latency",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_mongodb_ping_duration_seconds",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_mongodb_ping_duration_seconds{instance=~\"$instance\"}",
           "legendFormat": ""
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "reqps" }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
       "id": 3,
-      "options": { "colorMode": "value", "graphMode": "area", "textMode": "value" },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
       "title": "Request Rate",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(cashdrugs_http_requests_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(rate(cashdrugs_http_requests_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": ""
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "percentunit", "min": 0, "max": 1 }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
       "id": 4,
-      "options": { "colorMode": "value", "graphMode": "area", "textMode": "value" },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
       "title": "Cache Hit Ratio",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(cashdrugs_cache_hits_total{outcome=\"hit\"}[5m])) / sum(rate(cashdrugs_cache_hits_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(rate(cashdrugs_cache_hits_total{instance=~\"$instance\",outcome=\"hit\"}[5m])) / sum(rate(cashdrugs_cache_hits_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": ""
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "short" }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
       "id": 5,
-      "options": { "colorMode": "value", "graphMode": "area", "textMode": "value" },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
       "title": "Upstream Errors (5m)",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(increase(cashdrugs_upstream_fetch_errors_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(increase(cashdrugs_upstream_fetch_errors_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": ""
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "short" }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
       "id": 6,
-      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value" },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
       "title": "Total Documents",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(cashdrugs_mongodb_documents_total)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(cashdrugs_mongodb_documents_total{instance=~\"$instance\"})",
           "legendFormat": ""
         }
       ]
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
       "id": 101,
       "title": "HTTP Requests",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
       "id": 10,
-      "options": { "tooltip": { "mode": "multi" } },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "title": "Request Rate by Slug",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (slug) (rate(cashdrugs_http_requests_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (slug) (rate(cashdrugs_http_requests_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": "{{ slug }}"
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
       "id": 11,
-      "options": { "tooltip": { "mode": "multi" } },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "title": "Request Latency (P95) by Slug",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.95, sum by (slug, le) (rate(cashdrugs_http_request_duration_seconds_bucket[5m])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (slug, le) (rate(cashdrugs_http_request_duration_seconds_bucket{instance=~\"$instance\"}[5m])))",
           "legendFormat": "{{ slug }}"
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "reqps", "custom": { "drawStyle": "bars", "fillOpacity": 50 } }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 50
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
       "id": 12,
-      "options": { "tooltip": { "mode": "multi" } },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "title": "Request Rate by Status Code",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (status_code) (rate(cashdrugs_http_requests_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (status_code) (rate(cashdrugs_http_requests_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": "{{ status_code }}"
         }
       ]
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
       "id": 102,
       "title": "Cache Performance",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" } } }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
       "id": 20,
-      "options": { "tooltip": { "mode": "multi" } },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "title": "Cache Outcomes by Slug",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (slug, outcome) (rate(cashdrugs_cache_hits_total[5m]))",
-          "legendFormat": "{{ slug }} — {{ outcome }}"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (slug, outcome) (rate(cashdrugs_cache_hits_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{ slug }} \u2014 {{ outcome }}"
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "green", "value": 0.8 }] } }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
-      "id": 21,
-      "title": "Cache Hit Ratio by Slug",
-      "type": "gauge",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (slug) (rate(cashdrugs_cache_hits_total{outcome=\"hit\"}[5m])) / sum by (slug) (rate(cashdrugs_cache_hits_total[5m]))",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
-      "id": 103,
-      "title": "Upstream APIs",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
-      "id": 30,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Upstream Fetch Duration by Slug",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.95, sum by (slug, le) (rate(cashdrugs_upstream_fetch_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 50 } }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
-      "id": 31,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Upstream Errors by Slug",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (slug) (rate(cashdrugs_upstream_fetch_errors_total[5m]))",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
-      "id": 32,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Pages Fetched by Slug",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (slug) (rate(cashdrugs_upstream_fetch_pages_total[5m]))",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
-      "id": 104,
-      "title": "Scheduler",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 30, "stacking": { "mode": "normal" } } }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 49 },
-      "id": 40,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Scheduler Runs by Slug & Result",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (slug, result) (rate(cashdrugs_scheduler_runs_total[5m]))",
-          "legendFormat": "{{ slug }} — {{ result }}"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 49 },
-      "id": 41,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Scheduler Run Duration (P95) by Slug",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.95, sum by (slug, le) (rate(cashdrugs_scheduler_run_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 },
-      "id": 105,
-      "title": "MongoDB",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "short" }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 58 },
-      "id": 50,
-      "title": "Documents per Slug",
-      "type": "table",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_mongodb_documents_total",
-          "legendFormat": "{{ slug }}",
-          "format": "table",
-          "instant": true
-        }
-      ],
-      "transformations": [
-        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true }, "renameByName": { "slug": "Slug", "Value": "Documents" } } }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 58 },
-      "id": 51,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Fetch Lock Deduplications by Slug",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (slug) (rate(cashdrugs_fetchlock_dedup_total[5m]))",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 66 },
-      "id": 106,
-      "title": "Resilience",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 100 },
-              { "color": "red", "value": 150 }
-            ]
-          }
-        }
-      },
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 67 },
-      "id": 60,
-      "title": "In-Flight Requests",
-      "type": "gauge",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_inflight_requests",
-          "legendFormat": ""
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 67 },
-      "id": 61,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Rejected Requests (503/s)",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cashdrugs_rejected_requests_total[5m])",
-          "legendFormat": ""
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            { "options": { "0": { "text": "Closed", "color": "green" } }, "type": "value" },
-            { "options": { "1": { "text": "Half-Open", "color": "yellow" } }, "type": "value" },
-            { "options": { "2": { "text": "Open", "color": "red" } }, "type": "value" }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 2 }
-            ]
-          }
-        }
-      },
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 67 },
-      "id": 62,
-      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value" },
-      "title": "Circuit Breaker State",
-      "type": "stat",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_circuit_state",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 67 },
-      "id": 63,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Circuit Rejections",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cashdrugs_circuit_rejections_total{slug=~\"$slug\"}[5m])",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 75 },
-      "id": 64,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Force-Refresh Cooldowns",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cashdrugs_force_refresh_cooldown_total{slug=~\"$slug\"}[5m])",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 83 },
-      "id": 107,
-      "title": "LRU Cache",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "min": 0,
-          "max": 268435456,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 201326592 },
-              { "color": "red", "value": 251658240 }
-            ]
-          }
-        }
-      },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 84 },
-      "id": 65,
-      "title": "LRU Cache Size",
-      "type": "gauge",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_lru_cache_size_bytes",
-          "legendFormat": ""
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 84 },
-      "id": 66,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "LRU Hit Rate",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cashdrugs_lru_cache_hits_total{slug=~\"$slug\"}[5m])",
-          "legendFormat": "{{ slug }} hits"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cashdrugs_lru_cache_misses_total{slug=~\"$slug\"}[5m])",
-          "legendFormat": "{{ slug }} misses"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 84 },
-      "id": 67,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Singleflight Dedup",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cashdrugs_singleflight_dedup_total{slug=~\"$slug\"}[5m])",
-          "legendFormat": "{{ slug }}"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 92 },
-      "id": 108,
-      "title": "Container Resources",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 93 },
-      "id": 70,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "CPU Usage",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cashdrugs_container_cpu_usage_seconds_total[5m])",
-          "legendFormat": ""
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
-      },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 93 },
-      "id": 71,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Memory RSS",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_container_memory_rss_bytes",
-          "legendFormat": ""
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
@@ -699,101 +520,1057 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.7 },
-              { "color": "red", "value": 0.9 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "green",
+                "value": 0.8
+              }
             ]
           }
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 93 },
-      "id": 72,
-      "title": "Memory Usage Ratio",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "id": 21,
+      "title": "Cache Hit Ratio by Slug",
       "type": "gauge",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_container_memory_usage_ratio",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (slug) (rate(cashdrugs_cache_hits_total{instance=~\"$instance\",outcome=\"hit\"}[5m])) / sum by (slug) (rate(cashdrugs_cache_hits_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "id": 103,
+      "title": "Upstream APIs",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "id": 30,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Upstream Fetch Duration by Slug",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (slug, le) (rate(cashdrugs_upstream_fetch_duration_seconds_bucket{instance=~\"$instance\"}[5m])))",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 50
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 31,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Upstream Errors by Slug",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (slug) (rate(cashdrugs_upstream_fetch_errors_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 32,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Pages Fetched by Slug",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (slug) (rate(cashdrugs_upstream_fetch_pages_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "id": 104,
+      "title": "Scheduler",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 30,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
+      "id": 40,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Scheduler Runs by Slug & Result",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (slug, result) (rate(cashdrugs_scheduler_runs_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{ slug }} \u2014 {{ result }}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "id": 41,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Scheduler Run Duration (P95) by Slug",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (slug, le) (rate(cashdrugs_scheduler_run_duration_seconds_bucket{instance=~\"$instance\"}[5m])))",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
+      "id": 105,
+      "title": "MongoDB",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 58
+      },
+      "id": 50,
+      "title": "Documents per Slug",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_mongodb_documents_total{instance=~\"$instance\"}",
+          "legendFormat": "{{ slug }}",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "slug": "Slug",
+              "Value": "Documents"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 58
+      },
+      "id": 51,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Fetch Lock Deduplications by Slug",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (slug) (rate(cashdrugs_fetchlock_dedup_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 66
+      },
+      "id": 106,
+      "title": "Resilience",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 150
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 67
+      },
+      "id": 60,
+      "title": "In-Flight Requests",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_inflight_requests{instance=~\"$instance\"}",
           "legendFormat": ""
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "bytes" }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 101 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 67
+      },
+      "id": 61,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Rejected Requests (503/s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(cashdrugs_rejected_requests_total{instance=~\"$instance\"}[5m])",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "Closed",
+                  "color": "green"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "1": {
+                  "text": "Half-Open",
+                  "color": "yellow"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "2": {
+                  "text": "Open",
+                  "color": "red"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 67
+      },
+      "id": 62,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "title": "Circuit Breaker State",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_circuit_state{instance=~\"$instance\"}",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 67
+      },
+      "id": 63,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Circuit Rejections",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(cashdrugs_circuit_rejections_total{instance=~\"$instance\",slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 75
+      },
+      "id": 64,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Force-Refresh Cooldowns",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(cashdrugs_force_refresh_cooldown_total{instance=~\"$instance\",slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 83
+      },
+      "id": 107,
+      "title": "LRU Cache",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "max": 268435456,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 201326592
+              },
+              {
+                "color": "red",
+                "value": 251658240
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 84
+      },
+      "id": 65,
+      "title": "LRU Cache Size",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_lru_cache_size_bytes{instance=~\"$instance\"}",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 84
+      },
+      "id": 66,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "LRU Hit Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(cashdrugs_lru_cache_hits_total{instance=~\"$instance\",slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }} hits"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(cashdrugs_lru_cache_misses_total{instance=~\"$instance\",slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }} misses"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 84
+      },
+      "id": 67,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Singleflight Dedup",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(cashdrugs_singleflight_dedup_total{instance=~\"$instance\",slug=~\"$slug\"}[5m])",
+          "legendFormat": "{{ slug }}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 92
+      },
+      "id": 108,
+      "title": "Container Resources",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 93
+      },
+      "id": 70,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "CPU Usage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(cashdrugs_container_cpu_usage_seconds_total{instance=~\"$instance\"}[5m])",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 93
+      },
+      "id": 71,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Memory RSS",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_container_memory_rss_bytes{instance=~\"$instance\"}",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 93
+      },
+      "id": 72,
+      "title": "Memory Usage Ratio",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_container_memory_usage_ratio{instance=~\"$instance\"}",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 101
+      },
       "id": 73,
-      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value" },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
       "title": "Disk Usage",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_container_disk_used_bytes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_container_disk_used_bytes{instance=~\"$instance\"}",
           "legendFormat": "Used"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_container_disk_total_bytes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_container_disk_total_bytes{instance=~\"$instance\"}",
           "legendFormat": "Total"
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 101 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 101
+      },
       "id": 74,
-      "options": { "tooltip": { "mode": "multi" } },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "title": "Network I/O",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cashdrugs_container_network_receive_bytes_total{interface!=\"lo\"}[5m])",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(cashdrugs_container_network_receive_bytes_total{instance=~\"$instance\",interface!=\"lo\"}[5m])",
           "legendFormat": "RX {{ interface }}"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cashdrugs_container_network_transmit_bytes_total{interface!=\"lo\"}[5m])",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "rate(cashdrugs_container_network_transmit_bytes_total{instance=~\"$instance\",interface!=\"lo\"}[5m])",
           "legendFormat": "TX {{ interface }}"
         }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "blue", "value": null }
+              {
+                "color": "blue",
+                "value": null
+              }
             ]
           }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "version" },
+            "matcher": {
+              "id": "byName",
+              "options": "version"
+            },
             "properties": [
-              { "id": "displayName", "value": "Version" }
+              {
+                "id": "displayName",
+                "value": "Version"
+              }
             ]
           }
         ]
       },
-      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 109 },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 109
+      },
       "id": 75,
-      "options": { "colorMode": "value", "graphMode": "none", "textMode": "name", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^version$/" } },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^version$/"
+        }
+      },
       "title": "Build Info",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_build_info",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_build_info{instance=~\"$instance\"}",
           "legendFormat": "{{ version }}",
           "format": "table",
           "instant": true
@@ -801,57 +1578,120 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null }
+              {
+                "color": "green",
+                "value": null
+              }
             ]
           }
         }
       },
-      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 109 },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 109
+      },
       "id": 76,
-      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value" },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
       "title": "Uptime",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "cashdrugs_uptime_seconds",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "cashdrugs_uptime_seconds{instance=~\"$instance\"}",
           "legendFormat": ""
         }
       ]
     }
   ],
   "schemaVersion": 39,
-  "tags": ["cash-drugs", "api-cache"],
-  "templating": { "list": [
-    {
-      "allValue": ".*",
-      "current": { "selected": true, "text": "All", "value": "$__all" },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "definition": "label_values(cashdrugs_http_requests_total, slug)",
-      "hide": 0,
-      "includeAll": true,
-      "label": "Slug",
-      "multi": true,
-      "name": "slug",
-      "query": { "qryType": 1, "query": "label_values(cashdrugs_http_requests_total, slug)" },
-      "refresh": 2,
-      "regex": "",
-      "skipUrlSync": false,
-      "sort": 1,
-      "type": "query"
-    }
-  ] },
-  "time": { "from": "now-1h", "to": "now" },
+  "tags": [
+    "cash-drugs",
+    "api-cache"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(cashdrugs_http_requests_total, slug)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Slug",
+        "multi": true,
+        "name": "slug",
+        "query": {
+          "qryType": 1,
+          "query": "label_values(cashdrugs_http_requests_total, slug)"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(cashdrugs_http_requests_total, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "query": {
+          "qryType": 1,
+          "query": "label_values(cashdrugs_http_requests_total, instance)"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
-  "title": "cash-drugs — API Cache Proxy",
+  "title": "cash-drugs \u2014 API Cache Proxy",
   "uid": "cash-drugs-overview",
   "version": 1
 }
