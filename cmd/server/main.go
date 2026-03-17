@@ -174,16 +174,33 @@ func main() {
 	cooldownTracker := upstream.NewCooldownTracker(cooldownDuration)
 	slog.Info("force-refresh cooldown configured", "component", "server", "duration", cooldownDuration)
 
+	// Resolve ENABLE_SCHEDULER: env var > config > default true
+	enableScheduler := true
+	if envVal := os.Getenv("ENABLE_SCHEDULER"); envVal != "" {
+		enableScheduler = envVal == "true"
+	} else if appCfg != nil && appCfg.EnableScheduler != nil {
+		enableScheduler = *appCfg.EnableScheduler
+	}
+
+	// Set Prometheus gauge for leader/follower visibility
+	m.InstanceLeader.Set(boolToFloat(enableScheduler))
+
 	// Start background scheduler (handles cron-based refresh only; warmup is separate)
 	sched := scheduler.New(endpoints, fetcher, repo, locks, scheduler.WithMetrics(m), scheduler.WithLRU(lruCache), scheduler.WithCircuit(circuitReg))
-	sched.Start(context.Background())
+	if enableScheduler {
+		sched.Start(context.Background())
+		slog.Info("scheduler started", "component", "server", "leader", true)
+	} else {
+		slog.Info("scheduler disabled", "component", "server", "reason", "ENABLE_SCHEDULER=false")
+	}
 
 	// Note: initial warmup with parameterized queries is triggered below after handler setup
 
 	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m), handler.WithLRU(lruCache), handler.WithCircuit(circuitReg), handler.WithCooldown(cooldownTracker))
 	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
 	endpointsHandler := handler.NewEndpointsHandler(endpoints)
-	versionHandler := handler.NewVersionHandler(version, gitCommit, gitBranch, buildDate, len(endpoints))
+	versionHandler := handler.NewVersionHandler(version, gitCommit, gitBranch, buildDate, len(endpoints),
+		handler.WithLeader(enableScheduler))
 
 	// Load parameterized warmup queries
 	warmupQueriesPath := os.Getenv("WARMUP_QUERIES_PATH")
@@ -258,8 +275,13 @@ func main() {
 	}
 
 	// Trigger initial warmup (includes parameterized queries) in background
-	warmupOrchestrator.TriggerWarmup(nil, false)
-	slog.Info("initial warmup triggered", "component", "warmup")
+	if enableScheduler {
+		warmupOrchestrator.TriggerWarmup(nil, false)
+		slog.Info("initial warmup triggered", "component", "warmup")
+	} else {
+		warmupState.MarkReady()
+		slog.Info("warmup skipped (follower instance)", "component", "warmup")
+	}
 
 	go func() {
 		sigCh := make(chan os.Signal, 1)
@@ -270,7 +292,9 @@ func main() {
 			sysCollector.Stop()
 		}
 		mongoCollector.Stop()
-		sched.Stop()
+		if enableScheduler {
+			sched.Stop()
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		srv.Shutdown(ctx)
@@ -281,4 +305,12 @@ func main() {
 		slog.Error("server failed", "component", "server", "error", err)
 		os.Exit(1)
 	}
+}
+
+// boolToFloat converts a bool to a float64 for Prometheus gauge values.
+func boolToFloat(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
 }

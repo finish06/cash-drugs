@@ -60,6 +60,9 @@ type Metrics struct {
 	// Build and uptime metrics
 	BuildInfo      *prometheus.GaugeVec
 	UptimeSeconds  prometheus.Gauge
+
+	// Instance role metrics
+	InstanceLeader prometheus.Gauge
 }
 
 // NewMetrics creates and registers all Prometheus metrics with the given registry.
@@ -383,6 +386,15 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 				Help:      "Process uptime in seconds.",
 			},
 		),
+
+		// Instance role metrics
+		InstanceLeader: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "instance_leader",
+				Help:      "Whether this instance is the scheduler leader (1 = leader, 0 = follower).",
+			},
+		),
 	}
 
 	reg.MustRegister(
@@ -424,6 +436,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.WarmupQueriesPending,
 		m.BuildInfo,
 		m.UptimeSeconds,
+		m.InstanceLeader,
 	)
 
 	return m

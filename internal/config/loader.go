@@ -38,6 +38,7 @@ type AppConfig struct {
 	SystemMetricsInterval string         `yaml:"system_metrics_interval"`
 	MaxConcurrentRequests int            `yaml:"max_concurrent_requests"`
 	LRUCacheSizeMB        int            `yaml:"lru_cache_size_mb"`
+	EnableScheduler       *bool          `yaml:"enable_scheduler"`
 	Endpoints             []Endpoint     `yaml:"endpoints"`
 	Database              databaseConfig `yaml:"database"`
 }

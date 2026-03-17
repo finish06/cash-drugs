@@ -23,6 +23,7 @@ type VersionInfo struct {
 	UptimeSeconds float64 `json:"uptime_seconds"`
 	EndpointCount int     `json:"endpoint_count"`
 	StartTime     string  `json:"start_time"`
+	Leader        bool    `json:"leader"`
 }
 
 // VersionHandler handles GET /version requests.
@@ -34,10 +35,18 @@ type VersionHandler struct {
 	hostname      string
 	startTime     time.Time
 	endpointCount int
+	leader        bool
 }
 
 // VersionOption configures a VersionHandler.
 type VersionOption func(*VersionHandler)
+
+// WithLeader sets the leader flag on the version handler.
+func WithLeader(leader bool) VersionOption {
+	return func(h *VersionHandler) {
+		h.leader = leader
+	}
+}
 
 // NewVersionHandler creates a new VersionHandler with build-time variables.
 func NewVersionHandler(version, gitCommit, gitBranch, buildDate string, endpointCount int, opts ...VersionOption) *VersionHandler {
@@ -87,6 +96,7 @@ func (h *VersionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		UptimeSeconds: time.Since(h.startTime).Seconds(),
 		EndpointCount: h.endpointCount,
 		StartTime:     h.startTime.UTC().Format(time.RFC3339),
+		Leader:        h.leader,
 	}
 
 	json.NewEncoder(w).Encode(info)
