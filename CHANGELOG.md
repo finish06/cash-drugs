@@ -18,10 +18,17 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 - **Warmup orchestrator:** `WarmupOrchestrator` runs scheduled endpoints then parameterized queries with semaphore cap 5, circuit breaker awareness, and `/ready` progress tracking
 - `GET /ready` now includes `phase` field (`scheduled`, `queries`, `ready`) and parameterized query count in progress
 - `POST /api/warmup` response includes `warming_queries` count; supports `skip_queries: true` to skip parameterized queries
+- **Multi-instance support:** `ENABLE_SCHEDULER` env var controls scheduler/warmup — leader runs scheduler, replicas serve requests only
+- `GET /version` includes `leader` field identifying scheduler leader
+- `cashdrugs_instance_leader` Prometheus gauge (1=leader, 0=replica) for alerting
+- **Nginx load balancer:** `least_conn` proxy in front of leader + replica instances, container name `cash-drugs` preserves upstream DNS for drug-gate
+- Grafana dashboard with `Instance` and `Environment` template variables for multi-instance filtering
 
 ### Changed
-- Staging environment deployed at 192.168.1.145:8083 with `:beta` image, `internal` Docker network, and cron-based auto-pull (replaces Watchtower)
+- Staging environment: 2-instance deployment (leader + replica) with nginx LB at 192.168.1.145:8083
+- Staging auto-pull via cron replaces Watchtower across all services (cash-drugs, drug-gate, drugs-quiz)
 - MongoDB on staging uses `mongo:4.4` (host CPU lacks AVX for 5.0+)
+- SSH access unified: `ssh staging1` (key at `~/.ssh/staging1`) shared across all projects
 
 ### Fixed
 - Dot-path `data_key` resolution in `fetchJSONPage` — nested keys like `rxnormdata.idGroup.rxnormId` now resolve correctly through intermediate map layers

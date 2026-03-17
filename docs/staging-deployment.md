@@ -14,18 +14,67 @@ Shared across: **cash-drugs**, **drug-gate**, **drugs-quiz**
 
 ## Services on Staging
 
-| Service | Port | Image Tag | Compose File | Path |
-|---------|------|-----------|-------------|------|
-| cash-drugs | 8083 | `:beta` | `compose.yaml` | `/opt/cash-drugs/` |
-| drug-gate | 8082 | `:beta` | `compose.yaml` | `/opt/drug-gate/` |
-| drugs-quiz | 8080 | `:beta-*` | `docker-compose.yml` | `/opt/drugs-quiz/` |
+| Service | Port | Container | Image Tag | Path |
+|---------|------|-----------|-----------|------|
+| cash-drugs (nginx LB) | 8083 | `cash-drugs` | `nginx:alpine` | `/opt/cash-drugs/` |
+| cash-drugs leader | 8085 | `cash-drugs-leader` | `:beta` | `/opt/cash-drugs/` |
+| cash-drugs replica | 8086 | `cash-drugs-replica` | `:beta` | `/opt/cash-drugs/` |
+| cash-drugs-mongo | (internal) | `cash-drugs-mongo` | `mongo:4.4` | `/opt/cash-drugs/` |
+| drug-gate | 8082 | `drug-gate` | `:beta` | `/opt/drug-gate/` |
+| drug-gate-redis | (internal) | `drug-gate-redis` | `redis:alpine` | `/opt/drug-gate/` |
+| drugs-quiz | 8080 | `drugs-quiz` | `:beta-*` | `/opt/drugs-quiz/` |
+
+### Multi-Instance Architecture (cash-drugs)
+
+```
+drug-gate (8082)
+    ↓
+cash-drugs (nginx LB, 8083) ──→ least_conn
+    ├── cash-drugs-leader (8085)  ENABLE_SCHEDULER=true
+    └── cash-drugs-replica (8086) ENABLE_SCHEDULER=false
+    ↓
+cash-drugs-mongo (MongoDB 4.4, shared)
+```
+
+- **Leader** runs scheduler (cron refresh) and startup warmup (196 parameterized queries)
+- **Replica** serves requests only — no scheduler, `/ready` returns 200 immediately
+- Both read/write same MongoDB database (`drugs_staging`)
+- Nginx uses `least_conn` to distribute by active connections
+- Container name `cash-drugs` preserves DNS for drug-gate (no config change needed)
+
+### Direct Instance Access
+
+```bash
+# Via load balancer (normal)
+curl http://192.168.1.145:8083/health
+
+# Direct to leader (debugging, metrics)
+curl http://192.168.1.145:8085/version  # leader=true
+curl http://192.168.1.145:8085/metrics
+
+# Direct to replica
+curl http://192.168.1.145:8086/version  # leader=false
+curl http://192.168.1.145:8086/metrics
+```
+
+### Prometheus Scraping
+
+Scrape instances directly (not the LB):
+```yaml
+- targets:
+    - staging1.du.nn:8085  # leader
+    - staging1.du.nn:8086  # replica
+  labels:
+    app: cashdrugs
+    env: staging
+```
 
 ### Inter-service connectivity
 
 All services are on the `internal` Docker network. Use container names for DNS:
 
 ```
-drug-gate → http://cash-drugs:8080  (cash-drugs API)
+drug-gate → http://cash-drugs:8080  (via nginx LB → leader/replica)
 drug-gate → http://drug-gate-redis:6379  (Redis)
 ```
 

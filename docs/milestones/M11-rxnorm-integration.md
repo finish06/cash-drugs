@@ -6,11 +6,11 @@
 
 **Target Maturity:** Beta
 
-**Status:** NOW
+**Status:** DONE
 
 ## Success Criteria
 
-- [ ] 6 RxNorm endpoints configured in config.yaml
+- [x] 6 RxNorm endpoints configured in config.yaml
 - [ ] All 6 endpoints return valid cached data via `/api/cache/{slug}`
 - [ ] `rxnorm-find-drug?DRUG_NAME=metformin` returns RxCUI identifiers
 - [ ] `rxnorm-approximate-match?DRUG_NAME=ambienn` returns fuzzy matches with scores
@@ -21,10 +21,10 @@
 - [ ] TTLs configured appropriately (7d for NDCs, 14d for relationships, 30d for stable lookups)
 - [x] No code changes needed for RxNorm endpoints — existing fetcher handles all patterns
 - [x] E2E tests validate all 6 endpoints against live RxNorm API (17/17 pass)
-- [ ] `warmup-queries.yaml` pre-caches top 100 drugs across fda-ndc, fda-label, rxnorm-find-drug, rxnorm-approximate-match
-- [ ] `POST /api/warmup` supports parameterized queries from `warmup-queries.yaml`
-- [ ] `/ready` progress includes parameterized query count
-- [ ] Failed warmup queries don't block readiness
+- [x] `warmup-queries.yaml` pre-caches top 100 drugs across fda-ndc, fda-label, rxnorm-find-drug, rxnorm-approximate-match
+- [x] `POST /api/warmup` supports parameterized queries from `warmup-queries.yaml`
+- [x] `/ready` progress includes parameterized query count
+- [x] Failed warmup queries don't block readiness
 
 ## Endpoints
 

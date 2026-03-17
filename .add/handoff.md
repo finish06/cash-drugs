@@ -1,41 +1,40 @@
 # Session Handoff
-**Written:** 2026-03-15
+**Written:** 2026-03-17
 
 ## In Progress
 - Nothing — all away-mode tasks completed
 
 ## Completed This Session
-- M10 Performance Optimization: all 5 features implemented, verified, merged (PRs #11-#13)
-  - MongoDB base_key query optimization + startup migration
-  - LRU cache sharding (16-shard FNV-1a)
-  - Parallel page fetches (cap 3 concurrent)
-  - Empty upstream result handling (200 + results_count: 0)
-  - Version endpoint (/version with build info + Prometheus gauges)
-- Tagged v0.8.0, CI built and published
-- M11 RxNorm integration: 6 endpoints added to config.yaml (config-only, no code changes)
-  - rxnorm-find-drug, approximate-match, spelling-suggestions, ndcs, generic-product, all-related
-  - All 6 validated against live RxNorm API via E2E tests (17/17 pass)
-  - data_key dot-path fix: allRelatedGroup.conceptGroup (not relatedGroup)
-- E2E test improvements: dot-path data_key traversal, non-array response handling
-- Grafana dashboard: build_info + uptime panels added
-- Sequence diagrams: RxNorm lookup flow + system overview updated with RxNorm
-- Dockerfile: added `apk add git` for ldflags (fixes git_commit/git_branch "unknown")
-- CHANGELOG: v0.8.0 entry + unreleased RxNorm section
-- PRD: v0.4.0 with M10 DONE
-- 5 learning checkpoints written (L-015 through L-019)
+- M11 fully delivered: RxNorm endpoints, parameterized warmup, multi-instance, nginx LB
+  - 6 RxNorm config endpoints validated against live API (17/17 E2E pass)
+  - warmup-queries.yaml with top 100 prescribed drugs (196 queries)
+  - WarmupOrchestrator wired in main.go with startup warmup
+  - ENABLE_SCHEDULER env var for leader/replica mode
+  - Nginx least_conn LB on staging (container name `cash-drugs` preserves DNS)
+- Staging deployed: 2-instance (leader:8085 + replica:8086) behind nginx LB at :8083
+- Cron-based auto-pull replaces Watchtower on staging for all services
+- K6 stress-heavy: 95.7% success rate at 150 VUs (up from 21.9% pre-M9)
+- Grafana dashboard updated with Instance + Environment variables
+- SSH unified: `ssh staging1` across all projects
+- Staging deployment guide shared to drug-gate and drugs-quiz
+- 23 learnings captured (L-001 through L-023)
+- All specs updated (parameterized-warmup, multi-instance → Complete)
+- PRD v0.5.0 with M11 DONE, M12 IN_PROGRESS
 
 ## Decisions Made
-- RxNorm TTLs: 30d for stable lookups, 14d for relationships, 7d for NDCs and fuzzy search
-- No scheduled RxNorm endpoints (all parameterized, on-demand only)
-- v0.8.0 for M10 release (feature milestone increment)
-- MAX_CONCURRENT_REQUESTS stays at 150 (QA validated)
+- Multi-instance: ENABLE_SCHEDULER env var (not distributed consensus)
+- Nginx least_conn (not round-robin or IP hash) for load balancing
+- Staging: 2 instances, production planned for 4
+- warmup-queries.yaml from ClinCalc/IQVIA 2023 top 100 prescribed drugs
+- Cron auto-pull every 5 min replaces Watchtower
 
 ## Blockers
 - None
 
 ## Next Steps
-1. Tag v0.8.1 or v0.9.0 for RxNorm config + Dockerfile fix (needs human decision on versioning)
-2. GA maturity promotion assessment — strong evidence, needs /add:retro
-3. M7 (Auth + Transforms) planning — last remaining v1 feature
-4. Consider flattening RxNorm nested conceptGroup responses (handler logic vs consumer responsibility)
-5. Investigate host1.du.nn DNS resolution failure (worked earlier, stopped mid-session)
+1. Tag release (v0.9.1 or v1.0.0 — needs human decision on versioning)
+2. GA maturity promotion assessment (/add:retro)
+3. Production multi-instance deployment (4 instances)
+4. Prometheus scrape config for staging leader:8085 + replica:8086
+5. M12 remaining: upstream-404-handling (Draft spec, unimplemented)
+6. M7 (Auth + Transforms) — last v1 feature

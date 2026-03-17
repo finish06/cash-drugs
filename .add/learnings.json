@@ -262,6 +262,45 @@
       "date": "2026-03-16",
       "classified_by": "agent",
       "checkpoint_type": "feature-complete"
+    },
+    {
+      "id": "L-021",
+      "title": "Multi-instance: ENABLE_SCHEDULER env var is simplest leader election",
+      "body": "For homelab multi-instance deployments, a simple ENABLE_SCHEDULER env var (true on leader, false on replicas) is sufficient. No distributed consensus needed. All instances read/write MongoDB and serve requests. Only the leader runs cron jobs and startup warmup. Prometheus gauge cashdrugs_instance_leader enables alerting if no leader is running.",
+      "scope": "workstation",
+      "stack": ["go"],
+      "category": "architecture",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-16",
+      "classified_by": "agent",
+      "checkpoint_type": "post-tdd"
+    },
+    {
+      "id": "L-022",
+      "title": "Nginx least_conn LB: +6% success rate, container name preserves upstream DNS",
+      "body": "Nginx with least_conn in front of 2 cash-drugs instances improved success rate from 89.7% to 95.7% under stress-heavy (150 VUs). Key insight: naming the nginx container 'cash-drugs' preserves the Docker DNS name so upstream services (drug-gate) need zero config changes. Direct access to instances via separate ports (8085/8086) for debugging and Prometheus scraping.",
+      "scope": "project",
+      "stack": ["go", "nginx"],
+      "category": "architecture",
+      "severity": "high",
+      "source": "drugs",
+      "date": "2026-03-16",
+      "classified_by": "agent",
+      "checkpoint_type": "post-deploy"
+    },
+    {
+      "id": "L-023",
+      "title": "Cycle 3 complete: M11 RxNorm + warmup + multi-instance in 1 day",
+      "body": "Cycle 3 delivered: 6 RxNorm endpoints (config-only), warmup-queries.yaml (196 queries, top 100 drugs), parameterized warmup orchestrator, multi-instance ENABLE_SCHEDULER, nginx LB. K6 stress-heavy: 95.7% success at 150 VUs. Staging validated with 2 instances sharing MongoDB.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "process",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-16",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
     }
   ]
 }

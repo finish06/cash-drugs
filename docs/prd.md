@@ -1,6 +1,6 @@
 # cash-drugs — Product Requirements Document
 
-**Version:** 0.4.0
+**Version:** 0.5.0
 **Created:** 2026-03-05
 **Author:** calebdunn
 **Status:** Active
@@ -101,6 +101,8 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M8: Prometheus Metrics | Prometheus endpoint with full operational observability | beta | DONE | `/metrics` endpoint, cache hit/miss, upstream latency, MongoDB health/size, scheduler stats |
 | M9: Performance & Resilience | Prevent service collapse under load, optimize response delivery, protect against upstream instability | beta | DONE | Concurrency limiter (503+Retry-After), gzip compression, singleflight, LRU cache, circuit breakers, force-refresh cooldown, container system metrics |
 | M10: Performance Optimization | MongoDB query restructure, LRU sharding, parallel page fetches, empty upstream handling, version endpoint | beta | DONE | Indexed exact-match queries, sharded LRU mutex, concurrent upstream page fetches, empty result 200s, /version endpoint with build info |
+| M11: RxNorm + Warmup | RxNorm API integration, parameterized warmup, multi-instance support | beta | DONE | 6 RxNorm endpoints, warmup-queries.yaml (top 100 drugs), ENABLE_SCHEDULER leader/replica, nginx LB |
+| M12: Client Enhancements | Readiness endpoint, response normalization, API doc fixes | beta | IN_PROGRESS | /ready, /api/warmup, flatten config, upstream-404-handling |
 
 ### Milestone Detail
 
@@ -281,3 +283,4 @@ Automated CI/CD pipeline builds and publishes Docker images to a private registr
 | 2026-03-07 | 0.2.0 | calebdunn | Added M4-M6, FDA integration, Docker publishing, renamed to cash-drugs, updated maturity to beta |
 | 2026-03-14 | 0.3.0 | calebdunn | Added M9 (Performance & Resilience) as DONE, M10 (Performance Optimization) as LATER, updated NFRs with resilience |
 | 2026-03-15 | 0.4.0 | calebdunn | M10 (Performance Optimization) marked DONE — MongoDB query optimization, LRU sharding, parallel page fetches, empty upstream handling, version endpoint |
+| 2026-03-16 | 0.5.0 | calebdunn | M11 DONE (RxNorm, parameterized warmup, multi-instance, nginx LB), M12 IN_PROGRESS, added NFRs for scalability |
