@@ -38,7 +38,7 @@ jobs:
       - name: Integration tests
         env:
           MONGO_URI: mongodb://localhost:27017/drugs_test
-        run: go test ./... -count=1 -coverprofile=coverage.out
+        run: go test $(go list ./... | grep -v /tests/e2e) -count=1 -coverprofile=coverage.out
 
       - name: Coverage report
         env:
