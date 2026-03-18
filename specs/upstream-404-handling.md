@@ -1,9 +1,9 @@
 # Spec: Upstream 404 Handling
 
-**Version:** 0.1.0
+**Version:** 1.0.0
 **Created:** 2026-03-07
 **PRD Reference:** docs/prd.md
-**Status:** Draft
+**Status:** Approved
 
 ## 1. Overview
 
@@ -151,21 +151,31 @@ N/A — no UI component.
 |------|-------------------|
 | Upstream returns 404 with no JSON body | Still treated as 404 — response body parsing is best-effort |
 | Upstream returns 404 for a paginated fetch (mid-pagination) | Stop pagination, return whatever was fetched so far (existing partial-data behavior for offset pagination) |
-| Negative cache exists but regular cache also exists for same key | Negative cache takes precedence (not-found overrides stale data) |
+| Negative cache exists but regular cache also exists for same key | Negative cache takes precedence (not-found overrides stale data). Existing cached data is NOT deleted — both entries coexist for safer rollback. |
 | Upstream returns 404, then later returns 200 for same key | After 10-min negative TTL expires, next request gets fresh 200 data |
 | Network timeout (no HTTP response at all) | Treated as upstream failure (502), not 404 — no HTTP status to inspect |
-| Upstream returns 404 during scheduled refresh | Log warning, do not store negative cache (scheduled refreshes are for bulk prefetch, not individual lookups) |
+| Upstream returns 404 during scheduled refresh | Log warning + increment `upstream_404_total` Prometheus counter per slug. Do not store negative cache (scheduled refreshes are for bulk prefetch, not individual lookups). |
 | Concurrent requests for same non-existent key | First request caches the 404, subsequent requests served from negative cache |
 
-## 8. Dependencies
+## 8. Design Decisions (from spec review)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| 404 vs stale cache precedence | Negative entry takes precedence, existing data NOT deleted | Safer rollback if upstream 404 was transient — data can be recovered after negative TTL expires |
+| Observability | Log warning + `upstream_404_total` Prometheus counter per slug | Enables Grafana alerting on sudden upstream 404 spikes |
+| Cache layers for negative entries | Both LRU + MongoDB | LRU serves repeated 404s at sub-ms latency; MongoDB persists across restarts |
+| Negative cache TTL | Hardcoded 10 minutes (AC-010) | Simple for v1; can be made configurable per-endpoint later |
+
+## 9. Dependencies
 
 - `internal/upstream/fetcher.go` — must propagate upstream HTTP status code (currently discards 4xx as generic error)
 - `internal/handler/cache.go` — must distinguish 404 from other errors
 - `internal/cache/mongo.go` — must support storing/retrieving negative cache entries
 - `internal/model/response.go` — may need `NotFound` field on `CachedResponse`
 
-## 9. Revision History
+## 10. Revision History
 
 | Date | Version | Author | Changes |
 |------|---------|--------|---------|
 | 2026-03-07 | 0.1.0 | calebdunn | Initial spec from /add:spec interview |
+| 2026-03-17 | 1.0.0 | calebdunn + agent | Spec review: added design decisions (precedence, metrics, LRU+Mongo, edge case clarifications). Status → Approved. |
