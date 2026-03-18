@@ -4,17 +4,17 @@
 
 Address client feedback from drug-gate integration: readiness signaling, cache warmup control, response normalization for consistent consumption, and API documentation accuracy.
 
-## Status: NOW
+## Status: DONE
 
 ## Appetite: 1 week
 
 ## Success Criteria
 
-- [ ] Clients can poll `/ready` to gate traffic until cache is warm
-- [ ] Clients can trigger selective or full cache warmup via `/api/warmup`
-- [ ] `flatten` flag normalizes nested upstream arrays into flat response shape
-- [ ] Swagger docs accurately describe all response shapes and query parameters
-- [ ] Upstream 404 responses handled gracefully (not cached as errors)
+- [x] Clients can poll `/ready` to gate traffic until cache is warm
+- [x] Clients can trigger selective or full cache warmup via `/api/warmup`
+- [x] `flatten` flag normalizes nested upstream arrays into flat response shape
+- [x] Swagger docs accurately describe all response shapes and query parameters
+- [x] Upstream 404 responses handled gracefully (not cached as errors)
 
 ## Hill Chart
 
@@ -23,7 +23,7 @@ Address client feedback from drug-gate integration: readiness signaling, cache w
 | Readiness endpoint (`/ready`) | DONE | #15 |
 | Response normalization (`flatten` flag) | DONE | #14 |
 | API documentation fixes | DONE | (swagger updated) |
-| Upstream 404 handling | SPECCED | — |
+| Upstream 404 handling | DONE | #20 |
 
 ## Features
 
@@ -53,11 +53,11 @@ Includes `POST /api/warmup` for on-demand cache pre-fetch:
 - Added `search` query parameter guidance for drug lookup endpoints
 - Fixed dot-path `data_key` resolution in `fetchJSONPage`
 
-### 4. Upstream 404 Handling — SPECCED (unimplemented)
+### 4. Upstream 404 Handling — DONE (PR #20)
 
-**Spec:** `specs/upstream-404-handling.md`
+**Spec:** `specs/upstream-404-handling.md` (10 ACs)
 
-Draft spec exists. When an upstream API returns 404, the system should handle it gracefully rather than treating it as an upstream error. Not yet planned for a cycle.
+When an upstream API returns HTTP 404, cash-drugs returns 404 to consumers (not 502) with `error`, `slug`, and `params` fields. Negative cache entries stored in LRU + MongoDB with 10-minute TTL prevent repeated upstream calls for non-existent resources. Other 4xx/5xx/network errors unchanged (502 with stale fallback). `upstream_404_total` Prometheus counter per slug.
 
 ## Dependencies
 
@@ -71,6 +71,12 @@ Draft spec exists. When an upstream API returns 404, the system should handle it
 | Warmup delays server availability | Readiness probe separates liveness from readiness; traffic is gated |
 | Flatten flag changes response shape | Opt-in per endpoint; existing endpoints unaffected |
 
+## Cycle History
+
+| Cycle | Features | Status | Notes |
+|-------|----------|--------|-------|
+| cycle-4 | Upstream 404 handling (SPECCED→DONE) | COMPLETE | 10 ACs, PR #20 merged. TDD cycle in away mode. |
+
 ## Retrospective
 
-_To be filled at milestone completion._
+_To be filled at `/add:retro`._

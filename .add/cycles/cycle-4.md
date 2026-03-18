@@ -2,9 +2,9 @@
 
 **Milestone:** M12 — Client Enhancements
 **Maturity:** Beta
-**Status:** PLANNED
-**Started:** TBD
-**Completed:** TBD
+**Status:** COMPLETE
+**Started:** 2026-03-17
+**Completed:** 2026-03-18
 **Duration Budget:** 1 day
 
 ## Work Items
@@ -58,12 +58,13 @@ Single-threaded execution. No parallel agents needed.
 - AC-010: TTL hardcoded 10 minutes (not configurable)
 
 ### Cycle Success Criteria
-- [ ] All 10 ACs have passing tests
-- [ ] golangci-lint passes (0 issues)
-- [ ] go vet passes
-- [ ] Coverage ≥ 80%
-- [ ] All existing tests pass (no regressions)
-- [ ] Spec updated to v1.0.0 with review decisions
+- [x] All 10 ACs have passing tests (12 tests)
+- [x] golangci-lint passes (0 issues)
+- [x] go vet passes
+- [x] Coverage ≥ 80% (80.7%)
+- [x] All existing tests pass (no regressions)
+- [x] Spec updated to v1.0.0 with review decisions
+- [x] PR #20 merged to main
 
 ## Agent Autonomy & Checkpoints
 

@@ -102,7 +102,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M9: Performance & Resilience | Prevent service collapse under load, optimize response delivery, protect against upstream instability | beta | DONE | Concurrency limiter (503+Retry-After), gzip compression, singleflight, LRU cache, circuit breakers, force-refresh cooldown, container system metrics |
 | M10: Performance Optimization | MongoDB query restructure, LRU sharding, parallel page fetches, empty upstream handling, version endpoint | beta | DONE | Indexed exact-match queries, sharded LRU mutex, concurrent upstream page fetches, empty result 200s, /version endpoint with build info |
 | M11: RxNorm + Warmup | RxNorm API integration, parameterized warmup, multi-instance support | beta | DONE | 6 RxNorm endpoints, warmup-queries.yaml (top 100 drugs), ENABLE_SCHEDULER leader/replica, nginx LB |
-| M12: Client Enhancements | Readiness endpoint, response normalization, API doc fixes | beta | IN_PROGRESS | /ready, /api/warmup, flatten config, upstream-404-handling |
+| M12: Client Enhancements | Readiness endpoint, response normalization, API doc fixes, upstream 404 handling | beta | DONE | /ready, /api/warmup, flatten config, upstream-404-handling |
 
 ### Milestone Detail
 

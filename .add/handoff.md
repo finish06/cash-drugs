@@ -2,39 +2,31 @@
 **Written:** 2026-03-17
 
 ## In Progress
-- Nothing — all away-mode tasks completed
+- PR #20 (feature/upstream-404-handling) — awaiting human review and merge
 
 ## Completed This Session
-- M11 fully delivered: RxNorm endpoints, parameterized warmup, multi-instance, nginx LB
-  - 6 RxNorm config endpoints validated against live API (17/17 E2E pass)
-  - warmup-queries.yaml with top 100 prescribed drugs (196 queries)
-  - WarmupOrchestrator wired in main.go with startup warmup
-  - ENABLE_SCHEDULER env var for leader/replica mode
-  - Nginx least_conn LB on staging (container name `cash-drugs` preserves DNS)
-- Staging deployed: 2-instance (leader:8085 + replica:8086) behind nginx LB at :8083
-- Cron-based auto-pull replaces Watchtower on staging for all services
-- K6 stress-heavy: 95.7% success rate at 150 VUs (up from 21.9% pre-M9)
-- Grafana dashboard updated with Instance + Environment variables
-- SSH unified: `ssh staging1` across all projects
-- Staging deployment guide shared to drug-gate and drugs-quiz
-- 23 learnings captured (L-001 through L-023)
-- All specs updated (parameterized-warmup, multi-instance → Complete)
-- PRD v0.5.0 with M11 DONE, M12 IN_PROGRESS
+- Fixed all golangci-lint issues (41+ errcheck/staticcheck) across 22 files (commit 0a26890)
+- Added coverage tests to close 78.9% → 80.4% gap (commit 0a26890)
+- Reviewed upstream-404-handling spec, updated to v1.0.0 with design decisions (commit ed2d5bd)
+- Created cycle-4 plan for M12 completion (commit ed2d5bd)
+- TDD RED: 13 tests for 10 ACs (commit 8a50a2e)
+- TDD GREEN: Implemented upstream 404 handling in 5 files (commit 724ba8c)
+- All gates pass: 0 lint issues, all tests pass, 80.7% coverage
+- Pushed feature branch, created PR #20
 
 ## Decisions Made
-- Multi-instance: ENABLE_SCHEDULER env var (not distributed consensus)
-- Nginx least_conn (not round-robin or IP hash) for load balancing
-- Staging: 2 instances, production planned for 4
-- warmup-queries.yaml from ClinCalc/IQVIA 2023 top 100 prescribed drugs
-- Cron auto-pull every 5 min replaces Watchtower
+- Negative cache takes precedence over stale data (don't delete existing cache)
+- `upstream_404_total` Prometheus counter per slug for Grafana visibility
+- Negative entries cached in both LRU + MongoDB for sub-ms repeated 404 lookups
+- 10-minute hardcoded TTL for negative cache (not configurable in v1)
 
 ## Blockers
 - None
 
 ## Next Steps
-1. Tag release (v0.9.1 or v1.0.0 — needs human decision on versioning)
-2. GA maturity promotion assessment (/add:retro)
-3. Production multi-instance deployment (4 instances)
-4. Prometheus scrape config for staging leader:8085 + replica:8086
-5. M12 remaining: upstream-404-handling (Draft spec, unimplemented)
-6. M7 (Auth + Transforms) — last v1 feature
+1. Review and merge PR #20 (upstream-404-handling)
+2. Run `/add:cycle --complete` to close cycle 4
+3. Close M12 milestone (all 4 features will be DONE)
+4. Tag release (v0.9.1 or v1.0.0 — human decision)
+5. Production deployment
+6. GA maturity promotion assessment via `/add:retro`

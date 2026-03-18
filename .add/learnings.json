@@ -361,6 +361,36 @@
       "date": "2026-03-17",
       "classified_by": "agent",
       "checkpoint_type": "post-verify"
+    },
+    {
+      "id": "L-025",
+      "title": "Cycle 4 complete: upstream-404-handling delivered in single away-mode session",
+      "body": "Duration: <1 day. Feature: upstream-404-handling (SPECCED\u2192DONE). 10 ACs, 12 tests, PR #20 merged. Spec review + TDD cycle + verify all completed in one away-mode session. Effective pattern: review spec with human before away, then execute autonomously. Coverage held at 80.7%. Negative cache design (precedence over stale, both LRU+Mongo) was clean to implement.",
+      "scope": "project",
+      "stack": [
+        "go"
+      ],
+      "category": "process",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-18",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-026",
+      "title": "ErrUpstreamNotFound error type pattern for HTTP status propagation",
+      "body": "Created distinct error type (ErrUpstreamNotFound) to propagate HTTP 404 from fetcher to handler. Used errors.As() for type assertion. Pattern: custom error types for specific HTTP statuses that need different handler behavior. Keep generic fmt.Errorf for statuses that all map to the same response (502).",
+      "scope": "workstation",
+      "stack": [
+        "go"
+      ],
+      "category": "technical",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-03-18",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
     }
   ]
 }
