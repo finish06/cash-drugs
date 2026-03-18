@@ -23,7 +23,7 @@ func TestAC008_HealthCheckConnected(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp["status"] != "ok" {
 		t.Errorf("expected status 'ok', got '%s'", resp["status"])
 	}
@@ -45,7 +45,7 @@ func TestAC008_HealthCheckDisconnected(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp["status"] != "degraded" {
 		t.Errorf("expected status 'degraded', got '%s'", resp["status"])
 	}
@@ -67,7 +67,7 @@ func TestAC003_HealthCheckIncludesVersion(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp["version"] != "v0.5.0" {
 		t.Errorf("expected version 'v0.5.0', got '%s'", resp["version"])
 	}
@@ -82,7 +82,7 @@ func TestAC003_HealthCheckDefaultVersion(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	var resp map[string]string
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp["version"] != "dev" {
 		t.Errorf("expected version 'dev', got '%s'", resp["version"])
 	}
@@ -101,7 +101,7 @@ func TestAC003_HealthCheckDegradedIncludesVersion(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp["version"] != "v1.0.0" {
 		t.Errorf("expected version 'v1.0.0', got '%s'", resp["version"])
 	}

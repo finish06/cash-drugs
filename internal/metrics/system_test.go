@@ -179,6 +179,82 @@ func TestAC_CSM003_NoCgroupFiles(t *testing.T) {
 	}
 }
 
+// --- parseNetDevLine direct tests ---
+
+func TestParseNetDevLine_Valid(t *testing.T) {
+	line := "  eth0: 98765432  654321    5    2    0     0          0         0 45678901  321098    3    1    0     0       0          0"
+	stat, err := parseNetDevLine(line)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stat.Interface != "eth0" {
+		t.Errorf("expected interface 'eth0', got %q", stat.Interface)
+	}
+	if stat.RxBytes != 98765432 {
+		t.Errorf("expected RxBytes=98765432, got %d", stat.RxBytes)
+	}
+	if stat.TxBytes != 45678901 {
+		t.Errorf("expected TxBytes=45678901, got %d", stat.TxBytes)
+	}
+}
+
+func TestParseNetDevLine_InvalidNoColon(t *testing.T) {
+	_, err := parseNetDevLine("no colon here")
+	if err == nil {
+		t.Error("expected error for line without colon")
+	}
+}
+
+func TestParseNetDevLine_TooFewFields(t *testing.T) {
+	_, err := parseNetDevLine("  eth0: 123 456")
+	if err == nil {
+		t.Error("expected error for line with too few fields")
+	}
+}
+
+func TestParseNetDevLine_InvalidRxBytes(t *testing.T) {
+	_, err := parseNetDevLine("  eth0: notanumber  654321    5    2    0     0          0         0 45678901  321098    3    1    0     0       0          0")
+	if err == nil {
+		t.Error("expected error for invalid rx bytes")
+	}
+}
+
+func TestParseNetDevLine_InvalidTxBytes(t *testing.T) {
+	_, err := parseNetDevLine("  eth0: 98765432  654321    5    2    0     0          0         0 notanumber  321098    3    1    0     0       0          0")
+	if err == nil {
+		t.Error("expected error for invalid tx bytes")
+	}
+}
+
+// --- resolvePath tests ---
+
+func TestResolvePath_PrimaryExists(t *testing.T) {
+	primary := filepath.Join(testdataDir(), "proc_self_status")
+	alt := filepath.Join(testdataDir(), "nonexistent")
+	result := resolvePath(primary, alt)
+	if result != primary {
+		t.Errorf("expected primary path, got %q", result)
+	}
+}
+
+func TestResolvePath_PrimaryMissingAltExists(t *testing.T) {
+	primary := filepath.Join(testdataDir(), "nonexistent_primary")
+	alt := filepath.Join(testdataDir(), "proc_self_status")
+	result := resolvePath(primary, alt)
+	if result != alt {
+		t.Errorf("expected alt path %q, got %q", alt, result)
+	}
+}
+
+func TestResolvePath_BothMissing(t *testing.T) {
+	primary := filepath.Join(testdataDir(), "nonexistent_a")
+	alt := filepath.Join(testdataDir(), "nonexistent_b")
+	result := resolvePath(primary, alt)
+	if result != primary {
+		t.Errorf("expected primary path when both missing, got %q", result)
+	}
+}
+
 // --- CPU usage ---
 
 // AC-CSM-004: CPUUsage returns non-negative values

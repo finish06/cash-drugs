@@ -6,9 +6,11 @@
     {
       "id": "L-001",
       "title": "DailyMed API param names use underscores, not camelCase",
-      "body": "DailyMed /v2/spls.json uses drug_name (underscore) not drugname. Discovered via live curl testing — API docs were ambiguous. Always test actual API params before committing config.",
+      "body": "DailyMed /v2/spls.json uses drug_name (underscore) not drugname. Discovered via live curl testing \u2014 API docs were ambiguous. Always test actual API params before committing config.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "technical",
       "severity": "medium",
       "source": "drugs",
@@ -21,7 +23,9 @@
       "title": "Cache warm-up should check staleness before re-fetching",
       "body": "Scheduler was re-fetching all paginated endpoints on every restart, wasting bandwidth. Added FetchedAt() to Repository interface for lightweight TTL check. Warm-up now skips endpoints with fresh data in MongoDB.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "architecture",
       "severity": "high",
       "source": "drugs",
@@ -34,7 +38,9 @@
       "title": "Config-only endpoint expansion works well for DailyMed",
       "body": "New search endpoints (spls-by-name, spls-by-class, drugclasses) added purely through config.yaml with {PARAM} substitution. No code changes needed. This validates the core architecture of config-driven API caching.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "architecture",
       "severity": "medium",
       "source": "drugs",
@@ -47,7 +53,9 @@
       "title": "Integration tests require Docker MongoDB for 80%+ coverage",
       "body": "Unit tests alone reach 70.6% due to cache/mongo.go at 25.7%. With Docker MongoDB (port 27018, tmpfs), coverage reaches 81.0%. CI workflow includes MongoDB service container. Always run make test-integration for accurate coverage.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "technical",
       "severity": "high",
       "source": "drugs",
@@ -60,7 +68,9 @@
       "title": "log/slog logging philosophy: INFO=what runs, DEBUG=each step",
       "body": "INFO logs should indicate what code path is executing (fetch started, server starting). DEBUG logs should show each step within that path (request method/path/status/duration, cache hit/miss). This keeps INFO useful in production and DEBUG useful for troubleshooting.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "technical",
       "severity": "medium",
       "source": "drugs",
@@ -73,7 +83,9 @@
       "title": "FDA API integration: generic fetcher approach validated with 3 config fields",
       "body": "Adding PaginationStyle, DataKey, TotalKey to config.Endpoint with backward-compatible defaults enabled FDA API support with zero changes to existing DailyMed behavior. Dot-path traversal for TotalKey handles nested JSON (meta.results.total). Graceful skip-limit stop returns partial data. E2E tests against all 13 config endpoints in 3.5s.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "architecture",
       "severity": "medium",
       "source": "drugs",
@@ -86,7 +98,9 @@
       "title": "Connection resilience: channel semaphore + exempt paths pattern",
       "body": "Channel-based semaphore (make(chan struct{}, limit)) is simpler than x/sync/semaphore for HTTP middleware. Exempt paths (/health, /metrics) registered on outer mux bypass the limiter entirely. Server timeouts (Read=10s, Write=30s, Idle=60s) prevent goroutine leaks. QA validated 150 as optimal prod limit.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "architecture",
       "severity": "high",
       "source": "drugs",
@@ -99,7 +113,9 @@
       "title": "Response optimization: singleflight.Forget on error prevents stale error caching",
       "body": "When using singleflight for request coalescing, call group.Forget(key) on error so that failed requests don't cache the error for all waiters. Without this, one upstream timeout would fail all concurrent requests for the same key.",
       "scope": "workstation",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "anti-pattern",
       "severity": "high",
       "source": "drugs",
@@ -112,7 +128,9 @@
       "title": "LRU size estimation: never json.Marshal in hot path for size calculation",
       "body": "Initial LRU implementation called json.Marshal(resp.Data) on every Set() to estimate byte size. For large paginated responses this added 50-200ms per insert. Fixed by using PageCount * 50KB heuristic. Exact size matters less than order of magnitude for eviction budgets.",
       "scope": "workstation",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "anti-pattern",
       "severity": "high",
       "source": "drugs",
@@ -122,10 +140,12 @@
     },
     {
       "id": "L-010",
-      "title": "Gzip writers must use sync.Pool — per-request allocation causes GC pressure",
+      "title": "Gzip writers must use sync.Pool \u2014 per-request allocation causes GC pressure",
       "body": "gzip.NewWriter allocates internal buffers (~32KB). At 150 concurrent requests, creating one per request causes significant GC churn. Use sync.Pool with Reset() to reuse writers. Same pattern applies to any per-request buffer allocation.",
       "scope": "workstation",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "performance",
       "severity": "medium",
       "source": "drugs",
@@ -135,10 +155,13 @@
     },
     {
       "id": "L-011",
-      "title": "Go MongoDB testing requires interface extraction — recurring pattern",
+      "title": "Go MongoDB testing requires interface extraction \u2014 recurring pattern",
       "body": "Both MongoCollector (M8) and MongoRepository (M9 coverage) needed interface extraction to test without live MongoDB. CollectorSource for metrics, collection interface for cache. This is a recurring Go+MongoDB pattern: always extract a thin interface over *mongo.Collection for testability.",
       "scope": "workstation",
-      "stack": ["go", "mongodb"],
+      "stack": [
+        "go",
+        "mongodb"
+      ],
       "category": "technical",
       "severity": "medium",
       "source": "drugs",
@@ -162,7 +185,7 @@
     {
       "id": "L-013",
       "title": "Subagent TDD dispatches must include learning checkpoint instructions",
-      "body": "M9 subagents completed TDD cycles but wrote zero learning checkpoints because the dispatch prompts didn't include the instruction. Learning triggers are in the ADD rules but subagents don't read rules — they follow the dispatch brief. Always include 'write a learning checkpoint to .add/learnings.json after VERIFY phase' in agent briefs.",
+      "body": "M9 subagents completed TDD cycles but wrote zero learning checkpoints because the dispatch prompts didn't include the instruction. Learning triggers are in the ADD rules but subagents don't read rules \u2014 they follow the dispatch brief. Always include 'write a learning checkpoint to .add/learnings.json after VERIFY phase' in agent briefs.",
       "scope": "workstation",
       "stack": [],
       "category": "anti-pattern",
@@ -177,7 +200,9 @@
       "title": "Deploy v0.7.0 + v0.7.1: CI passed, stress test validated M9 improvements",
       "body": "v0.7.0 tagged with 4 features (62 ACs). v0.7.1 tagged with 3 perf fixes. K6 stress test showed 9.6x more requests, 3.4x faster median, zero connection refused. Concurrency limit tuned from 50 to 150 based on QA feedback.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "technical",
       "severity": "medium",
       "source": "drugs",
@@ -190,7 +215,10 @@
       "title": "MongoDB base_key optimization: replace regex with indexed exact match",
       "body": "Regex queries on cache_key can't use MongoDB indexes effectively. Adding a base_key field (slug+params without page suffix) with compound index on base_key+page enables $eq matching. Startup migration backfills existing documents idempotently. Removed escapeRegex/buildRegexFilter helpers entirely.",
       "scope": "project",
-      "stack": ["go", "mongodb"],
+      "stack": [
+        "go",
+        "mongodb"
+      ],
       "category": "performance",
       "severity": "high",
       "source": "drugs",
@@ -201,9 +229,11 @@
     {
       "id": "L-016",
       "title": "LRU sharding: FNV-1a hash to N buckets eliminates single-mutex contention",
-      "body": "Single-mutex LRU serializes all concurrent cache access. Sharding into 16 buckets via FNV-1a hash gives each shard its own mutex. Size budget splits evenly (maxBytes/shardCount per shard). Implements same LRUCache interface — drop-in replacement. Minimum 32KB per shard to avoid degenerate cases.",
+      "body": "Single-mutex LRU serializes all concurrent cache access. Sharding into 16 buckets via FNV-1a hash gives each shard its own mutex. Size budget splits evenly (maxBytes/shardCount per shard). Implements same LRUCache interface \u2014 drop-in replacement. Minimum 32KB per shard to avoid degenerate cases.",
       "scope": "workstation",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "performance",
       "severity": "medium",
       "source": "drugs",
@@ -216,7 +246,9 @@
       "title": "Parallel page fetches: sequential first page, concurrent rest with semaphore",
       "body": "First page must be sequential to discover total_pages from response metadata. Remaining pages can be fetched concurrently via goroutine pool with channel semaphore (cap 3). Results combined in page order. Any page error fails entire fetch. Works for both page-style and offset-style pagination.",
       "scope": "workstation",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "architecture",
       "severity": "medium",
       "source": "drugs",
@@ -229,7 +261,9 @@
       "title": "RxNorm API: config-only integration validates architecture",
       "body": "6 RxNorm endpoints added purely through config.yaml with zero code changes. Dot-path data_key extraction (e.g., suggestionGroup.suggestionList.suggestion) handles nested JSON. No pagination needed. E2E tests pass against live API. Validates that the config-driven fetcher architecture scales to new API providers.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "architecture",
       "severity": "medium",
       "source": "drugs",
@@ -240,9 +274,11 @@
     {
       "id": "L-019",
       "title": "Deploy v0.8.0: 3-track parallel execution, 68 ACs, 5 features",
-      "body": "M10 delivered via 3 parallel worktree tracks (MongoDB+LRU, fetcher+empty results, version endpoint). All CI passed. Merge sequence Track3→Track2→Track1 with zero-conflict rebases on independent work. K6 stress-heavy showed 85% success at 150 VUs. Dockerfile needed git added for ldflags.",
+      "body": "M10 delivered via 3 parallel worktree tracks (MongoDB+LRU, fetcher+empty results, version endpoint). All CI passed. Merge sequence Track3\u2192Track2\u2192Track1 with zero-conflict rebases on independent work. K6 stress-heavy showed 85% success at 150 VUs. Dockerfile needed git added for ldflags.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "process",
       "severity": "medium",
       "source": "drugs",
@@ -255,7 +291,9 @@
       "title": "Warmup orchestrator: separate from scheduler for parameterized query support",
       "body": "Scheduler handles cron-based refresh of non-parameterized endpoints only. WarmupOrchestrator is a separate component that warms both scheduled endpoints AND parameterized queries from warmup-queries.yaml. This separation keeps the scheduler simple while the orchestrator handles the full warmup lifecycle with progress tracking, phase transitions, and semaphore-bounded concurrency (cap 5).",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "architecture",
       "severity": "medium",
       "source": "drugs",
@@ -268,7 +306,9 @@
       "title": "Multi-instance: ENABLE_SCHEDULER env var is simplest leader election",
       "body": "For homelab multi-instance deployments, a simple ENABLE_SCHEDULER env var (true on leader, false on replicas) is sufficient. No distributed consensus needed. All instances read/write MongoDB and serve requests. Only the leader runs cron jobs and startup warmup. Prometheus gauge cashdrugs_instance_leader enables alerting if no leader is running.",
       "scope": "workstation",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "architecture",
       "severity": "medium",
       "source": "drugs",
@@ -281,7 +321,10 @@
       "title": "Nginx least_conn LB: +6% success rate, container name preserves upstream DNS",
       "body": "Nginx with least_conn in front of 2 cash-drugs instances improved success rate from 89.7% to 95.7% under stress-heavy (150 VUs). Key insight: naming the nginx container 'cash-drugs' preserves the Docker DNS name so upstream services (drug-gate) need zero config changes. Direct access to instances via separate ports (8085/8086) for debugging and Prometheus scraping.",
       "scope": "project",
-      "stack": ["go", "nginx"],
+      "stack": [
+        "go",
+        "nginx"
+      ],
       "category": "architecture",
       "severity": "high",
       "source": "drugs",
@@ -294,13 +337,30 @@
       "title": "Cycle 3 complete: M11 RxNorm + warmup + multi-instance in 1 day",
       "body": "Cycle 3 delivered: 6 RxNorm endpoints (config-only), warmup-queries.yaml (196 queries, top 100 drugs), parameterized warmup orchestrator, multi-instance ENABLE_SCHEDULER, nginx LB. K6 stress-heavy: 95.7% success at 150 VUs. Staging validated with 2 instances sharing MongoDB.",
       "scope": "project",
-      "stack": ["go"],
+      "stack": [
+        "go"
+      ],
       "category": "process",
       "severity": "medium",
       "source": "drugs",
       "date": "2026-03-16",
       "classified_by": "agent",
       "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-024",
+      "title": "Verify gate failure: 41 golangci-lint issues + coverage 78.9%",
+      "body": "Gate 1 failed with 36 errcheck and 5 staticcheck issues accumulated over M11. Coverage dropped from 80.5% to 78.9% after warmup orchestrator additions (51-52% coverage). Need errcheck fixes in mongo.go, cache.go, gzip.go, fetcher.go, and tests. Coverage gap targets: metrics/collector.go CountBySlug (38.5%), warmup_orchestrator.go (51-52%).",
+      "scope": "project",
+      "stack": [
+        "go"
+      ],
+      "category": "technical",
+      "severity": "high",
+      "source": "drugs",
+      "date": "2026-03-17",
+      "classified_by": "agent",
+      "checkpoint_type": "post-verify"
     }
   ]
 }

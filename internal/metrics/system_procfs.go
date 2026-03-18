@@ -60,7 +60,7 @@ func (s *ProcfsSource) MemoryInfo() (*MemInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open proc status: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -125,7 +125,7 @@ func (s *ProcfsSource) NetworkStats() ([]NetStat, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open net dev: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var stats []NetStat
 	scanner := bufio.NewScanner(f)

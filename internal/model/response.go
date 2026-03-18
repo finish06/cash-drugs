@@ -19,8 +19,9 @@ type ResponseMeta struct {
 
 // ErrorResponse is returned for error conditions.
 type ErrorResponse struct {
-	Error          string `json:"error"`
-	Slug           string `json:"slug,omitempty"`
-	UpstreamStatus int    `json:"upstream_status,omitempty"`
-	Message        string `json:"message,omitempty"`
+	Error          string            `json:"error"`
+	Slug           string            `json:"slug,omitempty"`
+	Params         map[string]string `json:"params,omitempty"`
+	UpstreamStatus int               `json:"upstream_status,omitempty"`
+	Message        string            `json:"message,omitempty"`
 }

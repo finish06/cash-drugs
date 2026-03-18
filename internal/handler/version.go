@@ -99,5 +99,5 @@ func (h *VersionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Leader:        h.leader,
 	}
 
-	json.NewEncoder(w).Encode(info)
+	_ = json.NewEncoder(w).Encode(info)
 }

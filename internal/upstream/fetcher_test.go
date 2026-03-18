@@ -19,7 +19,7 @@ import (
 // AC-004: On consumer request, fetch from upstream API
 func TestAC004_FetchFromUpstream(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data":     []string{"drug1", "drug2"},
 			"metadata": map[string]interface{}{"total_pages": 1},
 		})
@@ -52,7 +52,7 @@ func TestAC005_AutoPaginate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pageCount++
 		totalPages := 3
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []string{fmt.Sprintf("item-page-%d", pageCount)},
 			"metadata": map[string]interface{}{
 				"total_pages":  totalPages,
@@ -85,7 +85,7 @@ func TestAC006_PaginationNumericLimit(t *testing.T) {
 	pageCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pageCount++
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []string{fmt.Sprintf("item-%d", pageCount)},
 			"metadata": map[string]interface{}{
 				"total_pages":  10,
@@ -121,7 +121,7 @@ func TestAC003_PathParameterSubstitution(t *testing.T) {
 	var receivedPath string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedPath = r.URL.Path
-		json.NewEncoder(w).Encode(map[string]interface{}{"data": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"data": "ok"})
 	}))
 	defer server.Close()
 
@@ -173,7 +173,7 @@ func TestAC011_PaginationFailureMidway(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []string{fmt.Sprintf("item-%d", pageCount)},
 			"metadata": map[string]interface{}{
 				"total_pages":  5,
@@ -203,7 +203,7 @@ func TestAC017_RawFormatFetch(t *testing.T) {
 	xmlBody := `<document><title>Test SPL</title></document>`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
-		w.Write([]byte(xmlBody))
+		_, _ = w.Write([]byte(xmlBody))
 	}))
 	defer server.Close()
 
@@ -236,7 +236,7 @@ func TestAC017_RawFormatPathParamSubstitution(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/xml")
-		w.Write([]byte("<doc/>"))
+		_, _ = w.Write([]byte("<doc/>"))
 	}))
 	defer server.Close()
 
@@ -263,7 +263,7 @@ func TestAC016_QueryParamSubstitution(t *testing.T) {
 	var receivedQuery string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedQuery = r.URL.Query().Get("setid")
-		json.NewEncoder(w).Encode(map[string]interface{}{"data": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"data": "ok"})
 	}))
 	defer server.Close()
 
@@ -293,7 +293,7 @@ func TestAC019_MultiPageFetchPopulatesPages(t *testing.T) {
 	pageCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pageCount++
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []string{fmt.Sprintf("item-page-%d", pageCount)},
 			"metadata": map[string]interface{}{
 				"total_pages":  3,
@@ -344,7 +344,7 @@ func TestFetchRaw_EmptyContentType_DefaultsToOctetStream(t *testing.T) {
 		// then delete it so the header is absent.
 		w.Header()["Content-Type"] = nil
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("some binary data"))
+		_, _ = w.Write([]byte("some binary data"))
 	}))
 	defer server.Close()
 
@@ -406,7 +406,7 @@ func TestFetchRaw_UpstreamError(t *testing.T) {
 // fetchJSONPage: response has no "data" key wraps entire response as single item
 func TestFetchJSONPage_NoDataKey_WrapsResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": []string{"a", "b"},
 			"total":   2,
 		})
@@ -450,7 +450,7 @@ func TestHasMorePages_MissingMetadata_StopsPagination(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pageCount++
 		// Return data without any metadata field
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []string{fmt.Sprintf("item-%d", pageCount)},
 		})
 	}))
@@ -483,7 +483,7 @@ func TestAC004_URLConstructionWithQueryParams(t *testing.T) {
 	var receivedQuery string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedQuery = r.URL.RawQuery
-		json.NewEncoder(w).Encode(map[string]interface{}{"data": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"data": "ok"})
 	}))
 	defer server.Close()
 
@@ -531,7 +531,7 @@ func TestFDA_AC002_OffsetPaginationSendsSkipLimit(t *testing.T) {
 			items = append(items, map[string]interface{}{"id": i})
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": items,
 			"meta": map[string]interface{}{
 				"results": map[string]interface{}{
@@ -596,7 +596,7 @@ func TestFDA_AC002_OffsetPaginationSendsSkipLimit(t *testing.T) {
 // AC-003: Configurable data_key extracts items from the correct response key
 func TestFDA_AC003_ConfigurableDataKey(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": []interface{}{
 				map[string]interface{}{"name": "aspirin"},
 			},
@@ -648,7 +648,7 @@ func TestFDA_AC004_AC016_ConfigurableTotalKeyDotNotation(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": []interface{}{
 				map[string]interface{}{"id": requestCount},
 			},
@@ -699,7 +699,7 @@ func TestFDA_AC005_BackwardCompatPagePagination(t *testing.T) {
 		requests = append(requests, r.URL.Query())
 		pageCount++
 		mu.Unlock()
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []interface{}{
 				map[string]interface{}{"item": pageCount},
 			},
@@ -761,7 +761,7 @@ func TestFDA_AC012_GracefulSkipLimitHandling(t *testing.T) {
 		// Simulate FDA's behavior: error when skip >= 100 (simulating 25K cap at small scale)
 		if skip == "100" || skip == "150" {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"error": map[string]interface{}{
 					"code":    "BAD_REQUEST",
 					"message": "Skip exceeds maximum allowed value",
@@ -775,7 +775,7 @@ func TestFDA_AC012_GracefulSkipLimitHandling(t *testing.T) {
 			items = append(items, map[string]interface{}{"id": i})
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": items,
 			"meta": map[string]interface{}{
 				"results": map[string]interface{}{
@@ -832,7 +832,7 @@ func TestFDA_AC017_OffsetSkipCalculation(t *testing.T) {
 		mu.Unlock()
 
 		items := []interface{}{map[string]interface{}{"id": 1}}
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": items,
 			"meta": map[string]interface{}{
 				"results": map[string]interface{}{
@@ -889,7 +889,7 @@ func TestOptionalQueryParams_UnresolvedPlaceholdersSkipped(t *testing.T) {
 	var receivedQuery url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedQuery = r.URL.Query()
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data":     []string{"result1"},
 			"metadata": map[string]interface{}{"total_pages": 1},
 		})
@@ -942,7 +942,7 @@ func TestOptionalQueryParams_AllPlaceholdersResolved(t *testing.T) {
 	var receivedQuery url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedQuery = r.URL.Query()
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data":     []string{"result1"},
 			"metadata": map[string]interface{}{"total_pages": 1},
 		})
@@ -985,7 +985,7 @@ func TestOptionalQueryParams_NoPlaceholdersProvided(t *testing.T) {
 	var receivedQuery url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedQuery = r.URL.Query()
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data":     []string{"result1"},
 			"metadata": map[string]interface{}{"total_pages": 1},
 		})
@@ -1027,7 +1027,7 @@ func TestSearchParams_PartialResolution(t *testing.T) {
 	var receivedQuery url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedQuery = r.URL.Query()
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": []interface{}{map[string]interface{}{"product_ndc": "12345"}},
 			"meta":    map[string]interface{}{"results": map[string]interface{}{"total": 1}},
 		})
@@ -1073,7 +1073,7 @@ func TestSearchParams_AllResolved(t *testing.T) {
 	var receivedQuery url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedQuery = r.URL.Query()
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": []interface{}{map[string]interface{}{"product_ndc": "12345"}},
 			"meta":    map[string]interface{}{"results": map[string]interface{}{"total": 1}},
 		})
@@ -1118,7 +1118,7 @@ func TestSearchParams_NoneResolved(t *testing.T) {
 	var receivedQuery url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedQuery = r.URL.Query()
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": []interface{}{map[string]interface{}{"product_ndc": "12345"}},
 			"meta":    map[string]interface{}{"results": map[string]interface{}{"total": 1}},
 		})
@@ -1162,7 +1162,7 @@ func TestM10_AC001_AC002_AC004_ParallelPageFetchPageOrder(t *testing.T) {
 	pageCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pageCount++
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []interface{}{fmt.Sprintf("item-page-%d", pageCount)},
 			"metadata": map[string]interface{}{
 				"total_pages":  6,
@@ -1227,7 +1227,7 @@ func TestM10_AC003_ConcurrencyCapRespected(t *testing.T) {
 		time.Sleep(50 * time.Millisecond) // simulate work
 		currentConcurrent.Add(-1)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []interface{}{"item"},
 			"metadata": map[string]interface{}{
 				"total_pages": 10,
@@ -1271,7 +1271,7 @@ func TestM10_AC005_ErrorFailsEntireFetch(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []interface{}{"item"},
 			"metadata": map[string]interface{}{
 				"total_pages": 4,
@@ -1307,7 +1307,7 @@ func TestM10_AC006_OffsetPartialResultsOnError(t *testing.T) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": []interface{}{map[string]interface{}{"id": requestCount}},
 			"meta": map[string]interface{}{
 				"results": map[string]interface{}{
@@ -1347,7 +1347,7 @@ func TestM10_AC006_OffsetPartialResultsOnError(t *testing.T) {
 // M10-AC-007: Single-page endpoints unaffected (no goroutines spawned)
 func TestM10_AC007_SinglePageUnaffected(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data":     []interface{}{"single-item"},
 			"metadata": map[string]interface{}{"total_pages": 1},
 		})
@@ -1378,7 +1378,7 @@ func TestM10_AC007_SinglePageUnaffected(t *testing.T) {
 func TestM10_AC013_TimingBenchmark(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond) // simulate latency
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data": []interface{}{"item"},
 			"metadata": map[string]interface{}{
 				"total_pages": 6,
@@ -1423,7 +1423,7 @@ func TestM10_AC008_RawXMLUnaffected(t *testing.T) {
 	xmlBody := `<document><title>Test</title></document>`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
-		w.Write([]byte(xmlBody))
+		_, _ = w.Write([]byte(xmlBody))
 	}))
 	defer server.Close()
 
@@ -1455,7 +1455,7 @@ func TestM10_AC008_RawXMLUnaffected(t *testing.T) {
 // M10-AC-001: Upstream returns 200 with empty data array → valid CachedResponse
 func TestM10_EmptyResults_AC001_FetcherReturnsEmptyData(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": []interface{}{},
 			"meta": map[string]interface{}{
 				"results": map[string]interface{}{
@@ -1500,7 +1500,7 @@ func TestM10_EmptyResults_AC001_FetcherReturnsEmptyData(t *testing.T) {
 func TestM10_OffsetPaginationParallelized(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"results": []interface{}{map[string]interface{}{"id": 1}},
 			"meta": map[string]interface{}{
 				"results": map[string]interface{}{
@@ -1553,7 +1553,7 @@ func TestM10_OffsetPaginationParallelized(t *testing.T) {
 // into a single array with tty preserved on each item
 func TestAC_RN003_FlattenConceptGroups(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"allRelatedGroup": map[string]interface{}{
 				"conceptGroup": []interface{}{
 					map[string]interface{}{
@@ -1624,7 +1624,7 @@ func TestAC_RN003_FlattenConceptGroups(t *testing.T) {
 // AC-RN-004: When flatten: true and data is already flat, no change
 func TestAC_RN004_FlattenAlreadyFlatNoOp(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"approximateGroup": map[string]interface{}{
 				"candidate": []interface{}{
 					map[string]interface{}{"rxcui": "111", "name": "Aspirin"},
@@ -1672,7 +1672,7 @@ func TestAC_RN004_FlattenAlreadyFlatNoOp(t *testing.T) {
 // AC-RN-005: When flatten: false (default), data is unchanged
 func TestAC_RN005_FlattenFalseUnchanged(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"allRelatedGroup": map[string]interface{}{
 				"conceptGroup": []interface{}{
 					map[string]interface{}{
@@ -1725,7 +1725,7 @@ func TestAC_RN005_FlattenFalseUnchanged(t *testing.T) {
 // AC-RN-003 edge case: conceptGroup with no conceptProperties is skipped
 func TestAC_RN003_FlattenSkipsEmptyConceptProperties(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"allRelatedGroup": map[string]interface{}{
 				"conceptGroup": []interface{}{
 					map[string]interface{}{
@@ -1781,7 +1781,7 @@ func TestAC_RN003_FlattenSkipsEmptyConceptProperties(t *testing.T) {
 // AC-RN-007: results_count reflects flattened count
 func TestAC_RN007_ResultsCountReflectsFlattenedCount(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"allRelatedGroup": map[string]interface{}{
 				"conceptGroup": []interface{}{
 					map[string]interface{}{

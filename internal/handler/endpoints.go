@@ -50,5 +50,5 @@ func NewEndpointsHandler(endpoints []config.Endpoint) *EndpointsHandler {
 // @Router       /api/endpoints [get]
 func (h *EndpointsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(h.endpoints)
+	_ = json.NewEncoder(w).Encode(h.endpoints)
 }

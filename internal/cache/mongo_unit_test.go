@@ -34,6 +34,7 @@ func TestReassemblePages_SingleDocPageZero(t *testing.T) {
 	result := reassemblePages(docs)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Slug != "test" {
 		t.Errorf("expected slug 'test', got %q", result.Slug)
@@ -56,6 +57,7 @@ func TestReassemblePages_SingleDocWithPageNonZero(t *testing.T) {
 	result := reassemblePages(docs)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	arr, ok := result.Data.([]interface{})
 	if !ok {
@@ -93,6 +95,7 @@ func TestReassemblePages_MultiplePages(t *testing.T) {
 	result := reassemblePages(docs)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	arr, ok := result.Data.([]interface{})
 	if !ok {
@@ -128,6 +131,7 @@ func TestReassemblePages_BsonAData(t *testing.T) {
 	result := reassemblePages(docs)
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	arr, ok := result.Data.([]interface{})
 	if !ok {
@@ -536,6 +540,7 @@ func TestGet_SingleDocument(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Slug != "test" {
 		t.Errorf("expected slug 'test', got %q", result.Slug)
@@ -564,6 +569,7 @@ func TestGet_MultiPageDocuments(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	arr, ok := result.Data.([]interface{})
 	if !ok {

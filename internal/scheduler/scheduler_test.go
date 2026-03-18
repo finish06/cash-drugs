@@ -212,7 +212,7 @@ func TestM9_AC017_CircuitOpenSchedulerSkipsFetch(t *testing.T) {
 	circuit := upstream.NewCircuitRegistry(2, 30*time.Second)
 	// Trip circuit for this slug
 	for i := 0; i < 2; i++ {
-		circuit.Execute("drugnames", func() (interface{}, error) {
+		_, _ = circuit.Execute("drugnames", func() (interface{}, error) {
 			return nil, &fetchError{msg: "fail"}
 		})
 	}

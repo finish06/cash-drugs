@@ -50,6 +50,9 @@ type Metrics struct {
 	LRUCacheMissesTotal *prometheus.CounterVec
 	LRUCacheSizeBytes   prometheus.Gauge
 
+	// Upstream 404 metrics
+	Upstream404Total *prometheus.CounterVec
+
 	// Singleflight metrics
 	SingleflightDedupTotal *prometheus.CounterVec
 
@@ -343,6 +346,16 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			},
 		),
 
+		// Upstream 404 metrics
+		Upstream404Total: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "upstream_404_total",
+				Help:      "Total upstream 404 (not found) responses by slug.",
+			},
+			[]string{"slug"},
+		),
+
 		// Singleflight metrics
 		SingleflightDedupTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -431,6 +444,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.LRUCacheHitsTotal,
 		m.LRUCacheMissesTotal,
 		m.LRUCacheSizeBytes,
+		m.Upstream404Total,
 		m.SingleflightDedupTotal,
 		m.WarmupQueriesTotal,
 		m.WarmupQueriesPending,

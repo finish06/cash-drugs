@@ -65,7 +65,7 @@ func GzipMiddleware(next http.Handler) http.Handler {
 		// If body is too small or content type is not compressible, send uncompressed
 		if len(body) < gzipMinSize || !compressible {
 			w.WriteHeader(statusCode)
-			w.Write(body)
+			_, _ = w.Write(body)
 			return
 		}
 
@@ -76,8 +76,8 @@ func GzipMiddleware(next http.Handler) http.Handler {
 
 		gz := gzipWriterPool.Get().(*gzip.Writer)
 		gz.Reset(w)
-		gz.Write(body)
-		gz.Close()
+		_, _ = gz.Write(body)
+		_ = gz.Close()
 		gzipWriterPool.Put(gz)
 	})
 }

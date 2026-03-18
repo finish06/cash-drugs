@@ -131,6 +131,7 @@ func TestAC003_PathParameterSupport(t *testing.T) {
 	}
 	if splEndpoint == nil {
 		t.Fatal("expected spl-detail endpoint in config")
+		return
 	}
 
 	params := config.ExtractPathParams(splEndpoint.Path)
@@ -307,6 +308,60 @@ func TestAC021_ExtractAllParamsDedup(t *testing.T) {
 	params := config.ExtractAllParams(ep)
 	if len(params) != 1 {
 		t.Errorf("expected 1 deduplicated param, got %d: %v", len(params), params)
+	}
+}
+
+// ExtractAllParams includes SearchParams
+func TestExtractAllParams_WithSearchParams(t *testing.T) {
+	ep := config.Endpoint{
+		Path:         "/v2/drugs",
+		SearchParams: []string{"{DRUG_NAME}"},
+	}
+
+	params := config.ExtractAllParams(ep)
+	if len(params) != 1 {
+		t.Fatalf("expected 1 param, got %d: %v", len(params), params)
+	}
+	if params[0] != "DRUG_NAME" {
+		t.Errorf("expected DRUG_NAME, got %s", params[0])
+	}
+}
+
+// ExtractAllParams with all three sources and dedup
+func TestExtractAllParams_AllSources(t *testing.T) {
+	ep := config.Endpoint{
+		Path: "/v2/spls/{SETID}",
+		QueryParams: map[string]string{
+			"format": "{FMT}",
+		},
+		SearchParams: []string{"{NAME}", "{SETID}"},
+	}
+
+	params := config.ExtractAllParams(ep)
+	if len(params) != 3 {
+		t.Fatalf("expected 3 deduplicated params, got %d: %v", len(params), params)
+	}
+
+	found := map[string]bool{}
+	for _, p := range params {
+		found[p] = true
+	}
+	for _, expected := range []string{"SETID", "FMT", "NAME"} {
+		if !found[expected] {
+			t.Errorf("expected %s in params", expected)
+		}
+	}
+}
+
+// ExtractAllParams with no params returns nil
+func TestExtractAllParams_NoParams(t *testing.T) {
+	ep := config.Endpoint{
+		Path: "/v2/drugs",
+	}
+
+	params := config.ExtractAllParams(ep)
+	if len(params) != 0 {
+		t.Errorf("expected 0 params, got %d: %v", len(params), params)
 	}
 }
 
