@@ -16,6 +16,16 @@ import (
 	"github.com/finish06/cash-drugs/internal/model"
 )
 
+// ErrUpstreamNotFound is returned when the upstream API responds with HTTP 404.
+type ErrUpstreamNotFound struct {
+	StatusCode int
+	URL        string
+}
+
+func (e *ErrUpstreamNotFound) Error() string {
+	return fmt.Sprintf("upstream returned 404 (not found) for %s", e.URL)
+}
+
 // Fetcher defines the interface for upstream API fetching.
 type Fetcher interface {
 	Fetch(ep config.Endpoint, params map[string]string) (*model.CachedResponse, error)
@@ -193,6 +203,9 @@ func (f *HTTPFetcher) fetchRaw(ep config.Endpoint, params map[string]string) (*m
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if resp.StatusCode == 404 {
+		return nil, &ErrUpstreamNotFound{StatusCode: 404, URL: reqURL}
+	}
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("upstream returned status %d", resp.StatusCode)
 	}
@@ -234,6 +247,9 @@ func (f *HTTPFetcher) fetchJSONPage(reqURL string, dataKey string) ([]interface{
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if resp.StatusCode == 404 {
+		return nil, nil, &ErrUpstreamNotFound{StatusCode: 404, URL: reqURL}
+	}
 	if resp.StatusCode >= 400 {
 		return nil, nil, fmt.Errorf("upstream returned status %d", resp.StatusCode)
 	}

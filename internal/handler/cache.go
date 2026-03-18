@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -160,6 +161,13 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 2. Try LRU cache first (unless force refresh)
 	if !forceRefresh && h.lru != nil {
 		if lruResult, ok := h.lru.Get(cacheKey); ok {
+			// Check for negative cache entry (upstream 404)
+			if lruResult.NotFound {
+				slog.Debug("LRU negative cache hit", "component", "handler", "slug", slug)
+				h.recordLRUHit(slug)
+				h.respondNotFound(w, slug, pathParams, start, r.Method)
+				return
+			}
 			slog.Debug("LRU cache hit", "component", "handler", "slug", slug)
 			h.recordLRUHit(slug)
 			h.recordCacheOutcome(slug, "hit")
@@ -175,24 +183,37 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !forceRefresh {
 		cached, err := h.repo.Get(cacheKey)
 		if err == nil && cached != nil {
-			// Check TTL staleness
-			if config.IsStale(ep, cached.FetchedAt) {
-				slog.Debug("cache hit (stale)", "component", "handler", "slug", slug, "reason", "ttl_expired")
-				h.recordCacheOutcome(slug, "stale")
-				respondWithCached(w, cached, true, "ttl_expired")
-				h.backgroundRevalidate(ep, pathParams)
-				slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "stale", "duration", time.Since(start))
+			// Check for negative cache entry (upstream 404)
+			if cached.NotFound {
+				// Check if negative cache has expired (10-min TTL)
+				if time.Since(cached.FetchedAt) <= 10*time.Minute {
+					slog.Debug("MongoDB negative cache hit", "component", "handler", "slug", slug)
+					h.recordCacheOutcome(slug, "hit")
+					h.respondNotFound(w, slug, pathParams, start, r.Method)
+					return
+				}
+				slog.Debug("negative cache expired", "component", "handler", "slug", slug)
+				// Fall through to upstream fetch
+			} else {
+				// Check TTL staleness
+				if config.IsStale(ep, cached.FetchedAt) {
+					slog.Debug("cache hit (stale)", "component", "handler", "slug", slug, "reason", "ttl_expired")
+					h.recordCacheOutcome(slug, "stale")
+					respondWithCached(w, cached, true, "ttl_expired")
+					h.backgroundRevalidate(ep, pathParams)
+					slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "stale", "duration", time.Since(start))
+					h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
+					return
+				}
+				slog.Debug("cache hit", "component", "handler", "slug", slug)
+				h.recordCacheOutcome(slug, "hit")
+				// Populate LRU from MongoDB hit
+				h.populateLRU(cacheKey, cached, ep)
+				respondWithCached(w, cached, false, "")
+				slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "hit", "duration", time.Since(start))
 				h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 				return
 			}
-			slog.Debug("cache hit", "component", "handler", "slug", slug)
-			h.recordCacheOutcome(slug, "hit")
-			// Populate LRU from MongoDB hit
-			h.populateLRU(cacheKey, cached, ep)
-			respondWithCached(w, cached, false, "")
-			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "hit", "duration", time.Since(start))
-			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
-			return
 		}
 		// Save for potential reuse as stale fallback on upstream failure
 		staleCache = cached
@@ -278,6 +299,31 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sr := v.(*sfResult)
 
 	if sr.err != nil {
+		// Check for upstream 404 — return 404 to consumer, store negative cache entry
+		var notFoundErr *upstream.ErrUpstreamNotFound
+		if errors.As(sr.err, &notFoundErr) {
+			// Store negative cache entry in MongoDB
+			negEntry := &model.CachedResponse{
+				Slug:      slug,
+				Params:    pathParams,
+				CacheKey:  cacheKey,
+				NotFound:  true,
+				FetchedAt: time.Now(),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			_ = h.repo.Upsert(negEntry)
+			// Store in LRU with 10-min TTL
+			if h.lru != nil {
+				h.lru.Set(cacheKey, negEntry, 10*time.Minute)
+			}
+			if h.metrics != nil {
+				h.metrics.Upstream404Total.WithLabelValues(slug).Inc()
+			}
+			h.respondNotFound(w, slug, pathParams, start, r.Method)
+			return
+		}
+
 		// Try stale cache fallback. Reuse the earlier MongoDB lookup when available
 		// (normal cache-miss path), otherwise query MongoDB (force-refresh path).
 		fallback := staleCache
@@ -427,6 +473,18 @@ func (h *CacheHandler) backgroundRevalidate(ep config.Endpoint, params map[strin
 			slog.Error("background upsert failed", "component", "handler", "slug", ep.Slug, "error", err)
 		}
 	}()
+}
+
+// respondNotFound sends a 404 JSON response for upstream-not-found or negative-cache scenarios.
+func (h *CacheHandler) respondNotFound(w http.ResponseWriter, slug string, params map[string]string, start time.Time, method string) {
+	h.recordHTTPMetrics(slug, method, http.StatusNotFound, start)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	_ = json.NewEncoder(w).Encode(model.ErrorResponse{
+		Error:  "not found",
+		Slug:   slug,
+		Params: params,
+	})
 }
 
 func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stale bool, staleReason string) {
