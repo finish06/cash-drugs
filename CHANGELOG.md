@@ -7,6 +7,29 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ## [Unreleased]
 
+### Changed
+- CI: exclude E2E tests (live API calls) — run locally only to avoid IPv6 flakiness on GitHub Actions runners
+
+## [0.10.0] — 2026-03-18 — M12: Upstream 404 Handling + Quality Fixes
+
+### Added
+- **Upstream 404 handling:** When upstream API returns HTTP 404, cash-drugs returns 404 to consumers (not 502) with `error`, `slug`, and `params` fields for debuggability
+- **Negative cache:** Not-found results cached in both LRU and MongoDB with 10-minute TTL to avoid re-hitting upstream for non-existent resources
+- Negative cache takes precedence over stale data — 404 overrides stale cache without deleting existing entries
+- After negative cache TTL expires, next request re-checks upstream (which may now return data)
+- Other 4xx (401, 403, 429) continue to return 502; 5xx/network errors unchanged
+- `upstream_404_total` Prometheus counter per slug for Grafana observability
+- `ErrUpstreamNotFound` error type for clean HTTP status propagation from fetcher to handler
+- `NotFound` field on `CachedResponse` model for negative cache entries
+- `Params` field on `ErrorResponse` model for debuggable 404 responses
+- **CI: golangci-lint** added to GitHub Actions pipeline — blocks on lint errors to prevent debt accumulation
+
+### Fixed
+- Resolved all 41+ golangci-lint errcheck and staticcheck issues across 22 files
+- Added coverage tests to close 78.9% → 80.7% gap (gzip, parseNetDevLine, resolvePath, ExtractAllParams, warmup orchestrator error paths)
+
+## [0.9.0] — 2026-03-17 — M11: RxNorm Integration + Parameterized Warmup + Multi-Instance
+
 ### Added
 - 6 RxNorm API endpoints (NLM): `rxnorm-find-drug`, `rxnorm-approximate-match`, `rxnorm-spelling-suggestions`, `rxnorm-ndcs`, `rxnorm-generic-product`, `rxnorm-all-related` — config-only, no code changes
 - Fuzzy drug name search, spelling suggestions, brand→generic mapping, RxCUI→NDC mapping via RxNorm
