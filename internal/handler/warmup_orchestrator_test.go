@@ -11,8 +11,11 @@ import (
 	"github.com/finish06/cash-drugs/internal/config"
 	"github.com/finish06/cash-drugs/internal/fetchlock"
 	"github.com/finish06/cash-drugs/internal/handler"
+	"github.com/finish06/cash-drugs/internal/metrics"
 	"github.com/finish06/cash-drugs/internal/model"
 	"github.com/finish06/cash-drugs/internal/upstream"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // --- Mock Fetcher for warmup orchestrator tests ---
@@ -485,6 +488,53 @@ func TestOrchestratorSkipsFreshCache(t *testing.T) {
 	}
 }
 
+// Parameterized query upsert error → increments done, continues with remaining queries
+func TestOrchestratorQueryUpsertErrorContinues(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages"},
+	}
+	fetcher := &warmupMockFetcher{}
+	repo := newWarmupMockRepo()
+	// Set failNext so the first upsert in parameterized queries fails
+	repo.failNext = true
+	locks := fetchlock.New()
+	circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+	queries := map[string][]map[string]string{
+		"fda-ndc": {{"GENERIC_NAME": "METFORMIN"}, {"GENERIC_NAME": "LISINOPRIL"}},
+	}
+	state := handler.NewWarmupStateTracker()
+
+	orch := handler.NewWarmupOrchestrator(
+		endpoints, fetcher, repo, locks, circuit,
+		queries, state, nil,
+	)
+
+	orch.TriggerWarmup(nil, false)
+
+	deadline := time.After(5 * time.Second)
+	for !state.IsReady() {
+		select {
+		case <-deadline:
+			t.Fatal("warmup did not complete within 5 seconds")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	// All items should be done despite the upsert error on one query
+	done, total := state.Progress()
+	if done != total {
+		t.Errorf("expected all items done, got %d/%d", done, total)
+	}
+
+	// The scheduled endpoint upserts fine, one query fails, one succeeds
+	// So we should have 2 keys: the scheduled endpoint + 1 successful query
+	keys := repo.upsertedKeys()
+	if len(keys) != 2 {
+		t.Errorf("expected 2 upserted keys (1 scheduled + 1 query after upsert error on first), got %d: %v", len(keys), keys)
+	}
+}
+
 // Parameterized query fetch error → continues with remaining queries
 func TestOrchestratorQueryFetchErrorContinues(t *testing.T) {
 	endpoints := []config.Endpoint{
@@ -521,6 +571,336 @@ func TestOrchestratorQueryFetchErrorContinues(t *testing.T) {
 	if done != total {
 		t.Errorf("expected all items done, got %d/%d", done, total)
 	}
+}
+
+// Unknown slug in parameterized queries → skipped, continues with remaining queries
+func TestOrchestratorQueryUnknownSlugSkipped(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages"},
+	}
+	fetcher := &warmupMockFetcher{}
+	repo := newWarmupMockRepo()
+	locks := fetchlock.New()
+	circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+	// Include a query for a slug that doesn't exist in endpoints
+	queries := map[string][]map[string]string{
+		"fda-ndc":       {{"GENERIC_NAME": "METFORMIN"}},
+		"nonexistent":   {{"PARAM": "value"}},
+	}
+	state := handler.NewWarmupStateTracker()
+
+	orch := handler.NewWarmupOrchestrator(
+		endpoints, fetcher, repo, locks, circuit,
+		queries, state, nil,
+	)
+
+	orch.TriggerWarmup(nil, false)
+
+	deadline := time.After(5 * time.Second)
+	for !state.IsReady() {
+		select {
+		case <-deadline:
+			t.Fatal("warmup did not complete within 5 seconds")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	// All items should complete (unknown slug is skipped, not stuck)
+	done, total := state.Progress()
+	if done != total {
+		t.Errorf("expected all items done, got %d/%d", done, total)
+	}
+
+	// Only the valid query should be in repo (scheduled + fda-ndc query)
+	keys := repo.upsertedKeys()
+	if len(keys) != 2 {
+		t.Errorf("expected 2 upserted keys (1 scheduled + 1 valid query), got %d: %v", len(keys), keys)
+	}
+}
+
+// LRU populated during parameterized query warmup
+func TestOrchestratorQueryPopulatesLRU(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages", TTL: "10m", TTLDuration: 10 * time.Minute},
+	}
+	fetcher := &warmupMockFetcher{}
+	repo := newWarmupMockRepo()
+	locks := fetchlock.New()
+	circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+	queries := map[string][]map[string]string{
+		"fda-ndc": {{"GENERIC_NAME": "METFORMIN"}},
+	}
+	state := handler.NewWarmupStateTracker()
+	lru := cache.NewLRUCache(10 * 1024 * 1024)
+
+	orch := handler.NewWarmupOrchestrator(
+		endpoints, fetcher, repo, locks, circuit,
+		queries, state, nil,
+		handler.WithOrchestratorLRU(lru),
+	)
+
+	orch.TriggerWarmup(nil, false)
+
+	deadline := time.After(5 * time.Second)
+	for !state.IsReady() {
+		select {
+		case <-deadline:
+			t.Fatal("warmup did not complete within 5 seconds")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	// LRU should have the query result
+	cacheKey := cache.BuildCacheKey("fda-ndc", map[string]string{"GENERIC_NAME": "METFORMIN"})
+	_, ok := lru.Get(cacheKey)
+	if !ok {
+		t.Error("expected LRU cache hit for parameterized query after warmup")
+	}
+}
+
+// LRU populated during parameterized query warmup with zero TTL → uses default 5min
+func TestOrchestratorQueryPopulatesLRU_ZeroTTL(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages"},
+	}
+	fetcher := &warmupMockFetcher{}
+	repo := newWarmupMockRepo()
+	locks := fetchlock.New()
+	circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+	queries := map[string][]map[string]string{
+		"fda-ndc": {{"GENERIC_NAME": "METFORMIN"}},
+	}
+	state := handler.NewWarmupStateTracker()
+	lru := cache.NewLRUCache(10 * 1024 * 1024)
+
+	orch := handler.NewWarmupOrchestrator(
+		endpoints, fetcher, repo, locks, circuit,
+		queries, state, nil,
+		handler.WithOrchestratorLRU(lru),
+	)
+
+	orch.TriggerWarmup(nil, false)
+
+	deadline := time.After(5 * time.Second)
+	for !state.IsReady() {
+		select {
+		case <-deadline:
+			t.Fatal("warmup did not complete within 5 seconds")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	// LRU should have the query result even with zero TTL (uses 5min default)
+	cacheKey := cache.BuildCacheKey("fda-ndc", map[string]string{"GENERIC_NAME": "METFORMIN"})
+	_, ok := lru.Get(cacheKey)
+	if !ok {
+		t.Error("expected LRU cache hit for parameterized query with zero TTL")
+	}
+}
+
+// Parameterized queries with metrics enabled — covers all metrics branches
+func TestOrchestratorQueryMetricsBranches(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages"},
+	}
+
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	t.Run("success path records metrics", func(t *testing.T) {
+		fetcher := &warmupMockFetcher{}
+		repo := newWarmupMockRepo()
+		locks := fetchlock.New()
+		circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+		queries := map[string][]map[string]string{
+			"fda-ndc": {{"GENERIC_NAME": "METFORMIN"}},
+		}
+		state := handler.NewWarmupStateTracker()
+
+		orch := handler.NewWarmupOrchestrator(
+			endpoints, fetcher, repo, locks, circuit,
+			queries, state, m,
+		)
+
+		orch.TriggerWarmup(nil, false)
+
+		deadline := time.After(5 * time.Second)
+		for !state.IsReady() {
+			select {
+			case <-deadline:
+				t.Fatal("warmup did not complete within 5 seconds")
+			default:
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+
+		val := testutil.ToFloat64(m.WarmupQueriesTotal.WithLabelValues("fda-ndc", "success"))
+		if val < 1 {
+			t.Errorf("expected warmup_queries_total success >= 1, got %f", val)
+		}
+	})
+
+	t.Run("fetch error records error metrics", func(t *testing.T) {
+		reg2 := prometheus.NewRegistry()
+		m2 := metrics.NewMetrics(reg2)
+
+		fetcher := &warmupMockFetcher{failSlugs: map[string]bool{"fda-ndc": true}}
+		repo := newWarmupMockRepo()
+		locks := fetchlock.New()
+		circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+		queries := map[string][]map[string]string{
+			"fda-ndc": {{"GENERIC_NAME": "METFORMIN"}},
+		}
+		state := handler.NewWarmupStateTracker()
+
+		orch := handler.NewWarmupOrchestrator(
+			endpoints, fetcher, repo, locks, circuit,
+			queries, state, m2,
+		)
+
+		orch.TriggerWarmup(nil, false)
+
+		deadline := time.After(5 * time.Second)
+		for !state.IsReady() {
+			select {
+			case <-deadline:
+				t.Fatal("warmup did not complete within 5 seconds")
+			default:
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+
+		errVal := testutil.ToFloat64(m2.WarmupQueriesTotal.WithLabelValues("fda-ndc", "error"))
+		if errVal < 1 {
+			t.Errorf("expected warmup_queries_total error >= 1, got %f", errVal)
+		}
+		upstreamErrVal := testutil.ToFloat64(m2.UpstreamFetchErrors.WithLabelValues("fda-ndc"))
+		if upstreamErrVal < 1 {
+			t.Errorf("expected upstream_fetch_errors >= 1, got %f", upstreamErrVal)
+		}
+	})
+
+	t.Run("unknown slug records skipped metrics", func(t *testing.T) {
+		reg3 := prometheus.NewRegistry()
+		m3 := metrics.NewMetrics(reg3)
+
+		fetcher := &warmupMockFetcher{}
+		repo := newWarmupMockRepo()
+		locks := fetchlock.New()
+		circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+		queries := map[string][]map[string]string{
+			"nonexistent": {{"PARAM": "value"}},
+		}
+		state := handler.NewWarmupStateTracker()
+
+		orch := handler.NewWarmupOrchestrator(
+			endpoints, fetcher, repo, locks, circuit,
+			queries, state, m3,
+		)
+
+		orch.TriggerWarmup(nil, false)
+
+		deadline := time.After(5 * time.Second)
+		for !state.IsReady() {
+			select {
+			case <-deadline:
+				t.Fatal("warmup did not complete within 5 seconds")
+			default:
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+
+		skipVal := testutil.ToFloat64(m3.WarmupQueriesTotal.WithLabelValues("nonexistent", "skipped"))
+		if skipVal < 1 {
+			t.Errorf("expected warmup_queries_total skipped >= 1, got %f", skipVal)
+		}
+	})
+
+	t.Run("circuit open records circuit_open metrics", func(t *testing.T) {
+		reg4 := prometheus.NewRegistry()
+		m4 := metrics.NewMetrics(reg4)
+
+		fetcher := &warmupMockFetcher{}
+		repo := newWarmupMockRepo()
+		locks := fetchlock.New()
+		circuit := upstream.NewCircuitRegistry(1, 30*time.Second)
+
+		// Trip the circuit breaker
+		_, _ = circuit.Execute("fda-ndc", func() (interface{}, error) {
+			return nil, fmt.Errorf("forced failure")
+		})
+
+		queries := map[string][]map[string]string{
+			"fda-ndc": {{"GENERIC_NAME": "METFORMIN"}},
+		}
+		state := handler.NewWarmupStateTracker()
+
+		orch := handler.NewWarmupOrchestrator(
+			endpoints, fetcher, repo, locks, circuit,
+			queries, state, m4,
+		)
+
+		orch.TriggerWarmup(nil, false)
+
+		deadline := time.After(5 * time.Second)
+		for !state.IsReady() {
+			select {
+			case <-deadline:
+				t.Fatal("warmup did not complete within 5 seconds")
+			default:
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+
+		circuitVal := testutil.ToFloat64(m4.WarmupQueriesTotal.WithLabelValues("fda-ndc", "circuit_open"))
+		if circuitVal < 1 {
+			t.Errorf("expected warmup_queries_total circuit_open >= 1, got %f", circuitVal)
+		}
+	})
+
+	t.Run("upsert error with metrics records error", func(t *testing.T) {
+		reg5 := prometheus.NewRegistry()
+		m5 := metrics.NewMetrics(reg5)
+
+		fetcher := &warmupMockFetcher{}
+		repo := newWarmupMockRepo()
+		repo.failNext = true
+		locks := fetchlock.New()
+		circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+		queries := map[string][]map[string]string{
+			"fda-ndc": {{"GENERIC_NAME": "METFORMIN"}},
+		}
+		state := handler.NewWarmupStateTracker()
+
+		// Use endpoint without Refresh to avoid scheduled warmup consuming failNext
+		noRefreshEndpoints := []config.Endpoint{
+			{Slug: "fda-ndc", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages"},
+		}
+		orch := handler.NewWarmupOrchestrator(
+			noRefreshEndpoints, fetcher, repo, locks, circuit,
+			queries, state, m5,
+		)
+
+		orch.TriggerWarmup(nil, false)
+
+		deadline := time.After(5 * time.Second)
+		for !state.IsReady() {
+			select {
+			case <-deadline:
+				t.Fatal("warmup did not complete within 5 seconds")
+			default:
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+
+		errVal := testutil.ToFloat64(m5.WarmupQueriesTotal.WithLabelValues("fda-ndc", "error"))
+		if errVal < 1 {
+			t.Errorf("expected warmup_queries_total error >= 1 for upsert failure, got %f", errVal)
+		}
+	})
 }
 
 func TestOrchestratorSkipQueriesFlag(t *testing.T) {

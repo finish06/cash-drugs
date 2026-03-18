@@ -341,12 +341,22 @@ func TestAC008_NoopLRUPreserved(t *testing.T) {
 		t.Error("expected 0 bytes from noop cache")
 	}
 
+	// Invalidate on noop should not panic
+	lru.Invalidate("key")
+	lru.Invalidate("nonexistent")
+
+	_, ok = lru.Get("key")
+	if ok {
+		t.Error("expected miss from noop cache after invalidate")
+	}
+
 	lru2 := cache.NewLRUCache(-100)
 	lru2.Set("key", resp, time.Minute)
 	_, ok = lru2.Get("key")
 	if ok {
 		t.Error("expected miss from noop cache with negative maxBytes")
 	}
+	lru2.Invalidate("key")
 }
 
 // AC-009: Shard count clamping

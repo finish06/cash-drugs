@@ -46,6 +46,42 @@ func TestAC013_UnknownEndpoint404(t *testing.T) {
 	}
 }
 
+// extractSlug: paths with fewer than 3 parts return empty slug → 404
+func TestExtractSlug_ShortPaths(t *testing.T) {
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{},
+		&mockCacheRepo{},
+		&mockFetcher{},
+	)
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"root path", "/"},
+		{"single segment", "/api"},
+		{"two segments", "/api/cache"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tc.path, nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+
+			if w.Code != http.StatusNotFound {
+				t.Errorf("expected 404 for path %q, got %d", tc.path, w.Code)
+			}
+
+			var errResp model.ErrorResponse
+			_ = json.NewDecoder(w.Body).Decode(&errResp)
+			if errResp.Slug != "" {
+				t.Errorf("expected empty slug for path %q, got %q", tc.path, errResp.Slug)
+			}
+		})
+	}
+}
+
 // AC-014: Consumer-facing URL pattern mirrors configured slug
 func TestAC014_URLPatternMatchesSlug(t *testing.T) {
 	ep := config.Endpoint{

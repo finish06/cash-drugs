@@ -2,11 +2,13 @@ package upstream_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1827,5 +1829,183 @@ func TestAC_RN007_ResultsCountReflectsFlattenedCount(t *testing.T) {
 	// (the handler computes results_count from len(data))
 	if len(data) != 3 {
 		t.Errorf("expected 3 items for results_count, got %d", len(data))
+	}
+}
+
+// fetchJSONPage: dataKey resolves to a non-array value → wraps as single-item slice
+func TestFetchJSONPage_DataKeyNonArray_WrapsAsSingleItem(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": map[string]interface{}{
+				"name":   "aspirin",
+				"dosage": "100mg",
+			},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-nonarray",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	// Non-array data should be wrapped as a single item
+	if len(allData) != 1 {
+		t.Errorf("expected 1 item (non-array wrapped), got %d", len(allData))
+	}
+	item, ok := allData[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be map[string]interface{}, got %T", allData[0])
+	}
+	if item["name"] != "aspirin" {
+		t.Errorf("expected name=aspirin, got %v", item["name"])
+	}
+}
+
+// fetchJSONPage: dataKey doesn't match any key in response → wraps entire parsed response
+func TestFetchJSONPage_DataKeyMismatch_FallsBackToWholeResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"items":    []string{"drug1", "drug2"},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-mismatch",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+		DataKey: "nonexistent_key",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	// Entire parsed response wrapped as single item
+	if len(allData) != 1 {
+		t.Errorf("expected 1 item (whole response wrapped), got %d", len(allData))
+	}
+	item, ok := allData[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be map[string]interface{}, got %T", allData[0])
+	}
+	if _, exists := item["items"]; !exists {
+		t.Error("expected wrapped response to contain 'items' key")
+	}
+}
+
+// fetchJSONPage: upstream returns invalid JSON → returns parse error
+func TestFetchJSONPage_InvalidJSON_ReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("this is not valid json {{{"))
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-badjson",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, nil)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON response")
+	}
+	if !strings.Contains(err.Error(), "parse") {
+		t.Errorf("expected parse error, got: %v", err)
+	}
+}
+
+// fetchJSONPage: upstream returns 404 → returns ErrUpstreamNotFound
+func TestFetchJSONPage_404_ReturnsNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-404",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, nil)
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+	var notFoundErr *upstream.ErrUpstreamNotFound
+	if !errors.As(err, &notFoundErr) {
+		t.Errorf("expected ErrUpstreamNotFound, got %T: %v", err, err)
+	}
+}
+
+// fetchJSONPage: dataKey resolves via dot-path to non-array value → wraps as single item
+func TestFetchJSONPage_DotPathDataKey_NonArray(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"response": map[string]interface{}{
+				"drug": map[string]interface{}{
+					"name":   "ibuprofen",
+					"dosage": "200mg",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-dotpath-nonarray",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+		DataKey: "response.drug",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	if len(allData) != 1 {
+		t.Errorf("expected 1 item (dot-path non-array wrapped), got %d", len(allData))
+	}
+	item, ok := allData[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be map, got %T", allData[0])
+	}
+	if item["name"] != "ibuprofen" {
+		t.Errorf("expected name=ibuprofen, got %v", item["name"])
 	}
 }

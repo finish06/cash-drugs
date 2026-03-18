@@ -2,6 +2,7 @@ package upstream_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -217,5 +218,25 @@ func TestAC008_StateReturnsCurrentState(t *testing.T) {
 	state = reg.State("test-slug")
 	if state != upstream.StateOpen {
 		t.Errorf("expected state to be open after failures, got: %v", state)
+	}
+}
+
+// OpenDuration returns the configured timeout
+func TestOpenDuration(t *testing.T) {
+	reg := upstream.NewCircuitRegistry(5, 45*time.Second)
+	if reg.OpenDuration() != 45*time.Second {
+		t.Errorf("expected OpenDuration=45s, got %v", reg.OpenDuration())
+	}
+}
+
+// ErrUpstreamNotFound.Error() returns descriptive message
+func TestErrUpstreamNotFound_Error(t *testing.T) {
+	err := &upstream.ErrUpstreamNotFound{StatusCode: 404, URL: "http://example.com/api"}
+	msg := err.Error()
+	if msg == "" {
+		t.Error("expected non-empty error message")
+	}
+	if !strings.Contains(msg, "404") || !strings.Contains(msg, "http://example.com/api") {
+		t.Errorf("expected error to mention status and URL, got: %s", msg)
 	}
 }
