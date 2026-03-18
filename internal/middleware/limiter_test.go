@@ -129,7 +129,7 @@ func TestAC001_SemaphoreReleasedOnPanic(t *testing.T) {
 
 	// Recover from the panic in the test
 	func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		req := httptest.NewRequest(http.MethodGet, "/api/cache/panic", nil)
 		rr := httptest.NewRecorder()
 		panicHandler.ServeHTTP(rr, req)

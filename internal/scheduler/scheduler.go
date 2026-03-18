@@ -78,7 +78,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	// Register cron jobs
 	for _, ep := range scheduled {
 		ep := ep // capture loop variable
-		s.cron.AddFunc(ep.Refresh, func() {
+		_, _ = s.cron.AddFunc(ep.Refresh, func() {
 			s.fetchEndpoint(ep)
 		})
 		slog.Info("endpoint registered", "component", "scheduler", "slug", ep.Slug, "cron", ep.Refresh)

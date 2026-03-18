@@ -40,7 +40,7 @@ func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if h.state.IsReady() {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status": "ready",
 		})
 		return
@@ -56,5 +56,5 @@ func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if phase != "" {
 		resp["phase"] = phase
 	}
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }

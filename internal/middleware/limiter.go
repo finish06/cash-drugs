@@ -55,7 +55,7 @@ func (cl *ConcurrencyLimiter) Wrap(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(struct {
+			_ = json.NewEncoder(w).Encode(struct {
 				Error      string `json:"error"`
 				RetryAfter int    `json:"retry_after"`
 			}{

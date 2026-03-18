@@ -35,7 +35,7 @@ func TestAC001_MongoRepositoryImplementsInterface(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	// Compile-time check: MongoRepository implements Repository
 	var _ cache.Repository = repo
@@ -50,7 +50,7 @@ func TestAC002_GetReturnsNilWhenNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	result, err := repo.Get("nonexistent-key-" + time.Now().Format(time.RFC3339Nano))
 	if err != nil {
@@ -70,7 +70,7 @@ func TestAC002_GetReturnsMatchingDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-get-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)
@@ -96,6 +96,7 @@ func TestAC002_GetReturnsMatchingDocument(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected document, got nil")
+		return
 	}
 	if result.Slug != "test" {
 		t.Errorf("expected slug 'test', got '%s'", result.Slug)
@@ -114,7 +115,7 @@ func TestAC003_UpsertInsertsWithCreatedAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-insert-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)
@@ -155,7 +156,7 @@ func TestAC003_UpsertUpdatesPreservesCreatedAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-update-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)
@@ -212,7 +213,7 @@ func TestAC011_DefaultDatabaseAndCollection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	dbName, collName := repo.Names()
 	if collName != "cached_responses" {
@@ -233,7 +234,7 @@ func TestAC012_ConfigurableTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	// Just verify it was created with custom timeout (no error)
 	if repo.Timeout() != 1*time.Second {
@@ -250,7 +251,7 @@ func TestPing_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	if err := repo.Ping(); err != nil {
 		t.Errorf("expected ping to succeed, got %v", err)
@@ -266,7 +267,7 @@ func TestMultiPage_UpsertAndGetReassembly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-multipage-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)
@@ -296,6 +297,7 @@ func TestMultiPage_UpsertAndGetReassembly(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected result, got nil")
+		return
 	}
 
 	// Should reassemble all pages into combined data
@@ -320,7 +322,7 @@ func TestMultiPage_UpsertCleansStalePages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-stale-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)
@@ -379,7 +381,7 @@ func TestMultiPage_UpsertCleansSingleDocVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-single-to-multi-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)
@@ -443,7 +445,7 @@ func TestFetchedAt_ReturnsTimestampWhenFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-fetchedat-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)
@@ -484,7 +486,7 @@ func TestFetchedAt_ReturnsFalseWhenNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	_, found, err := repo.FetchedAt("nonexistent-" + time.Now().Format(time.RFC3339Nano))
 	if err != nil {
@@ -504,7 +506,7 @@ func TestFetchedAt_WorksWithMultiPageKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-fetchedat-multi-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)
@@ -548,7 +550,7 @@ func TestUpsert_SinglePageWithParams(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-params-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)
@@ -575,6 +577,7 @@ func TestUpsert_SinglePageWithParams(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected result, got nil")
+		return
 	}
 	if result.Slug != "test-params" {
 		t.Errorf("expected slug 'test-params', got '%s'", result.Slug)
@@ -590,7 +593,7 @@ func TestGet_SingleDocReturnsAsIs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create MongoRepository: %v", err)
 	}
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	testKey := "test-single-asis-" + time.Now().Format(time.RFC3339Nano)
 	now := time.Now().Truncate(time.Millisecond)

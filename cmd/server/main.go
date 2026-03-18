@@ -86,7 +86,7 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("connected to MongoDB", "component", "cache", "uri", mongoURI)
-	defer repo.Close(context.Background())
+	defer func() { _ = repo.Close(context.Background()) }()
 
 	fetcher := upstream.NewHTTPFetcher()
 
@@ -297,7 +297,7 @@ func main() {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		srv.Shutdown(ctx)
+		_ = srv.Shutdown(ctx)
 	}()
 
 	slog.Info("server starting", "component", "server", "addr", addr)

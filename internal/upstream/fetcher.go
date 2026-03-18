@@ -191,7 +191,7 @@ func (f *HTTPFetcher) fetchRaw(ep config.Endpoint, params map[string]string) (*m
 	if err != nil {
 		return nil, fmt.Errorf("upstream request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("upstream returned status %d", resp.StatusCode)
@@ -232,7 +232,7 @@ func (f *HTTPFetcher) fetchJSONPage(reqURL string, dataKey string) ([]interface{
 	if err != nil {
 		return nil, nil, fmt.Errorf("upstream request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return nil, nil, fmt.Errorf("upstream returned status %d", resp.StatusCode)
@@ -306,7 +306,7 @@ func flattenConceptGroups(data []interface{}) []interface{} {
 		}
 
 		hasConceptGroups = true
-		tty, _ := group["tty"]
+		tty := group["tty"]
 
 		for _, cp := range cpArr {
 			cpMap, ok := cp.(map[string]interface{})

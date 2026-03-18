@@ -96,7 +96,7 @@ func TestAC002_DevBuildShowsDefaults(t *testing.T) {
 	vh.ServeHTTP(w, req)
 
 	var resp VersionResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if resp.Version != "dev" {
 		t.Errorf("expected version 'dev', got '%s'", resp.Version)
@@ -128,7 +128,7 @@ func TestAC003_GoVersionFromRuntime(t *testing.T) {
 	vh.ServeHTTP(w, req)
 
 	var resp VersionResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if resp.GoVersion != runtime.Version() {
 		t.Errorf("expected go_version '%s', got '%s'", runtime.Version(), resp.GoVersion)
@@ -144,7 +144,7 @@ func TestAC004_OSArchFromRuntime(t *testing.T) {
 	vh.ServeHTTP(w, req)
 
 	var resp VersionResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if resp.OS != runtime.GOOS {
 		t.Errorf("expected os '%s', got '%s'", runtime.GOOS, resp.OS)
@@ -163,7 +163,7 @@ func TestAC005_HostnamePopulated(t *testing.T) {
 	vh.ServeHTTP(w, req)
 
 	var resp VersionResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if resp.Hostname == "" {
 		t.Error("expected hostname to be non-empty")
@@ -179,7 +179,7 @@ func TestAC006_GOMAXPROCS(t *testing.T) {
 	vh.ServeHTTP(w, req)
 
 	var resp VersionResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	expected := runtime.GOMAXPROCS(0)
 	if resp.GOMAXPROCS != expected {
@@ -196,7 +196,7 @@ func TestAC007_UptimeIncreases(t *testing.T) {
 	vh.ServeHTTP(w1, req1)
 
 	var resp1 VersionResponse
-	json.NewDecoder(w1.Body).Decode(&resp1)
+	_ = json.NewDecoder(w1.Body).Decode(&resp1)
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -205,7 +205,7 @@ func TestAC007_UptimeIncreases(t *testing.T) {
 	vh.ServeHTTP(w2, req2)
 
 	var resp2 VersionResponse
-	json.NewDecoder(w2.Body).Decode(&resp2)
+	_ = json.NewDecoder(w2.Body).Decode(&resp2)
 
 	if resp2.UptimeSeconds <= resp1.UptimeSeconds {
 		t.Errorf("expected uptime to increase: first=%f, second=%f", resp1.UptimeSeconds, resp2.UptimeSeconds)
@@ -221,7 +221,7 @@ func TestAC008_EndpointCount(t *testing.T) {
 	vh.ServeHTTP(w, req)
 
 	var resp VersionResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if resp.EndpointCount != 5 {
 		t.Errorf("expected endpoint_count 5, got %d", resp.EndpointCount)

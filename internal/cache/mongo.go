@@ -186,7 +186,7 @@ func (r *MongoRepository) Get(cacheKey string) (*model.CachedResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query cached responses: %w", err)
 	}
-	defer cursor.Close(ctx)
+	defer func() { _ = cursor.Close(ctx) }()
 
 	var docs []model.CachedResponse
 	if err := cursor.All(ctx, &docs); err != nil {
@@ -211,10 +211,10 @@ func (r *MongoRepository) Upsert(resp *model.CachedResponse) error {
 			"base_key": resp.CacheKey,
 			"page":     bson.M{"$gt": len(resp.Pages)},
 		}
-		r.collection.DeleteMany(ctx, staleFilter)
+		_, _ = r.collection.DeleteMany(ctx, staleFilter)
 
 		// Also delete any old single-document version
-		r.collection.DeleteOne(ctx, bson.M{"cache_key": resp.CacheKey})
+		_, _ = r.collection.DeleteOne(ctx, bson.M{"cache_key": resp.CacheKey})
 
 		// Upsert each page
 		for _, page := range resp.Pages {
@@ -333,7 +333,7 @@ func (r *MongoRepository) backfillBaseKey(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("backfillBaseKey: failed to find documents: %w", err)
 	}
-	defer cursor.Close(ctx)
+	defer func() { _ = cursor.Close(ctx) }()
 
 	var updated int64
 	for cursor.Next(ctx) {

@@ -56,7 +56,7 @@ func TestAC004_CacheEndpointInSpec(t *testing.T) {
 	handler.ServeOpenAPISpec(w, req)
 
 	var spec map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&spec)
+	_ = json.NewDecoder(w.Body).Decode(&spec)
 
 	paths, ok := spec["paths"].(map[string]interface{})
 	if !ok {
@@ -75,7 +75,7 @@ func TestAC005_HealthEndpointInSpec(t *testing.T) {
 	handler.ServeOpenAPISpec(w, req)
 
 	var spec map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&spec)
+	_ = json.NewDecoder(w.Body).Decode(&spec)
 
 	paths, ok := spec["paths"].(map[string]interface{})
 	if !ok {

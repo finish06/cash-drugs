@@ -132,10 +132,7 @@ func TestOrchestratorTriggersScheduledAndParameterizedWarmup(t *testing.T) {
 
 	// Wait for warmup to complete
 	deadline := time.After(5 * time.Second)
-	for {
-		if state.IsReady() {
-			break
-		}
+	for !state.IsReady() {
 		select {
 		case <-deadline:
 			t.Fatal("warmup did not complete within 5 seconds")
@@ -205,10 +202,7 @@ func TestOrchestratorConcurrencyCapRespected(t *testing.T) {
 
 	// Wait for completion
 	deadline := time.After(10 * time.Second)
-	for {
-		if state.IsReady() {
-			break
-		}
+	for !state.IsReady() {
 		select {
 		case <-deadline:
 			t.Fatal("warmup did not complete within 10 seconds")
@@ -271,7 +265,7 @@ func TestOrchestratorCircuitBreakerSkipsWithWarning(t *testing.T) {
 	circuit := upstream.NewCircuitRegistry(1, 30*time.Second) // threshold=1 so we can trip it easily
 
 	// Trip the circuit breaker for fda-ndc
-	circuit.Execute("fda-ndc", func() (interface{}, error) {
+	_, _ = circuit.Execute("fda-ndc", func() (interface{}, error) {
 		return nil, fmt.Errorf("forced failure")
 	})
 
@@ -289,10 +283,7 @@ func TestOrchestratorCircuitBreakerSkipsWithWarning(t *testing.T) {
 
 	// Wait for completion
 	deadline := time.After(5 * time.Second)
-	for {
-		if state.IsReady() {
-			break
-		}
+	for !state.IsReady() {
 		select {
 		case <-deadline:
 			t.Fatal("warmup did not complete within 5 seconds")
@@ -342,10 +333,7 @@ func TestOrchestratorProgressTracking(t *testing.T) {
 
 	// Wait for completion
 	deadline := time.After(5 * time.Second)
-	for {
-		if state.IsReady() {
-			break
-		}
+	for !state.IsReady() {
 		select {
 		case <-deadline:
 			t.Fatal("warmup did not complete within 5 seconds")
@@ -368,6 +356,173 @@ func TestOrchestratorProgressTracking(t *testing.T) {
 }
 
 // TestOrchestratorSkipQueriesFlag verifies that skipQueries=true skips parameterized queries.
+// Scheduled endpoint fetch fails → increments done, continues
+func TestOrchestratorFetchErrorContinues(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages"},
+		{Slug: "dailymed", Refresh: "0 3 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api2", DataKey: "data", TotalKey: "metadata.total_pages"},
+	}
+	fetcher := &warmupMockFetcher{failSlugs: map[string]bool{"fda-ndc": true}}
+	repo := newWarmupMockRepo()
+	locks := fetchlock.New()
+	circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+	state := handler.NewWarmupStateTracker()
+
+	orch := handler.NewWarmupOrchestrator(
+		endpoints, fetcher, repo, locks, circuit,
+		nil, state, nil,
+	)
+
+	orch.TriggerWarmup(nil, true)
+
+	deadline := time.After(5 * time.Second)
+	for !state.IsReady() {
+		select {
+		case <-deadline:
+			t.Fatal("warmup did not complete within 5 seconds")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	// fda-ndc failed, dailymed succeeded — both counted as done
+	done, total := state.Progress()
+	if total != 2 {
+		t.Errorf("expected total=2, got %d", total)
+	}
+	if done != 2 {
+		t.Errorf("expected done=2, got %d", done)
+	}
+
+	// Only dailymed should be in the repo
+	keys := repo.upsertedKeys()
+	if len(keys) != 1 {
+		t.Errorf("expected 1 upserted key, got %d: %v", len(keys), keys)
+	}
+}
+
+// Upsert fails → increments done, continues
+func TestOrchestratorUpsertErrorContinues(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages"},
+	}
+	fetcher := &warmupMockFetcher{}
+	repo := newWarmupMockRepo()
+	repo.failNext = true
+	locks := fetchlock.New()
+	circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+	state := handler.NewWarmupStateTracker()
+
+	orch := handler.NewWarmupOrchestrator(
+		endpoints, fetcher, repo, locks, circuit,
+		nil, state, nil,
+	)
+
+	orch.TriggerWarmup(nil, true)
+
+	deadline := time.After(5 * time.Second)
+	for !state.IsReady() {
+		select {
+		case <-deadline:
+			t.Fatal("warmup did not complete within 5 seconds")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	done, total := state.Progress()
+	if total != 1 {
+		t.Errorf("expected total=1, got %d", total)
+	}
+	if done != 1 {
+		t.Errorf("expected done=1 (even on upsert error), got %d", done)
+	}
+}
+
+// Fresh cache skip — endpoint with recent data should not be refetched
+func TestOrchestratorSkipsFreshCache(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages", TTL: "1h", TTLDuration: time.Hour},
+	}
+
+	fetcher := &warmupMockFetcher{}
+	repo := newWarmupMockRepo()
+
+	// Pre-populate cache with fresh data
+	cacheKey := cache.BuildCacheKey("fda-ndc", nil)
+	repo.store[cacheKey] = &model.CachedResponse{
+		Slug:      "fda-ndc",
+		CacheKey:  cacheKey,
+		FetchedAt: time.Now(), // just fetched
+		Data:      []interface{}{"existing"},
+	}
+
+	locks := fetchlock.New()
+	circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+	state := handler.NewWarmupStateTracker()
+
+	orch := handler.NewWarmupOrchestrator(
+		endpoints, fetcher, repo, locks, circuit,
+		nil, state, nil,
+	)
+
+	orch.TriggerWarmup(nil, true)
+
+	deadline := time.After(5 * time.Second)
+	for !state.IsReady() {
+		select {
+		case <-deadline:
+			t.Fatal("warmup did not complete within 5 seconds")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	// Fetcher should NOT have been called — cache is fresh
+	count := atomic.LoadInt32(&fetcher.fetchCount)
+	if count != 0 {
+		t.Errorf("expected 0 fetches (cache is fresh), got %d", count)
+	}
+}
+
+// Parameterized query fetch error → continues with remaining queries
+func TestOrchestratorQueryFetchErrorContinues(t *testing.T) {
+	endpoints := []config.Endpoint{
+		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages"},
+	}
+	fetcher := &warmupMockFetcher{failSlugs: map[string]bool{"fda-ndc": true}}
+	repo := newWarmupMockRepo()
+	locks := fetchlock.New()
+	circuit := upstream.NewCircuitRegistry(5, 30*time.Second)
+	queries := map[string][]map[string]string{
+		"fda-ndc": {{"GENERIC_NAME": "METFORMIN"}, {"GENERIC_NAME": "LISINOPRIL"}},
+	}
+	state := handler.NewWarmupStateTracker()
+
+	orch := handler.NewWarmupOrchestrator(
+		endpoints, fetcher, repo, locks, circuit,
+		queries, state, nil,
+	)
+
+	orch.TriggerWarmup(nil, false)
+
+	deadline := time.After(5 * time.Second)
+	for !state.IsReady() {
+		select {
+		case <-deadline:
+			t.Fatal("warmup did not complete within 5 seconds")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	// All items should be done despite errors
+	done, total := state.Progress()
+	if done != total {
+		t.Errorf("expected all items done, got %d/%d", done, total)
+	}
+}
+
 func TestOrchestratorSkipQueriesFlag(t *testing.T) {
 	endpoints := []config.Endpoint{
 		{Slug: "fda-ndc", Refresh: "0 2 * * *", Format: "json", BaseURL: "http://example.com", Path: "/api", DataKey: "data", TotalKey: "metadata.total_pages"},
@@ -389,10 +544,7 @@ func TestOrchestratorSkipQueriesFlag(t *testing.T) {
 	orch.TriggerWarmup(nil, true) // skipQueries=true
 
 	deadline := time.After(5 * time.Second)
-	for {
-		if state.IsReady() {
-			break
-		}
+	for !state.IsReady() {
 		select {
 		case <-deadline:
 			t.Fatal("warmup did not complete within 5 seconds")

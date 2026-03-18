@@ -14,7 +14,7 @@ func TestAC001_PerSlugCircuitIsolation(t *testing.T) {
 
 	// Trip circuit for slug-a by causing 2 consecutive failures
 	for i := 0; i < 2; i++ {
-		reg.Execute("slug-a", func() (interface{}, error) {
+		_, _ = reg.Execute("slug-a", func() (interface{}, error) {
 			return nil, errors.New("fail")
 		})
 	}
@@ -45,7 +45,7 @@ func TestAC002_ClosedToOpenAfterNFailures(t *testing.T) {
 
 	// First 4 failures should keep circuit closed
 	for i := uint32(0); i < threshold-1; i++ {
-		reg.Execute("test-slug", func() (interface{}, error) {
+		_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 			return nil, errors.New("fail")
 		})
 	}
@@ -54,7 +54,7 @@ func TestAC002_ClosedToOpenAfterNFailures(t *testing.T) {
 	}
 
 	// 5th failure should trip the circuit
-	reg.Execute("test-slug", func() (interface{}, error) {
+	_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 		return nil, errors.New("fail")
 	})
 	if !reg.IsOpen("test-slug") {
@@ -68,7 +68,7 @@ func TestAC003_OpenCircuitRejectsImmediately(t *testing.T) {
 
 	// Trip circuit
 	for i := 0; i < 2; i++ {
-		reg.Execute("test-slug", func() (interface{}, error) {
+		_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 			return nil, errors.New("fail")
 		})
 	}
@@ -94,7 +94,7 @@ func TestAC004_OpenToHalfOpenAfterTimeout(t *testing.T) {
 
 	// Trip circuit
 	for i := 0; i < 2; i++ {
-		reg.Execute("test-slug", func() (interface{}, error) {
+		_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 			return nil, errors.New("fail")
 		})
 	}
@@ -124,7 +124,7 @@ func TestAC005_HalfOpenSuccessfulProbeToClosed(t *testing.T) {
 
 	// Trip circuit
 	for i := 0; i < 2; i++ {
-		reg.Execute("test-slug", func() (interface{}, error) {
+		_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 			return nil, errors.New("fail")
 		})
 	}
@@ -133,7 +133,7 @@ func TestAC005_HalfOpenSuccessfulProbeToClosed(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Successful probe
-	reg.Execute("test-slug", func() (interface{}, error) {
+	_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 		return "ok", nil
 	})
 
@@ -154,7 +154,7 @@ func TestAC006_HalfOpenFailedProbeToReopen(t *testing.T) {
 
 	// Trip circuit
 	for i := 0; i < 2; i++ {
-		reg.Execute("test-slug", func() (interface{}, error) {
+		_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 			return nil, errors.New("fail")
 		})
 	}
@@ -163,7 +163,7 @@ func TestAC006_HalfOpenFailedProbeToReopen(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Failed probe
-	reg.Execute("test-slug", func() (interface{}, error) {
+	_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 		return nil, errors.New("still failing")
 	})
 
@@ -180,7 +180,7 @@ func TestAC007_ConfigurableThresholds(t *testing.T) {
 
 	// 2 failures should not trip
 	for i := 0; i < 2; i++ {
-		reg.Execute("test-slug", func() (interface{}, error) {
+		_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 			return nil, errors.New("fail")
 		})
 	}
@@ -189,7 +189,7 @@ func TestAC007_ConfigurableThresholds(t *testing.T) {
 	}
 
 	// 3rd failure trips it
-	reg.Execute("test-slug", func() (interface{}, error) {
+	_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 		return nil, errors.New("fail")
 	})
 	if !reg.IsOpen("test-slug") {
@@ -209,7 +209,7 @@ func TestAC008_StateReturnsCurrentState(t *testing.T) {
 
 	// Trip circuit
 	for i := 0; i < 2; i++ {
-		reg.Execute("test-slug", func() (interface{}, error) {
+		_, _ = reg.Execute("test-slug", func() (interface{}, error) {
 			return nil, errors.New("fail")
 		})
 	}

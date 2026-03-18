@@ -80,10 +80,8 @@ func NewWarmupOrchestrator(
 func (o *WarmupOrchestrator) TriggerWarmup(slugs []string, skipQueries bool) {
 	// Build slug filter set
 	slugFilter := make(map[string]bool)
-	if slugs != nil {
-		for _, s := range slugs {
-			slugFilter[s] = true
-		}
+	for _, s := range slugs {
+		slugFilter[s] = true
 	}
 
 	// Determine scheduled endpoints to warm

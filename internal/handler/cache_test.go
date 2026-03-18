@@ -37,7 +37,7 @@ func TestAC013_UnknownEndpoint404(t *testing.T) {
 	}
 
 	var errResp model.ErrorResponse
-	json.NewDecoder(w.Body).Decode(&errResp)
+	_ = json.NewDecoder(w.Body).Decode(&errResp)
 	if errResp.Error != "endpoint not configured" {
 		t.Errorf("expected 'endpoint not configured' error, got '%s'", errResp.Error)
 	}
@@ -114,7 +114,7 @@ func TestAC008_ReturnCachedResponse(t *testing.T) {
 	}
 
 	var resp model.APIResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Meta.Stale {
 		t.Error("expected stale=false for fresh cache")
 	}
@@ -199,7 +199,7 @@ func TestAC009_UpstreamFailureReturnsStaleCacheViaHandler(t *testing.T) {
 	}
 
 	var resp model.APIResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if !resp.Meta.Stale {
 		t.Error("expected stale=true when serving stale cache")
 	}
@@ -230,7 +230,7 @@ func TestAC010_UpstreamFailNoCacheReturns502(t *testing.T) {
 	}
 
 	var errResp model.ErrorResponse
-	json.NewDecoder(w.Body).Decode(&errResp)
+	_ = json.NewDecoder(w.Body).Decode(&errResp)
 	if errResp.Error != "upstream unavailable" {
 		t.Errorf("expected 'upstream unavailable' error, got '%s'", errResp.Error)
 	}
@@ -1012,7 +1012,7 @@ func TestM9_AC013_CircuitOpenServesStaleCacheWithReason(t *testing.T) {
 	circuit := upstream.NewCircuitRegistry(2, 30*time.Second)
 	// Trip circuit
 	for i := 0; i < 2; i++ {
-		circuit.Execute("drugnames", func() (interface{}, error) {
+		_, _ = circuit.Execute("drugnames", func() (interface{}, error) {
 			return nil, fmt.Errorf("fail")
 		})
 	}
@@ -1035,7 +1035,7 @@ func TestM9_AC013_CircuitOpenServesStaleCacheWithReason(t *testing.T) {
 	}
 
 	var resp model.APIResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if !resp.Meta.Stale {
 		t.Error("expected stale=true when circuit is open")
 	}
@@ -1060,7 +1060,7 @@ func TestM9_AC014_CircuitOpenNoCacheReturns503(t *testing.T) {
 	circuit := upstream.NewCircuitRegistry(2, 30*time.Second)
 	// Trip circuit
 	for i := 0; i < 2; i++ {
-		circuit.Execute("drugnames", func() (interface{}, error) {
+		_, _ = circuit.Execute("drugnames", func() (interface{}, error) {
 			return nil, fmt.Errorf("fail")
 		})
 	}
@@ -1082,7 +1082,7 @@ func TestM9_AC014_CircuitOpenNoCacheReturns503(t *testing.T) {
 	}
 
 	var errResp map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&errResp)
+	_ = json.NewDecoder(w.Body).Decode(&errResp)
 	if errResp["error"] != "upstream circuit open" {
 		t.Errorf("expected error 'upstream circuit open', got '%s'", errResp["error"])
 	}
@@ -1240,7 +1240,7 @@ func TestM10_EmptyResults_AC001_AC002_Returns200WithEmptyData(t *testing.T) {
 	}
 
 	var resp model.APIResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	// Data should be empty array, not nil
 	dataArr, ok := resp.Data.([]interface{})
@@ -1286,7 +1286,7 @@ func TestM10_EmptyResults_AC003_AC004_ResultsCountInMeta(t *testing.T) {
 		h.ServeHTTP(w, req)
 
 		var resp model.APIResponse
-		json.NewDecoder(w.Body).Decode(&resp)
+		_ = json.NewDecoder(w.Body).Decode(&resp)
 
 		if resp.Meta.ResultsCount != 0 {
 			t.Errorf("expected results_count=0 for empty results, got %d", resp.Meta.ResultsCount)
@@ -1317,7 +1317,7 @@ func TestM10_EmptyResults_AC003_AC004_ResultsCountInMeta(t *testing.T) {
 		h.ServeHTTP(w, req)
 
 		var resp model.APIResponse
-		json.NewDecoder(w.Body).Decode(&resp)
+		_ = json.NewDecoder(w.Body).Decode(&resp)
 
 		if resp.Meta.ResultsCount != 3 {
 			t.Errorf("expected results_count=3, got %d", resp.Meta.ResultsCount)
@@ -1475,7 +1475,7 @@ func TestM10_EmptyResults_AC008_ResultsCountOnCachedResponse(t *testing.T) {
 	h.ServeHTTP(w, req)
 
 	var resp model.APIResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if resp.Meta.ResultsCount != 2 {
 		t.Errorf("expected results_count=2 for cached response, got %d", resp.Meta.ResultsCount)

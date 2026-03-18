@@ -16,5 +16,5 @@ import (
 // @Router       /openapi.json [get]
 func ServeOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(docs.SwaggerInfo.ReadDoc()))
+	_, _ = w.Write([]byte(docs.SwaggerInfo.ReadDoc()))
 }

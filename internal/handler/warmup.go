@@ -66,7 +66,7 @@ func (h *WarmupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "method not allowed",
 		})
 		return
@@ -92,7 +92,7 @@ func (h *WarmupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, slug := range reqBody.Slugs {
 			if !h.slugSet[slug] {
 				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]string{
+				_ = json.NewEncoder(w).Encode(map[string]string{
 					"error": "unknown slug",
 					"slug":  slug,
 				})
@@ -107,7 +107,7 @@ func (h *WarmupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			queryCount = QueryCountForSlugs(h.warmupQueries, reqBody.Slugs)
 		}
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":          "accepted",
 			"warming":         len(reqBody.Slugs),
 			"warming_queries": queryCount,
@@ -123,7 +123,7 @@ func (h *WarmupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		queryCount = QueryCountForSlugs(h.warmupQueries, nil)
 	}
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":          "accepted",
 		"warming":         len(scheduled),
 		"warming_queries": queryCount,

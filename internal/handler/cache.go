@@ -115,7 +115,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.recordHTTPMetrics(slug, r.Method, http.StatusNotFound, start)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(model.ErrorResponse{
+		_ = json.NewEncoder(w).Encode(model.ErrorResponse{
 			Error: "endpoint not configured",
 			Slug:  slug,
 		})
@@ -223,7 +223,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.recordHTTPMetrics(slug, r.Method, http.StatusServiceUnavailable, start)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(struct {
+		_ = json.NewEncoder(w).Encode(struct {
 			Error      string `json:"error"`
 			Slug       string `json:"slug"`
 			RetryAfter int    `json:"retry_after"`
@@ -298,7 +298,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.recordHTTPMetrics(slug, r.Method, http.StatusBadGateway, start)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
-		json.NewEncoder(w).Encode(model.ErrorResponse{
+		_ = json.NewEncoder(w).Encode(model.ErrorResponse{
 			Error: "upstream unavailable",
 			Slug:  slug,
 		})
@@ -441,7 +441,7 @@ func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stal
 		}
 		w.WriteHeader(http.StatusOK)
 		if xmlStr, ok := cached.Data.(string); ok {
-			fmt.Fprint(w, xmlStr)
+			_, _ = fmt.Fprint(w, xmlStr)
 		}
 		return
 	}
@@ -475,7 +475,7 @@ func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stal
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func extractSlug(path string) string {

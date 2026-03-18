@@ -76,7 +76,7 @@ func TestEndpoints_EmptyConfig(t *testing.T) {
 	}
 
 	var result []handler.EndpointInfo
-	json.NewDecoder(w.Body).Decode(&result)
+	_ = json.NewDecoder(w.Body).Decode(&result)
 	if len(result) != 0 {
 		t.Errorf("expected empty array, got %d items", len(result))
 	}

@@ -52,7 +52,7 @@ func TestTTL_AC004_FreshCacheWithinTTL(t *testing.T) {
 	}
 
 	var resp model.APIResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Meta.Stale {
 		t.Error("expected stale=false for cache within TTL")
 	}
@@ -109,7 +109,7 @@ func TestTTL_AC005_StaleCachePastTTL(t *testing.T) {
 	}
 
 	var resp model.APIResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if !resp.Meta.Stale {
 		t.Error("expected stale=true for cache past TTL")
 	}
@@ -334,7 +334,7 @@ func TestTTL_AC003_NoTTLNeverStale(t *testing.T) {
 	}
 
 	var resp model.APIResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Meta.Stale {
 		t.Error("expected stale=false when no TTL configured (never expires)")
 	}

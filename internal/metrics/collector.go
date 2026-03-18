@@ -53,7 +53,7 @@ func (s *MongoCollectorSource) CountBySlug(ctx context.Context) ([]SlugCount, er
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(ctx)
+	defer func() { _ = cursor.Close(ctx) }()
 
 	var results []struct {
 		Slug  string `bson:"_id"`
