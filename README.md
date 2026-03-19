@@ -212,6 +212,22 @@ A pre-built Grafana dashboard is included at [`docs/grafana/cash-drugs-dashboard
 
 For full setup instructions including Prometheus scrape config, Docker Compose integration, PromQL queries, and alerting rules, see [`docs/prometheus-setup.md`](docs/prometheus-setup.md).
 
+## Multi-Instance Deployment
+
+Run multiple instances behind a load balancer. One leader runs the scheduler and warmup, replicas serve requests only.
+
+```yaml
+# Leader instance
+environment:
+  ENABLE_SCHEDULER: "true"
+
+# Replica instance(s)
+environment:
+  ENABLE_SCHEDULER: "false"
+```
+
+`GET /version` returns `"leader": true/false` to identify which instance is the scheduler leader. The `cashdrugs_instance_leader` Prometheus gauge (1=leader, 0=replica) enables alerting when no leader is active.
+
 ## How It Works
 
 ```
@@ -297,6 +313,8 @@ json.NewDecoder(resp.Body).Decode(&result)
 | `CIRCUIT_FAILURE_THRESHOLD` | `5` | Consecutive failures before circuit opens |
 | `CIRCUIT_OPEN_DURATION` | `30s` | How long circuit stays open |
 | `FORCE_REFRESH_COOLDOWN` | `30s` | Cooldown between forced refreshes per key |
+| `ENABLE_SCHEDULER` | `true` | Enable scheduler + warmup (set `false` for replica instances) |
+| `WARMUP_QUERIES_PATH` | `warmup-queries.yaml` | Path to parameterized warmup queries file |
 
 ## Architecture
 
@@ -403,4 +421,4 @@ go vet ./...
 
 ## Tech Stack
 
-Go 1.22+ · MongoDB · Docker Compose · `log/slog` · swaggo/swag · Prometheus client_golang
+Go 1.22+ · MongoDB · Docker Compose · `log/slog` · swaggo/swag · Prometheus client_golang · gobreaker (circuit breaker)

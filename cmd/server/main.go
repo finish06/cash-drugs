@@ -28,7 +28,7 @@ import (
 )
 
 // @title        cash-drugs API
-// @version      0.8.0
+// @version      0.10.1
 // @description  API cache/proxy — fetches from upstream REST APIs, stores in MongoDB, serves cached data to internal consumers.
 
 // @host      localhost:8080

@@ -20,6 +20,10 @@ Document hierarchy: PRD → Spec → Plan → User Test Cases → Automated Test
 | Language | Go | 1.22+ |
 | HTTP Framework | net/http (stdlib) | — |
 | Database | MongoDB | latest |
+| Logging | log/slog (stdlib) | — |
+| Metrics | Prometheus client_golang | v1.23+ |
+| Circuit Breaker | gobreaker | v2.4+ |
+| API Docs | swaggo/swag | latest |
 | Containers | Docker Compose | — |
 | Registry | dockerhub.calebdunn.tech | registry:2 |
 
@@ -85,8 +89,10 @@ cash-drugs/
 ### Environments
 
 - **Local:** Docker Compose (http://localhost:8080)
-- **Staging:** 192.168.1.145:8083 — auto-deploys `:beta` via cron. See `docs/staging-deployment.md`
+- **Staging:** 192.168.1.145:8083 — 2-instance (leader + replica) behind nginx `least_conn` LB. Auto-deploys `:beta` via cron. See `docs/staging-deployment.md`
 - **Production:** 192.168.1.86:8083 — pulls from `dockerhub.calebdunn.tech/finish06/cash-drugs:latest`
+
+Multi-instance: `ENABLE_SCHEDULER=true` for leader (runs scheduler + warmup), `ENABLE_SCHEDULER=false` for replicas (serve only).
 
 ### CI/CD
 

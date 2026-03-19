@@ -12,6 +12,10 @@ definitions:
         type: string
       message:
         type: string
+      params:
+        additionalProperties:
+          type: string
+        type: object
       slug:
         type: string
       upstream_status:
@@ -69,6 +73,8 @@ definitions:
         type: integer
       hostname:
         type: string
+      leader:
+        type: boolean
       os:
         type: string
       start_time:
@@ -84,7 +90,7 @@ info:
   description: API cache/proxy — fetches from upstream REST APIs, stores in MongoDB,
     serves cached data to internal consumers.
   title: cash-drugs API
-  version: 0.8.0
+  version: 0.10.1
 paths:
   /api/cache/{slug}:
     get:
