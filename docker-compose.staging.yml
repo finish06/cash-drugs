@@ -11,10 +11,7 @@ services:
     volumes:
       - mongo-staging-data:/data/db
     command: ["mongod", "--wiredTigerCacheSizeGB", "1"]
-    deploy:
-      resources:
-        limits:
-          memory: 2G
+    mem_limit: 2g
     restart: unless-stopped
     networks:
       - internal
@@ -50,10 +47,7 @@ services:
       - LRU_CACHE_SIZE_MB=128
       - GOMEMLIMIT=450MiB
       - ENABLE_SCHEDULER=true
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    mem_limit: 512m
     depends_on:
       - mongodb
     restart: unless-stopped
@@ -77,10 +71,7 @@ services:
       - LRU_CACHE_SIZE_MB=128
       - GOMEMLIMIT=450MiB
       - ENABLE_SCHEDULER=false
-    deploy:
-      resources:
-        limits:
-          memory: 512M
+    mem_limit: 512m
     depends_on:
       - mongodb
     restart: unless-stopped
