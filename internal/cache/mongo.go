@@ -46,9 +46,18 @@ func reassemblePages(docs []model.CachedResponse) *model.CachedResponse {
 		return &docs[0]
 	}
 
-	// Multi-page: reassemble all page data into combined response
+	// Multi-page: reassemble all page data into combined response.
+	// Pre-count total items to allocate once and avoid repeated slice growth.
 	base := docs[0]
-	var allData []interface{}
+	totalItems := 0
+	for _, doc := range docs {
+		if arr, ok := doc.Data.(bson.A); ok {
+			totalItems += len(arr)
+		} else if arr, ok := doc.Data.([]interface{}); ok {
+			totalItems += len(arr)
+		}
+	}
+	allData := make([]interface{}, 0, totalItems)
 	for _, doc := range docs {
 		if arr, ok := doc.Data.(bson.A); ok {
 			for _, item := range arr {

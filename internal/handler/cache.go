@@ -385,8 +385,19 @@ func (h *CacheHandler) recordUpstreamMetrics(slug string, duration float64, page
 	}
 }
 
+// maxLRUPages is the page count threshold above which responses are too large
+// for in-memory LRU caching. These are served directly from MongoDB instead.
+const maxLRUPages = 10
+
 func (h *CacheHandler) populateLRU(cacheKey string, resp *model.CachedResponse, ep config.Endpoint) {
 	if h.lru == nil {
+		return
+	}
+	// Skip LRU for large multi-page responses to prevent memory bloat.
+	// Bulk endpoints (e.g., /spls with 200 pages) can be 50-100MB and would
+	// fill the entire LRU cache with a single entry.
+	if resp.PageCount > maxLRUPages {
+		slog.Debug("skipping LRU — response too large", "component", "handler", "slug", resp.Slug, "pages", resp.PageCount)
 		return
 	}
 	ttl := ep.TTLDuration
@@ -441,8 +452,16 @@ func (h *CacheHandler) recordSingleflightDedup(slug string) {
 }
 
 // backgroundRevalidate spawns a goroutine to refresh the cache in the background.
+// Skips bulk endpoints (scheduled refresh handles those) to avoid heavy memory usage.
 func (h *CacheHandler) backgroundRevalidate(ep config.Endpoint, params map[string]string) {
 	if h.fetchLocks == nil {
+		return
+	}
+
+	// Skip background revalidation for scheduled endpoints without parameters —
+	// the scheduler already handles refresh. Background revalidation of bulk
+	// endpoints (200 pages, 50MB+) causes unnecessary memory spikes.
+	if ep.Refresh != "" && len(params) == 0 {
 		return
 	}
 
