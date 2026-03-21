@@ -1834,6 +1834,84 @@ func TestForceRefreshCooldown_NoCacheAvailable(t *testing.T) {
 	}
 }
 
+// Bug 4 regression: force-refresh arms cooldown, second request gets stale
+func TestBug4_ForceRefreshArmsCooldown_SecondRequestStale(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cooldown := upstream.NewCooldownTracker(30 * time.Second)
+
+	repo := &mockCacheRepo{
+		cached: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      []interface{}{"cached_data"},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		},
+	}
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      []interface{}{"fresh_data"},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		repo,
+		fetcher,
+		handler.WithCooldown(cooldown),
+	)
+
+	// First force-refresh: should fetch from upstream and arm cooldown
+	req1 := httptest.NewRequest("GET", "/api/cache/drugnames?_force=true", nil)
+	w1 := httptest.NewRecorder()
+	h.ServeHTTP(w1, req1)
+
+	if w1.Code != http.StatusOK {
+		t.Fatalf("first force-refresh: expected 200, got %d", w1.Code)
+	}
+	if !fetcher.fetchCalled {
+		t.Fatal("first force-refresh: expected upstream fetch")
+	}
+
+	// Second force-refresh: should hit cooldown, serve stale with stale=true
+	fetcher.fetchCalled = false
+	req2 := httptest.NewRequest("GET", "/api/cache/drugnames?_force=true", nil)
+	w2 := httptest.NewRecorder()
+	h.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Fatalf("second force-refresh: expected 200, got %d", w2.Code)
+	}
+	if fetcher.fetchCalled {
+		t.Error("second force-refresh: expected NO upstream fetch (cooldown should block)")
+	}
+	if w2.Header().Get("X-Force-Cooldown") != "true" {
+		t.Error("second force-refresh: expected X-Force-Cooldown: true header")
+	}
+
+	var resp model.APIResponse
+	if err := json.NewDecoder(w2.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !resp.Meta.Stale {
+		t.Error("second force-refresh: expected stale=true")
+	}
+	if resp.Meta.StaleReason != "force_refresh_cooldown" {
+		t.Errorf("second force-refresh: expected stale_reason='force_refresh_cooldown', got %q", resp.Meta.StaleReason)
+	}
+}
+
 // extractPathParams: endpoint with no params returns nil
 func TestExtractPathParams_NoConfiguredParams(t *testing.T) {
 	ep := config.Endpoint{

@@ -375,6 +375,11 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Record cooldown after successful force-refresh
+	if forceRefresh && h.cooldown != nil {
+		h.cooldown.Record(cacheKey)
+	}
+
 	// Return fresh result
 	respondWithCached(w, sr.resp, false, "")
 	slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "miss", "duration", time.Since(start))
