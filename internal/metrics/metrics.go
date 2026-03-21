@@ -63,6 +63,10 @@ type Metrics struct {
 	WarmupQueriesTotal   *prometheus.CounterVec
 	WarmupQueriesPending prometheus.Gauge
 
+	// Bulk query metrics
+	BulkRequestSize     *prometheus.HistogramVec
+	BulkRequestDuration *prometheus.HistogramVec
+
 	// Build and uptime metrics
 	BuildInfo      *prometheus.GaugeVec
 	UptimeSeconds  prometheus.Gauge
@@ -396,6 +400,26 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			},
 		),
 
+		// Bulk query metrics
+		BulkRequestSize: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "bulk_request_size",
+				Help:      "Number of queries per bulk request.",
+				Buckets:   []float64{1, 5, 10, 25, 50, 100},
+			},
+			[]string{"slug"},
+		),
+		BulkRequestDuration: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "bulk_request_duration_seconds",
+				Help:      "Total bulk request latency in seconds.",
+				Buckets:   prometheus.DefBuckets,
+			},
+			[]string{"slug"},
+		),
+
 		// Build and uptime metrics
 		BuildInfo: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -462,6 +486,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.SingleflightDedupTotal,
 		m.WarmupQueriesTotal,
 		m.WarmupQueriesPending,
+		m.BulkRequestSize,
+		m.BulkRequestDuration,
 		m.BuildInfo,
 		m.UptimeSeconds,
 		m.InstanceLeader,

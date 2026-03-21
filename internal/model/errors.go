@@ -11,4 +11,5 @@ const (
 	ErrCodeForceRefreshCooldown = "CD-H002" // force refresh rate limited
 	ErrCodeMissingParams        = "CD-H003" // required parameters not provided
 	ErrCodeMethodNotAllowed     = "CD-H004" // HTTP method not allowed
+	ErrCodeBadRequest           = "CD-H005" // malformed request body or invalid parameters
 )

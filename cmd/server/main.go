@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -197,8 +198,10 @@ func main() {
 	// Note: initial warmup with parameterized queries is triggered below after handler setup
 
 	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m), handler.WithLRU(lruCache), handler.WithCircuit(circuitReg), handler.WithCooldown(cooldownTracker))
+	metaHandler := handler.NewMetaHandler(endpoints, repo, handler.WithMetaCircuit(circuitReg))
+	bulkHandler := handler.NewBulkHandler(endpoints, repo, handler.WithBulkMetrics(m), handler.WithBulkLRU(lruCache))
 	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
-	endpointsHandler := handler.NewEndpointsHandler(endpoints)
+	endpointsHandler := handler.NewEndpointsHandler(endpoints, repo)
 
 	// Build endpoint map for status handler
 	epMap := make(map[string]config.Endpoint, len(endpoints))
@@ -252,7 +255,15 @@ func main() {
 	// Application routes wrapped with concurrency limiter
 	appMux := http.NewServeMux()
 	appMux.Handle("/api/cache/status", statusHandler)
-	appMux.Handle("/api/cache/", cacheHandler)
+	appMux.Handle("/api/cache/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/_meta") {
+			metaHandler.ServeHTTP(w, r)
+		} else if strings.HasSuffix(r.URL.Path, "/bulk") {
+			bulkHandler.ServeHTTP(w, r)
+		} else {
+			cacheHandler.ServeHTTP(w, r)
+		}
+	}))
 	appMux.Handle("/api/endpoints", endpointsHandler)
 	appMux.Handle("/api/warmup", warmupHandler)
 	appMux.Handle("/swagger/", httpSwagger.WrapHandler)
