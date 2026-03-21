@@ -264,7 +264,7 @@ func main() {
 	mux.Handle("/ready", readyHandler)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.Handle("/version", versionHandler)
-	mux.Handle("/", limiter.Wrap(appMux))
+	mux.Handle("/", limiter.Wrap(middleware.AllowMethods(appMux)))
 
 	addr := os.Getenv("LISTEN_ADDR")
 	if addr == "" {

@@ -9,4 +9,6 @@ const (
 	ErrCodeCircuitOpen          = "CD-U003" // circuit breaker is open
 	ErrCodeServiceOverloaded    = "CD-S001" // concurrency limit hit
 	ErrCodeForceRefreshCooldown = "CD-H002" // force refresh rate limited
+	ErrCodeMissingParams        = "CD-H003" // required parameters not provided
+	ErrCodeMethodNotAllowed     = "CD-H004" // HTTP method not allowed
 )

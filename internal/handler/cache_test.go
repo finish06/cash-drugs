@@ -14,10 +14,12 @@ import (
 	"github.com/finish06/cash-drugs/internal/config"
 	"github.com/finish06/cash-drugs/internal/handler"
 	"github.com/finish06/cash-drugs/internal/metrics"
+	"github.com/finish06/cash-drugs/internal/middleware"
 	"github.com/finish06/cash-drugs/internal/model"
 	"github.com/finish06/cash-drugs/internal/upstream"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // AC-013: Consumer requests for endpoints not defined in config return 404
@@ -1734,9 +1736,9 @@ func TestRespondWithCached_NonArrayData(t *testing.T) {
 
 	var resp model.APIResponse
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	// resultsCount should be 0 for non-array data
-	if resp.Meta.ResultsCount != 0 {
-		t.Errorf("expected results_count=0 for non-array data, got %d", resp.Meta.ResultsCount)
+	// resultsCount should be 1 for non-array, non-nil data (e.g., map wrapper)
+	if resp.Meta.ResultsCount != 1 {
+		t.Errorf("expected results_count=1 for non-array data, got %d", resp.Meta.ResultsCount)
 	}
 }
 
@@ -1862,7 +1864,8 @@ func TestExtractPathParams_NoConfiguredParams(t *testing.T) {
 	}
 }
 
-// extractPathParams: params present but values empty returns nil
+// extractPathParams: params present but values empty → 400 missing params
+// (Bug 1 fix: parameterized endpoints now require at least one param)
 func TestExtractPathParams_EmptyValues(t *testing.T) {
 	ep := config.Endpoint{
 		Slug:    "spl-detail",
@@ -1888,13 +1891,462 @@ func TestExtractPathParams_EmptyValues(t *testing.T) {
 		fetcher,
 	)
 
-	// SETID query param is empty — extractPathParams should return nil
+	// SETID query param is empty — now returns 400 (missing required parameters)
 	req := httptest.NewRequest("GET", "/api/cache/spl-detail", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	if fetcher.fetchCalled {
+		t.Error("expected no upstream fetch when required params are missing")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Bug fixes — regression tests
+// ---------------------------------------------------------------------------
+
+// Bug 1: Parameterized endpoint without required params returns 400 CD-H003
+func TestBug1_MissingRequiredParams_Returns400(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "spls-by-name",
+		BaseURL: "http://example.com",
+		Path:    "/v2/spls",
+		Format:  "json",
+		QueryParams: map[string]string{
+			"drug_name": "{DRUG_NAME}",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := &mockFetcher{err: fmt.Errorf("should not be called")}
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+	)
+
+	// Request WITHOUT the required DRUG_NAME parameter
+	req := httptest.NewRequest("GET", "/api/cache/spls-by-name", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+
+	var errResp model.ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if errResp.ErrorCode != model.ErrCodeMissingParams {
+		t.Errorf("expected error code %s, got %s", model.ErrCodeMissingParams, errResp.ErrorCode)
+	}
+	if errResp.Error != "missing required parameters" {
+		t.Errorf("expected error 'missing required parameters', got %q", errResp.Error)
+	}
+	if errResp.Message == "" {
+		t.Error("expected message listing required parameters")
+	}
+	// Verify the message lists the required param name
+	if errResp.Message != "required parameters: DRUG_NAME" {
+		t.Errorf("expected message to list DRUG_NAME, got %q", errResp.Message)
+	}
+
+	// Verify upstream was never called
+	if fetcher.fetchCalled {
+		t.Error("expected no upstream fetch when required params are missing")
+	}
+}
+
+// Bug 1: Parameterized endpoint WITH params should proceed normally
+func TestBug1_WithRequiredParams_Proceeds(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "spls-by-name",
+		BaseURL: "http://example.com",
+		Path:    "/v2/spls",
+		Format:  "json",
+		QueryParams: map[string]string{
+			"drug_name": "{DRUG_NAME}",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "spls-by-name",
+			CacheKey:  "spls-by-name:DRUG_NAME=aspirin",
+			Data:      []interface{}{"data"},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		},
+	}
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/spls-by-name?DRUG_NAME=aspirin", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if !fetcher.fetchCalled {
+		t.Error("expected upstream fetch when required params are provided")
+	}
+}
+
+// Bug 1: Non-parameterized endpoint should not be affected
+func TestBug1_NonParameterizedEndpoint_NotAffected(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      []interface{}{"data"},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		},
+	}
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for non-parameterized endpoint, got %d", w.Code)
+	}
+}
+
+// Bug 3: Error responses include request_id when X-Request-ID header is present
+func TestBug3_ErrorResponseIncludesRequestID(t *testing.T) {
+	// Test with endpoint-not-found (404)
+	t.Run("endpoint_not_found", func(t *testing.T) {
+		h := handler.NewCacheHandler(
+			[]config.Endpoint{},
+			&mockCacheRepo{},
+			&mockFetcher{},
+		)
+
+		req := httptest.NewRequest("GET", "/api/cache/nonexistent", nil)
+		// Wrap with RequestIDMiddleware to populate context
+		wrapped := middleware.RequestIDMiddleware(h)
+		req.Header.Set("X-Request-ID", "test-req-123")
+		w := httptest.NewRecorder()
+		wrapped.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", w.Code)
+		}
+
+		var errResp model.ErrorResponse
+		if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+		if errResp.RequestID != "test-req-123" {
+			t.Errorf("expected request_id 'test-req-123', got %q", errResp.RequestID)
+		}
+	})
+
+	// Test with upstream unavailable (502)
+	t.Run("upstream_unavailable_502", func(t *testing.T) {
+		ep := config.Endpoint{
+			Slug:    "drugnames",
+			BaseURL: "http://example.com",
+			Path:    "/v2/drugnames",
+			Format:  "json",
+		}
+		config.ApplyDefaults(&ep)
+
+		fetcher := &mockFetcher{err: fmt.Errorf("connection refused")}
+		h := handler.NewCacheHandler(
+			[]config.Endpoint{ep},
+			&mockCacheRepo{},
+			fetcher,
+		)
+
+		req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+		req.Header.Set("X-Request-ID", "test-req-456")
+		wrapped := middleware.RequestIDMiddleware(h)
+		w := httptest.NewRecorder()
+		wrapped.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadGateway {
+			t.Fatalf("expected 502, got %d", w.Code)
+		}
+
+		var errResp model.ErrorResponse
+		if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+		if errResp.RequestID != "test-req-456" {
+			t.Errorf("expected request_id 'test-req-456', got %q", errResp.RequestID)
+		}
+	})
+
+	// Test with upstream 404 (respondNotFound path)
+	t.Run("upstream_not_found_404", func(t *testing.T) {
+		ep := config.Endpoint{
+			Slug:    "fda-ndc",
+			BaseURL: "http://example.com",
+			Path:    "/v2/drugs/{NDC}",
+			Format:  "json",
+		}
+		config.ApplyDefaults(&ep)
+
+		fetcher := &mockFetcher{
+			err: &upstream.ErrUpstreamNotFound{StatusCode: 404, URL: "http://example.com/v2/drugs/12345"},
+		}
+		h := handler.NewCacheHandler(
+			[]config.Endpoint{ep},
+			&mockCacheRepo{},
+			fetcher,
+		)
+
+		req := httptest.NewRequest("GET", "/api/cache/fda-ndc?NDC=12345", nil)
+		req.Header.Set("X-Request-ID", "test-req-789")
+		wrapped := middleware.RequestIDMiddleware(h)
+		w := httptest.NewRecorder()
+		wrapped.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", w.Code)
+		}
+
+		var errResp model.ErrorResponse
+		if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+		if errResp.RequestID != "test-req-789" {
+			t.Errorf("expected request_id 'test-req-789', got %q", errResp.RequestID)
+		}
+	})
+
+	// Test with missing params (400) — Bug 1 also gets request_id
+	t.Run("missing_params_400", func(t *testing.T) {
+		ep := config.Endpoint{
+			Slug:    "spls-by-name",
+			BaseURL: "http://example.com",
+			Path:    "/v2/spls",
+			Format:  "json",
+			QueryParams: map[string]string{
+				"drug_name": "{DRUG_NAME}",
+			},
+		}
+		config.ApplyDefaults(&ep)
+
+		h := handler.NewCacheHandler(
+			[]config.Endpoint{ep},
+			&mockCacheRepo{},
+			&mockFetcher{},
+		)
+
+		req := httptest.NewRequest("GET", "/api/cache/spls-by-name", nil)
+		req.Header.Set("X-Request-ID", "test-req-abc")
+		wrapped := middleware.RequestIDMiddleware(h)
+		w := httptest.NewRecorder()
+		wrapped.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
+		}
+
+		var errResp model.ErrorResponse
+		if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+		if errResp.RequestID != "test-req-abc" {
+			t.Errorf("expected request_id 'test-req-abc', got %q", errResp.RequestID)
+		}
+	})
+}
+
+// Bug 4: Force-refresh during cooldown returns stale=true and stale_reason
+func TestBug4_CooldownServesStaleData(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      []interface{}{"drug1"},
+		FetchedAt: time.Now().Add(-10 * time.Minute),
+		SourceURL: "http://example.com/v2/drugnames",
+		PageCount: 1,
+	}
+
+	cooldown := upstream.NewCooldownTracker(30 * time.Second)
+	cooldown.Record("drugnames")
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{err: fmt.Errorf("should not be called")},
+		handler.WithCooldown(cooldown),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames?_force=true", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if !resp.Meta.Stale {
+		t.Error("expected stale=true when serving from cooldown, got false")
+	}
+	if resp.Meta.StaleReason != "force_refresh_cooldown" {
+		t.Errorf("expected stale_reason 'force_refresh_cooldown', got %q", resp.Meta.StaleReason)
+	}
+}
+
+// Bug 5: bson.A empty array returns results_count=0
+func TestBug5_BsonA_EmptyArray_ResultsCount0(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      bson.A{},
+		FetchedAt: time.Now(),
+		PageCount: 1,
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Meta.ResultsCount != 0 {
+		t.Errorf("expected results_count=0 for empty bson.A, got %d", resp.Meta.ResultsCount)
+	}
+}
+
+// Bug 5: bson.A with items returns correct results_count
+func TestBug5_BsonA_WithItems_CorrectResultsCount(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      bson.A{"item1", "item2"},
+		FetchedAt: time.Now(),
+		PageCount: 1,
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Meta.ResultsCount != 2 {
+		t.Errorf("expected results_count=2 for bson.A with 2 items, got %d", resp.Meta.ResultsCount)
+	}
+}
+
+// Bug 5: Non-array data returns results_count=1
+func TestBug5_NonArrayData_ResultsCount1(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      map[string]interface{}{"key": "value"},
+		FetchedAt: time.Now(),
+		PageCount: 1,
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Meta.ResultsCount != 1 {
+		t.Errorf("expected results_count=1 for non-array data, got %d", resp.Meta.ResultsCount)
 	}
 }
 

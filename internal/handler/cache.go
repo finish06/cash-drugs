@@ -13,8 +13,10 @@ import (
 	"github.com/finish06/cash-drugs/internal/cache"
 	"github.com/finish06/cash-drugs/internal/config"
 	"github.com/finish06/cash-drugs/internal/metrics"
+	"github.com/finish06/cash-drugs/internal/middleware"
 	"github.com/finish06/cash-drugs/internal/model"
 	"github.com/finish06/cash-drugs/internal/upstream"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -121,12 +123,30 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error:     "endpoint not configured",
 			ErrorCode: model.ErrCodeEndpointNotFound,
 			Slug:      slug,
+			RequestID: middleware.RequestID(r.Context()),
 		})
 		return
 	}
 
 	// Extract path parameters from query string
 	pathParams := extractPathParams(ep, r)
+
+	// Validate required parameters
+	requiredParams := config.ExtractAllParams(ep)
+	if len(requiredParams) > 0 && len(pathParams) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(model.ErrorResponse{
+			Error:     "missing required parameters",
+			ErrorCode: model.ErrCodeMissingParams,
+			Slug:      slug,
+			Message:   fmt.Sprintf("required parameters: %s", strings.Join(requiredParams, ", ")),
+			RequestID: middleware.RequestID(r.Context()),
+		})
+		h.recordHTTPMetrics(slug, r.Method, http.StatusBadRequest, start)
+		h.recordErrorMetric(model.ErrCodeMissingParams, slug)
+		return
+	}
 
 	// Build cache key
 	cacheKey := cache.BuildCacheKey(slug, pathParams)
@@ -143,7 +163,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cached, err := h.repo.Get(cacheKey)
 		if err == nil && cached != nil {
 			w.Header().Set("X-Force-Cooldown", "true")
-			respondWithCached(w, cached, false, "")
+			respondWithCached(w, cached, true, "force_refresh_cooldown")
 			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 			return
 		}
@@ -167,7 +187,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if lruResult.NotFound {
 				slog.Debug("LRU negative cache hit", "component", "handler", "slug", slug)
 				h.recordLRUHit(slug)
-				h.respondNotFound(w, slug, pathParams, start, r.Method)
+				h.respondNotFound(w, slug, pathParams, start, r.Method, middleware.RequestID(r.Context()))
 				return
 			}
 			slog.Debug("LRU cache hit", "component", "handler", "slug", slug)
@@ -191,7 +211,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if time.Since(cached.FetchedAt) <= 10*time.Minute {
 					slog.Debug("MongoDB negative cache hit", "component", "handler", "slug", slug)
 					h.recordCacheOutcome(slug, "hit")
-					h.respondNotFound(w, slug, pathParams, start, r.Method)
+					h.respondNotFound(w, slug, pathParams, start, r.Method, middleware.RequestID(r.Context()))
 					return
 				}
 				slog.Debug("negative cache expired", "component", "handler", "slug", slug)
@@ -252,6 +272,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ErrorCode:  model.ErrCodeCircuitOpen,
 			Slug:       slug,
 			RetryAfter: retryAfter,
+			RequestID:  middleware.RequestID(r.Context()),
 		})
 		return
 	}
@@ -320,7 +341,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if h.metrics != nil {
 				h.metrics.Upstream404Total.WithLabelValues(slug).Inc()
 			}
-			h.respondNotFound(w, slug, pathParams, start, r.Method)
+			h.respondNotFound(w, slug, pathParams, start, r.Method, middleware.RequestID(r.Context()))
 			return
 		}
 
@@ -349,6 +370,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Error:     "upstream unavailable",
 			ErrorCode: model.ErrCodeUpstreamUnavailable,
 			Slug:      slug,
+			RequestID: middleware.RequestID(r.Context()),
 		})
 		return
 	}
@@ -504,7 +526,7 @@ func (h *CacheHandler) backgroundRevalidate(ep config.Endpoint, params map[strin
 }
 
 // respondNotFound sends a 404 JSON response for upstream-not-found or negative-cache scenarios.
-func (h *CacheHandler) respondNotFound(w http.ResponseWriter, slug string, params map[string]string, start time.Time, method string) {
+func (h *CacheHandler) respondNotFound(w http.ResponseWriter, slug string, params map[string]string, start time.Time, method string, requestID string) {
 	h.recordHTTPMetrics(slug, method, http.StatusNotFound, start)
 	h.recordErrorMetric(model.ErrCodeUpstreamNotFound, slug)
 	w.Header().Set("Content-Type", "application/json")
@@ -514,6 +536,7 @@ func (h *CacheHandler) respondNotFound(w http.ResponseWriter, slug string, param
 		ErrorCode: model.ErrCodeUpstreamNotFound,
 		Slug:      slug,
 		Params:    params,
+		RequestID: requestID,
 	})
 }
 
@@ -538,11 +561,20 @@ func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stal
 	// Count results for the meta field
 	resultsCount := 0
 	data := cached.Data
-	if dataArr, ok := data.([]interface{}); ok {
-		resultsCount = len(dataArr)
-		// Ensure empty data is an empty array, not nil
-		if dataArr == nil {
+	switch d := data.(type) {
+	case []interface{}:
+		resultsCount = len(d)
+		if d == nil {
 			data = []interface{}{}
+		}
+	case bson.A:
+		resultsCount = len(d)
+		// Convert to []interface{} for consistent JSON serialization
+		data = []interface{}(d)
+	default:
+		// Non-array data (e.g., map wrapper, single object) — count as 1 if non-nil
+		if data != nil {
+			resultsCount = 1
 		}
 	}
 
