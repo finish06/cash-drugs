@@ -21,7 +21,7 @@ func AllowMethods(next http.Handler) http.Handler {
 			w.Header().Set("Allow", allowed)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMethodNotAllowed)
-			json.NewEncoder(w).Encode(model.ErrorResponse{
+			_ = json.NewEncoder(w).Encode(model.ErrorResponse{
 				Error:     "method not allowed",
 				ErrorCode: model.ErrCodeMethodNotAllowed,
 				Message:   "allowed: " + allowed,
