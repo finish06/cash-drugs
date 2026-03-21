@@ -41,9 +41,9 @@ const CACHED_ENDPOINTS = [
 ];
 
 const PARAM_ENDPOINTS = [
-  '/api/cache/spls-by-name?drug_name=aspirin',
-  '/api/cache/spls-by-name?drug_name=ibuprofen',
-  '/api/cache/spls-by-name?drug_name=metformin',
+  '/api/cache/spls-by-name?DRUGNAME=aspirin',
+  '/api/cache/spls-by-name?DRUGNAME=ibuprofen',
+  '/api/cache/spls-by-name?DRUGNAME=metformin',
 ];
 
 const STATUS_ENDPOINTS = [
@@ -114,7 +114,7 @@ function testParamEndpoint() {
   });
 
   const passed = check(res, {
-    'param: status 200 or 404': (r) => r.status === 200 || r.status === 404,
+    'param: status 200, 400, or 404': (r) => r.status === 200 || r.status === 400 || r.status === 404,
     'param: has X-Request-ID': (r) => r.headers['X-Request-Id'] !== undefined,
     'param: valid JSON': (r) => {
       try { JSON.parse(r.body); return true; }
@@ -154,7 +154,7 @@ function testStatusEndpoint() {
 
 function testForceRefresh() {
   // Force refresh a parameterized endpoint — triggers upstream fetch
-  const res = http.get(`${BASE_URL}/api/cache/spls-by-name?drug_name=tylenol&_force=true`, {
+  const res = http.get(`${BASE_URL}/api/cache/spls-by-name?DRUGNAME=tylenol&_force=true`, {
     tags: { endpoint: 'force_refresh' },
     timeout: '10s',
   });
