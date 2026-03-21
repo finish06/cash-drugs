@@ -44,6 +44,53 @@ definitions:
       stale_reason:
         type: string
     type: object
+  internal_handler.BulkQueryResponse:
+    properties:
+      duration_ms:
+        type: integer
+      errors:
+        type: integer
+      hits:
+        type: integer
+      misses:
+        type: integer
+      request_id:
+        type: string
+      results:
+        items:
+          $ref: '#/definitions/internal_handler.BulkQueryResult'
+        type: array
+      slug:
+        type: string
+      total_queries:
+        type: integer
+    type: object
+  internal_handler.BulkQueryResult:
+    properties:
+      data: {}
+      error:
+        type: string
+      index:
+        type: integer
+      meta:
+        $ref: '#/definitions/github_com_finish06_cash-drugs_internal_model.ResponseMeta'
+      params:
+        additionalProperties:
+          type: string
+        type: object
+      status:
+        description: '"hit", "miss", "error"'
+        type: string
+    type: object
+  internal_handler.CacheStatusInfo:
+    properties:
+      cached:
+        type: boolean
+      is_stale:
+        type: boolean
+      last_refreshed:
+        type: string
+    type: object
   internal_handler.CacheStatusResponse:
     properties:
       generated_at:
@@ -61,19 +108,71 @@ definitions:
     type: object
   internal_handler.EndpointInfo:
     properties:
+      cache_status:
+        $ref: '#/definitions/internal_handler.CacheStatusInfo'
+      example_url:
+        type: string
       format:
         type: string
       pagination:
         type: boolean
       params:
         items:
-          type: string
+          $ref: '#/definitions/internal_handler.ParamInfo'
         type: array
       path:
+        type: string
+      schedule:
         type: string
       scheduled:
         type: boolean
       slug:
+        type: string
+      ttl:
+        type: string
+    type: object
+  internal_handler.ParamInfo:
+    properties:
+      example:
+        type: string
+      name:
+        type: string
+      required:
+        type: boolean
+      type:
+        description: '"path", "query", or "search"'
+        type: string
+    type: object
+  internal_handler.SlugMeta:
+    properties:
+      circuit_state:
+        description: '"closed", "open", "half-open"'
+        type: string
+      has_params:
+        description: true if endpoint has parameterized paths
+        type: boolean
+      has_schedule:
+        description: true if refresh cron is configured
+        type: boolean
+      is_stale:
+        description: true if past TTL or never cached
+        type: boolean
+      last_refreshed:
+        description: ISO 8601 or null
+        type: string
+      page_count:
+        description: from cached response metadata
+        type: integer
+      record_count:
+        description: total items across all pages
+        type: integer
+      schedule:
+        description: cron expression or null
+        type: string
+      slug:
+        type: string
+      ttl_remaining:
+        description: duration string, "0s" if stale
         type: string
     type: object
   internal_handler.SlugStatus:
@@ -123,6 +222,78 @@ definitions:
         type: number
       version:
         type: string
+    type: object
+  internal_handler.bulkQueryItem:
+    properties:
+      params:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  internal_handler.bulkQueryRequest:
+    properties:
+      queries:
+        items:
+          $ref: '#/definitions/internal_handler.bulkQueryItem'
+        type: array
+    type: object
+  internal_handler.testFetchErrorResponse:
+    properties:
+      error:
+        type: string
+      error_code:
+        type: string
+      fetch_duration_ms:
+        type: integer
+      request_id:
+        type: string
+      status_code:
+        type: integer
+      success:
+        type: boolean
+    type: object
+  internal_handler.testFetchRequest:
+    properties:
+      base_url:
+        type: string
+      data_key:
+        type: string
+      flatten:
+        type: boolean
+      format:
+        type: string
+      pagesize:
+        type: integer
+      path:
+        type: string
+      query_params:
+        additionalProperties:
+          type: string
+        type: object
+      search_params:
+        items:
+          type: string
+        type: array
+      total_key:
+        type: string
+    type: object
+  internal_handler.testFetchResponse:
+    properties:
+      content_type:
+        type: string
+      data_preview: {}
+      fetch_duration_ms:
+        type: integer
+      page_count_estimate:
+        type: integer
+      request_id:
+        type: string
+      status_code:
+        type: integer
+      success:
+        type: boolean
+      total_results:
+        type: integer
     type: object
 host: localhost:8080
 info:
@@ -178,6 +349,66 @@ paths:
       summary: Get cached data for an endpoint
       tags:
       - cache
+  /api/cache/{slug}/_meta:
+    get:
+      description: Returns lightweight cache state (staleness, TTL, record count,
+        circuit state) for a single slug without transferring the data payload.
+      parameters:
+      - description: Endpoint slug from config
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.SlugMeta'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse'
+      summary: Per-slug cache metadata
+      tags:
+      - cache
+  /api/cache/{slug}/bulk:
+    post:
+      consumes:
+      - application/json
+      description: Looks up multiple cache keys in a single request. Cache-only —
+        does not trigger upstream fetches.
+      parameters:
+      - description: Endpoint slug from config
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Batch of queries
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.bulkQueryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.BulkQueryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse'
+      summary: Bulk cache lookup
+      tags:
+      - cache
   /api/cache/status:
     get:
       description: Returns per-slug cache health including staleness, TTL remaining,
@@ -207,6 +438,33 @@ paths:
       summary: List configured endpoints
       tags:
       - system
+  /api/test-fetch:
+    post:
+      consumes:
+      - application/json
+      description: Fetches one page from an upstream API without caching. Used to
+        validate endpoint configs.
+      parameters:
+      - description: Endpoint configuration to test
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.testFetchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.testFetchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handler.testFetchErrorResponse'
+      summary: Test-fetch dry run
+      tags:
+      - test
   /api/warmup:
     post:
       consumes:

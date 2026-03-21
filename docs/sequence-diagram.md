@@ -453,11 +453,17 @@ sequenceDiagram
     actor Client as Internal Service
     participant GW as cash-drugs<br/>:8080
     participant EH as EndpointsHandler
+    participant DB as MongoDB
 
     Client->>GW: GET /api/endpoints
     GW->>EH: ServeHTTP(w, r)
     EH->>EH: Build endpoint list from config
-    EH-->>Client: 200 [{slug, base_url, path, format, refresh, ttl}, ...]
+    loop For each endpoint
+        EH->>EH: Extract params (path, query, search)
+        EH->>DB: FetchedAt(slug)
+        DB-->>EH: cache status (cached/stale)
+    end
+    EH-->>Client: 200 [{slug, path, format, params: [ParamInfo],<br/>pagination, scheduled, cache_status: {cached, is_stale}}, ...]
 ```
 
 ## Prometheus Metrics Flow
@@ -773,6 +779,222 @@ sequenceDiagram
     Note over RID: Error responses include request_id<br/>in JSON body for tracing
 ```
 
+## Per-Slug Metadata Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant RID as RequestID Middleware
+    participant GZ as Gzip Middleware
+    participant LIM as Concurrency Limiter
+    participant AM as AllowMethods
+    participant MH as MetaHandler
+    participant CB as Circuit Breaker
+    participant DB as MongoDB
+
+    Client->>RID: GET /api/cache/{slug}/_meta
+    Note over RID: Preserve X-Request-ID or generate UUID v4
+    RID->>GZ: pass through (ID in context)
+    GZ->>LIM: pass through
+    LIM->>AM: pass through (GET allowed)
+    AM->>MH: ServeHTTP(w, r)
+
+    MH->>MH: Extract slug from path
+
+    alt Slug not in config
+        MH-->>Client: 404 {"error": "endpoint not configured", "error_code": "CD-H001"}
+    end
+
+    MH->>CB: State(slug)
+    CB-->>MH: closed | open | half-open
+
+    MH->>DB: FetchedAt(slug)
+    alt Cached
+        DB-->>MH: timestamp, true
+        MH->>MH: Compute staleness, TTL remaining
+        MH->>DB: Get(slug)
+        DB-->>MH: CachedResponse
+        MH->>MH: Count pages + records
+    end
+    alt Not cached
+        DB-->>MH: _, false
+        MH->>MH: is_stale=true, ttl_remaining="0s"
+    end
+
+    MH-->>GZ: 200 {"slug", "last_refreshed", "ttl_remaining",<br/>"is_stale", "page_count", "record_count",<br/>"circuit_state", "has_schedule", "has_params"}
+    GZ-->>RID: 200 (gzip compressed)
+    RID-->>Client: 200 + X-Request-ID
+```
+
+## Bulk Cache Lookup Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant RID as RequestID Middleware
+    participant GZ as Gzip Middleware
+    participant LIM as Concurrency Limiter
+    participant AM as AllowMethods
+    participant BH as BulkHandler
+    participant LRU as Sharded LRU Cache
+    participant DB as MongoDB
+
+    Client->>RID: POST /api/cache/{slug}/bulk
+    Note over RID: Preserve X-Request-ID or generate UUID v4
+    RID->>GZ: pass through (ID in context)
+    GZ->>LIM: pass through
+    LIM->>AM: pass through (POST allowed for /bulk)
+    AM->>BH: ServeHTTP(w, r)
+
+    BH->>BH: Validate slug in config
+    alt Slug not in config
+        BH-->>Client: 404 {"error_code": "CD-H001"}
+    end
+
+    BH->>BH: Decode JSON body
+    alt Invalid body
+        BH-->>Client: 400 {"error_code": "CD-H005"}
+    end
+    alt Batch > 100 queries
+        BH-->>Client: 400 {"error_code": "CD-H005"}
+    end
+
+    Note over BH: Record BulkRequestSize metric
+
+    par Concurrent lookups (semaphore cap=10)
+        BH->>LRU: Get(cacheKey₁)
+        alt LRU hit
+            LRU-->>BH: CachedResponse → status: "hit"
+        end
+        alt LRU miss
+            LRU-->>BH: nil
+            BH->>DB: Get(cacheKey₁)
+            alt DB hit
+                DB-->>BH: CachedResponse → status: "hit"
+            end
+            alt DB miss
+                DB-->>BH: nil → status: "miss"
+            end
+        end
+    and
+        BH->>LRU: Get(cacheKey₂)
+        LRU-->>BH: result
+    and
+        BH->>LRU: Get(cacheKeyₙ)
+        LRU-->>BH: result
+    end
+
+    Note over BH: Tally hits/misses/errors<br/>Record BulkRequestDuration metric
+
+    BH-->>GZ: 200 {"slug", "results": [...],<br/>"total_queries", "hits", "misses", "errors", "duration_ms"}
+    GZ-->>RID: 200 (gzip compressed)
+    RID-->>Client: 200 + X-Request-ID
+
+    Note over BH: Cache-only — does NOT trigger upstream fetches
+```
+
+## Test-Fetch Dry-Run Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant RID as RequestID Middleware
+    participant GZ as Gzip Middleware
+    participant LIM as Concurrency Limiter
+    participant AM as AllowMethods
+    participant TF as TestFetchHandler
+    participant UF as HTTPFetcher
+    participant API as Upstream API
+
+    Client->>RID: POST /api/test-fetch
+    Note over RID: Preserve X-Request-ID or generate UUID v4
+    RID->>GZ: pass through (ID in context)
+    GZ->>LIM: pass through
+    LIM->>AM: pass through (POST allowed for /api/test-fetch)
+    AM->>TF: ServeHTTP(w, r)
+
+    TF->>TF: Decode JSON body (1MB limit)
+    alt Invalid JSON
+        TF-->>Client: 400 {"error_code": "CD-H005"}
+    end
+    alt Missing required fields (base_url, path, format)
+        TF-->>Client: 400 {"error_code": "CD-H005"}
+    end
+
+    TF->>TF: Build temporary Endpoint<br/>(pagination forced to 1 page)
+    TF->>UF: Fetch(endpoint, nil)
+    UF->>API: GET {base_url}{path}
+
+    alt Upstream success
+        API-->>UF: 200 {data}
+        UF-->>TF: CachedResponse
+        TF->>TF: Build preview (first 5 items)<br/>+ estimate page count
+        TF-->>GZ: 200 {"success": true, "status_code", "data_preview",<br/>"total_results", "page_count_estimate", "fetch_duration_ms"}
+        GZ-->>RID: 200 (gzip compressed)
+        RID-->>Client: 200 + X-Request-ID
+    end
+
+    alt Upstream failure
+        API-->>UF: error / timeout / 4xx / 5xx
+        UF-->>TF: error
+        TF-->>GZ: 200 {"success": false, "error", "error_code": "CD-U001"}
+        GZ-->>RID: 200 (gzip compressed)
+        RID-->>Client: 200 + X-Request-ID
+    end
+
+    Note over TF: Does NOT cache results<br/>Does NOT use circuit breaker or cooldown
+```
+
+## Parameter Validation Flow (400)
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant RID as RequestID Middleware
+    participant GZ as Gzip Middleware
+    participant LIM as Concurrency Limiter
+    participant CH as CacheHandler
+
+    Client->>RID: GET /api/cache/{slug} (missing required params)
+    RID->>GZ: pass through
+    GZ->>LIM: pass through
+    LIM->>CH: ServeHTTP(w, r)
+
+    CH->>CH: Extract required params from endpoint config
+    CH->>CH: Check caller-provided query params
+
+    alt Required path param missing
+        CH-->>GZ: 400 {"error": "missing required parameter: {PARAM}",<br/>"error_code": "CD-H003", "request_id": "..."}
+        GZ-->>RID: 400 (gzip compressed)
+        RID-->>Client: 400 + X-Request-ID
+    end
+```
+
+## Method Enforcement Flow (405)
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant RID as RequestID Middleware
+    participant GZ as Gzip Middleware
+    participant LIM as Concurrency Limiter
+    participant AM as AllowMethods
+
+    Client->>RID: POST /api/cache/{slug}
+    RID->>GZ: pass through
+    GZ->>LIM: pass through
+    LIM->>AM: check method
+
+    AM->>AM: Path /api/cache/{slug} → allowed: GET
+    AM->>AM: Request method: POST ≠ GET
+
+    AM-->>GZ: 405 {"error": "method not allowed",<br/>"error_code": "CD-H004",<br/>"message": "allowed: GET"}<br/>+ Allow: GET header
+    GZ-->>RID: 405 (gzip compressed)
+    RID-->>Client: 405 + X-Request-ID + Allow: GET
+
+    Note over AM: POST-only paths: /api/warmup, */bulk, /api/test-fetch<br/>GET-only: all other application routes
+```
+
 ## System Overview
 
 ```mermaid
@@ -859,6 +1081,30 @@ sequenceDiagram
     CD-->>GZ: {"slugs": {...}, "healthy_slugs": N, "stale_slugs": M}
     GZ-->>RID: 200 (gzip compressed)
     RID-->>Svc: 200 + X-Request-ID
+
+    Svc->>RID: GET /api/cache/drugnames/_meta
+    RID->>GZ: pass through
+    GZ->>LIM: pass through
+    LIM->>CD: ServeHTTP
+    CD-->>GZ: {"slug", "is_stale", "ttl_remaining", "circuit_state", ...}
+    GZ-->>Svc: 200 (gzip compressed)
+
+    Svc->>RID: POST /api/cache/drugnames/bulk
+    RID->>GZ: pass through
+    GZ->>LIM: pass through
+    LIM->>CD: ServeHTTP
+    Note over CD: Concurrent cache lookups (cap 10)
+    CD-->>GZ: {"results": [...], "hits": N, "misses": M}
+    GZ-->>Svc: 200 (gzip compressed)
+
+    Dev->>RID: POST /api/test-fetch
+    RID->>GZ: pass through
+    GZ->>LIM: pass through
+    LIM->>CD: ServeHTTP
+    CD->>API1: GET (single page, no caching)
+    API1-->>CD: 200 {data}
+    CD-->>GZ: {"success": true, "data_preview": [...], "page_count_estimate": N}
+    GZ-->>Dev: 200 (gzip compressed)
 
     Prom->>CD: GET /metrics
     Note over LIM: Exempt — bypasses limiter

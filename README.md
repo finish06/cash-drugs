@@ -37,6 +37,9 @@ Service starts at **http://localhost:8080**. Explore:
 - **Swagger UI:** http://localhost:8080/swagger/
 - **All endpoints:** http://localhost:8080/api/endpoints
 - **Cache status:** http://localhost:8080/api/cache/status
+- **Slug metadata:** http://localhost:8080/api/cache/{slug}/_meta
+- **Bulk lookup:** `POST` http://localhost:8080/api/cache/{slug}/bulk
+- **Test fetch:** `POST` http://localhost:8080/api/test-fetch
 - **Health:** http://localhost:8080/health
 - **Readiness:** http://localhost:8080/ready
 - **Version:** http://localhost:8080/version
@@ -213,6 +216,8 @@ A pre-built Grafana dashboard is included at [`docs/grafana/cash-drugs-dashboard
 
 For full setup instructions including Prometheus scrape config, Docker Compose integration, PromQL queries, and alerting rules, see [`docs/prometheus-setup.md`](docs/prometheus-setup.md).
 
+Operational runbooks for common alert scenarios (MongoDB down, circuit breaker open, high latency, upstream errors, memory pressure, concurrency exhaustion, scheduler stalled) are in [`docs/runbooks/`](docs/runbooks/runbook-index.md).
+
 ## Multi-Instance Deployment
 
 Run multiple instances behind a load balancer. One leader runs the scheduler and warmup, replicas serve requests only.
@@ -273,6 +278,9 @@ All error responses include a stable `error_code` field for programmatic handlin
 | `CD-U001` | 502 | Upstream fetch failed, no cached data available | Yes — upstream may recover |
 | `CD-U002` | 404 | Upstream API returned 404 for the given parameters | No — check parameters |
 | `CD-U003` | 503 | Circuit breaker open — upstream is failing | Yes — respect `retry_after` |
+| `CD-H003` | 400 | Required parameters not provided | No — check endpoint params |
+| `CD-H004` | 405 | HTTP method not allowed for this endpoint | No — use correct method |
+| `CD-H005` | 400 | Malformed request body or invalid parameters | No — fix request |
 | `CD-S001` | 503 | Service overloaded — concurrency limit reached | Yes — respect `Retry-After` header |
 
 Error response envelope:

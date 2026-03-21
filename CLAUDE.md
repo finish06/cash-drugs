@@ -63,6 +63,7 @@ cash-drugs/
 │   ├── plans/             # Implementation plans
 │   ├── milestones/        # Milestone tracking (M1-M13+)
 │   ├── grafana/           # Grafana dashboard JSON + alerting rules (alerts.yml, alertmanager-template.yml)
+│   ├── runbooks/          # Operational runbooks (7 runbooks + index) — MongoDB down, circuit breaker, high latency, upstream errors, high memory, concurrency exhaustion, scheduler stalled
 │   ├── sequence-diagram.md # Mermaid sequence diagrams for all flows
 │   ├── prometheus-setup.md # Prometheus/Grafana monitoring setup
 │   ├── staging-deployment.md # Staging environment docs
@@ -74,14 +75,14 @@ cash-drugs/
 ├── internal/
 │   ├── cache/             # MongoDB cache layer + sharded LRU (16-shard FNV-1a)
 │   ├── config/            # YAML config loader + staleness/TTL helpers
-│   ├── handler/           # HTTP handlers + warmup orchestrator + warmup state tracker + cache status (status.go)
+│   ├── handler/           # HTTP handlers + warmup orchestrator + warmup state tracker + cache status (status.go) + per-slug metadata (meta.go) + bulk query (bulk.go) + test-fetch dry-run (testfetch.go)
 │   ├── upstream/          # Upstream API fetcher + circuit breaker + cooldown + 404 detection + parallel page fetches
 │   ├── scheduler/         # Cron-based refresh (endpoints with refresh, no path params)
 │   ├── fetchlock/         # Dedup concurrent fetches (sync.Mutex per slug)
 │   ├── logging/           # Structured logging setup (slog)
 │   ├── metrics/           # Prometheus metrics + MongoDB collector + system collector (procfs)
-│   ├── middleware/         # RequestID (outermost, UUID v4) + concurrency limiter (default 50, 503+Retry-After:1) + gzip compression
-│   └── model/             # Response models (APIResponse, CachedResponse, ErrorResponse) + error codes (errors.go: CD-H/U/S category codes)
+│   ├── middleware/         # RequestID (outermost, UUID v4) + concurrency limiter (default 50, 503+Retry-After:1) + gzip compression + AllowMethods (POST for /bulk, /test-fetch, /warmup; GET for all others)
+│   └── model/             # Response models (APIResponse, CachedResponse, ErrorResponse) + error codes (errors.go: CD-H001..H005, CD-U001..U003, CD-S001)
 ├── docker-compose.yml          # Local development
 ├── docker-compose.prod.yml     # Production (pulls from registry)
 ├── docker-compose.test.yml     # Test MongoDB

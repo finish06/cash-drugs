@@ -94,6 +94,94 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/cache/{slug}/_meta": {
+            "get": {
+                "description": "Returns lightweight cache state (staleness, TTL, record count, circuit state) for a single slug without transferring the data payload.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Per-slug cache metadata",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Endpoint slug from config",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.SlugMeta"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cache/{slug}/bulk": {
+            "post": {
+                "description": "Looks up multiple cache keys in a single request. Cache-only — does not trigger upstream fetches.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Bulk cache lookup",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Endpoint slug from config",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Batch of queries",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.bulkQueryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.BulkQueryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/endpoints": {
             "get": {
                 "description": "Returns all configured upstream API endpoints with their metadata.",
@@ -112,6 +200,46 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/internal_handler.EndpointInfo"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/test-fetch": {
+            "post": {
+                "description": "Fetches one page from an upstream API without caching. Used to validate endpoint configs.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "test"
+                ],
+                "summary": "Test-fetch dry run",
+                "parameters": [
+                    {
+                        "description": "Endpoint configuration to test",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.testFetchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.testFetchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.testFetchErrorResponse"
                         }
                     }
                 }
@@ -342,6 +470,77 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.BulkQueryResponse": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "integer"
+                },
+                "hits": {
+                    "type": "integer"
+                },
+                "misses": {
+                    "type": "integer"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handler.BulkQueryResult"
+                    }
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "total_queries": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handler.BulkQueryResult": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "error": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "meta": {
+                    "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ResponseMeta"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "description": "\"hit\", \"miss\", \"error\"",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.CacheStatusInfo": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
+                "is_stale": {
+                    "type": "boolean"
+                },
+                "last_refreshed": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.CacheStatusResponse": {
             "type": "object",
             "properties": {
@@ -368,6 +567,12 @@ const docTemplate = `{
         "internal_handler.EndpointInfo": {
             "type": "object",
             "properties": {
+                "cache_status": {
+                    "$ref": "#/definitions/internal_handler.CacheStatusInfo"
+                },
+                "example_url": {
+                    "type": "string"
+                },
                 "format": {
                     "type": "string"
                 },
@@ -377,16 +582,84 @@ const docTemplate = `{
                 "params": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/internal_handler.ParamInfo"
                     }
                 },
                 "path": {
+                    "type": "string"
+                },
+                "schedule": {
                     "type": "string"
                 },
                 "scheduled": {
                     "type": "boolean"
                 },
                 "slug": {
+                    "type": "string"
+                },
+                "ttl": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.ParamInfo": {
+            "type": "object",
+            "properties": {
+                "example": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "description": "\"path\", \"query\", or \"search\"",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.SlugMeta": {
+            "type": "object",
+            "properties": {
+                "circuit_state": {
+                    "description": "\"closed\", \"open\", \"half-open\"",
+                    "type": "string"
+                },
+                "has_params": {
+                    "description": "true if endpoint has parameterized paths",
+                    "type": "boolean"
+                },
+                "has_schedule": {
+                    "description": "true if refresh cron is configured",
+                    "type": "boolean"
+                },
+                "is_stale": {
+                    "description": "true if past TTL or never cached",
+                    "type": "boolean"
+                },
+                "last_refreshed": {
+                    "description": "ISO 8601 or null",
+                    "type": "string"
+                },
+                "page_count": {
+                    "description": "from cached response metadata",
+                    "type": "integer"
+                },
+                "record_count": {
+                    "description": "total items across all pages",
+                    "type": "integer"
+                },
+                "schedule": {
+                    "description": "cron expression or null",
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "ttl_remaining": {
+                    "description": "duration string, \"0s\" if stale",
                     "type": "string"
                 }
             }
@@ -461,6 +734,116 @@ const docTemplate = `{
                 },
                 "version": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handler.bulkQueryItem": {
+            "type": "object",
+            "properties": {
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "internal_handler.bulkQueryRequest": {
+            "type": "object",
+            "properties": {
+                "queries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handler.bulkQueryItem"
+                    }
+                }
+            }
+        },
+        "internal_handler.testFetchErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "error_code": {
+                    "type": "string"
+                },
+                "fetch_duration_ms": {
+                    "type": "integer"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "status_code": {
+                    "type": "integer"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_handler.testFetchRequest": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "data_key": {
+                    "type": "string"
+                },
+                "flatten": {
+                    "type": "boolean"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "pagesize": {
+                    "type": "integer"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "query_params": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "search_params": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "total_key": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.testFetchResponse": {
+            "type": "object",
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "data_preview": {},
+                "fetch_duration_ms": {
+                    "type": "integer"
+                },
+                "page_count_estimate": {
+                    "type": "integer"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "status_code": {
+                    "type": "integer"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "total_results": {
+                    "type": "integer"
                 }
             }
         }

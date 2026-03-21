@@ -1,7 +1,7 @@
 {
   "$schema": "https://github.com/MountainUnicorn/add/docs-manifest.schema.json",
   "version": "1.1.0",
-  "generated": "2026-03-20T18:00:00Z",
+  "generated": "2026-03-21T14:33:00Z",
   "stack": {
     "language": "go",
     "framework": "net/http",
@@ -37,6 +37,33 @@
       "middleware": ["RequestIDMiddleware", "GzipMiddleware", "ConcurrencyLimiter"],
       "tags": ["cache"],
       "response_model": "model.APIResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cache/{slug}/_meta",
+      "handler_file": "internal/handler/meta.go",
+      "handler_function": "MetaHandler.ServeHTTP",
+      "middleware": ["RequestIDMiddleware", "GzipMiddleware", "ConcurrencyLimiter", "AllowMethods"],
+      "tags": ["cache"],
+      "response_model": "SlugMeta"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cache/{slug}/bulk",
+      "handler_file": "internal/handler/bulk.go",
+      "handler_function": "BulkHandler.ServeHTTP",
+      "middleware": ["RequestIDMiddleware", "GzipMiddleware", "ConcurrencyLimiter", "AllowMethods"],
+      "tags": ["cache"],
+      "response_model": "BulkQueryResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/test-fetch",
+      "handler_file": "internal/handler/testfetch.go",
+      "handler_function": "TestFetchHandler.ServeHTTP",
+      "middleware": ["RequestIDMiddleware", "GzipMiddleware", "ConcurrencyLimiter", "AllowMethods"],
+      "tags": ["test"],
+      "response_model": "testFetchResponse"
     },
     {
       "method": "GET",
@@ -129,6 +156,12 @@
       "file": "internal/middleware/limiter.go",
       "order": 2,
       "purpose": "Limits in-flight requests via channel semaphore (default 50); returns 503 + Retry-After:1 when full. Exempt: /health, /metrics, /ready. Note: /version is on outer mux so bypasses limiter entirely."
+    },
+    {
+      "name": "AllowMethods",
+      "file": "internal/middleware/methods.go",
+      "order": 3,
+      "purpose": "Enforces HTTP method restrictions per path prefix. POST-only: /api/warmup, /bulk suffix, /api/test-fetch. GET-only: all other paths. Returns 405 with CD-H004 error code on violation."
     }
   ],
   "models": [
@@ -153,7 +186,7 @@
     {
       "name": "ErrorCodes",
       "file": "internal/model/errors.go",
-      "field_count": 6,
+      "field_count": 9,
       "relationships": ["ErrorResponse"]
     },
     {
@@ -189,7 +222,49 @@
     {
       "name": "EndpointInfo",
       "file": "internal/handler/endpoints.go",
+      "field_count": 10,
+      "relationships": ["ParamInfo", "CacheStatusInfo"]
+    },
+    {
+      "name": "ParamInfo",
+      "file": "internal/handler/endpoints.go",
+      "field_count": 4,
+      "relationships": []
+    },
+    {
+      "name": "CacheStatusInfo",
+      "file": "internal/handler/endpoints.go",
+      "field_count": 3,
+      "relationships": []
+    },
+    {
+      "name": "SlugMeta",
+      "file": "internal/handler/meta.go",
+      "field_count": 10,
+      "relationships": []
+    },
+    {
+      "name": "BulkQueryResponse",
+      "file": "internal/handler/bulk.go",
+      "field_count": 8,
+      "relationships": ["BulkQueryResult"]
+    },
+    {
+      "name": "BulkQueryResult",
+      "file": "internal/handler/bulk.go",
       "field_count": 6,
+      "relationships": ["ResponseMeta"]
+    },
+    {
+      "name": "testFetchRequest",
+      "file": "internal/handler/testfetch.go",
+      "field_count": 9,
+      "relationships": []
+    },
+    {
+      "name": "testFetchResponse",
+      "file": "internal/handler/testfetch.go",
+      "field_count": 8,
       "relationships": []
     },
     {
@@ -324,6 +399,46 @@
       "type": "other"
     },
     {
+      "path": "docs/runbooks/runbook-index.md",
+      "topic": "operations",
+      "type": "runbook"
+    },
+    {
+      "path": "docs/runbooks/mongodb-down.md",
+      "topic": "operations",
+      "type": "runbook"
+    },
+    {
+      "path": "docs/runbooks/circuit-breaker-open.md",
+      "topic": "operations",
+      "type": "runbook"
+    },
+    {
+      "path": "docs/runbooks/high-latency.md",
+      "topic": "operations",
+      "type": "runbook"
+    },
+    {
+      "path": "docs/runbooks/upstream-error-rate.md",
+      "topic": "operations",
+      "type": "runbook"
+    },
+    {
+      "path": "docs/runbooks/high-memory.md",
+      "topic": "operations",
+      "type": "runbook"
+    },
+    {
+      "path": "docs/runbooks/concurrency-exhaustion.md",
+      "topic": "operations",
+      "type": "runbook"
+    },
+    {
+      "path": "docs/runbooks/scheduler-stalled.md",
+      "topic": "operations",
+      "type": "runbook"
+    },
+    {
       "path": "CLAUDE.md",
       "topic": "project-overview",
       "type": "readme"
@@ -356,7 +471,12 @@
       "Empty upstream result",
       "Upstream 404 / negative cache",
       "Request correlation IDs",
-      "Error taxonomy (error codes + ErrorsTotal metric)"
+      "Error taxonomy (error codes + ErrorsTotal metric)",
+      "GET /api/cache/{slug}/_meta (per-slug metadata)",
+      "POST /api/cache/{slug}/bulk (bulk cache lookup)",
+      "POST /api/test-fetch (dry-run upstream test)",
+      "Parameter validation (400 — CD-H003)",
+      "Method enforcement (405 — CD-H004)"
     ],
     "undocumented": [],
     "stale": []
@@ -389,7 +509,11 @@
     "internal/metrics/collector.go": "noted",
     "internal/metrics/system_collector.go": "noted",
     "internal/handler/status.go": "noted",
+    "internal/handler/meta.go": "noted",
+    "internal/handler/bulk.go": "noted",
+    "internal/handler/testfetch.go": "noted",
     "internal/middleware/requestid.go": "noted",
+    "internal/middleware/methods.go": "noted",
     "internal/model/errors.go": "noted"
   }
 }
