@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/finish06/cash-drugs/internal/cache"
@@ -22,6 +23,7 @@ import (
 
 // CacheHandler handles GET /api/cache/{slug} requests.
 type CacheHandler struct {
+	mu         sync.RWMutex
 	endpoints  map[string]config.Endpoint
 	repo       cache.Repository
 	fetcher    upstream.Fetcher
@@ -88,6 +90,27 @@ func NewCacheHandler(endpoints []config.Endpoint, repo cache.Repository, fetcher
 	return h
 }
 
+// UpdateEndpoints atomically replaces the handler's endpoint map with new endpoints.
+// This is called by the config watcher on hot reload.
+func (h *CacheHandler) UpdateEndpoints(endpoints []config.Endpoint) {
+	epMap := make(map[string]config.Endpoint, len(endpoints))
+	for _, ep := range endpoints {
+		epMap[ep.Slug] = ep
+	}
+	h.mu.Lock()
+	h.endpoints = epMap
+	h.mu.Unlock()
+	slog.Info("handler endpoints updated", "component", "handler", "endpoints", len(epMap))
+}
+
+// getEndpoint returns the endpoint for the given slug under read lock.
+func (h *CacheHandler) getEndpoint(slug string) (config.Endpoint, bool) {
+	h.mu.RLock()
+	ep, ok := h.endpoints[slug]
+	h.mu.RUnlock()
+	return ep, ok
+}
+
 // ServeHTTP handles incoming cache requests.
 //
 // @Summary      Get cached data for an endpoint
@@ -112,7 +135,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	slug := extractSlug(r.URL.Path)
 
-	ep, ok := h.endpoints[slug]
+	ep, ok := h.getEndpoint(slug)
 	if !ok {
 		slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "status", 404, "duration", time.Since(start))
 		h.recordHTTPMetrics(slug, r.Method, http.StatusNotFound, start)

@@ -13,7 +13,7 @@ import (
 func AllowMethods(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		allowed := http.MethodGet
-		if strings.HasPrefix(r.URL.Path, "/api/warmup") || strings.HasSuffix(r.URL.Path, "/bulk") || strings.HasPrefix(r.URL.Path, "/api/test-fetch") {
+		if strings.HasPrefix(r.URL.Path, "/api/warmup") || strings.HasSuffix(r.URL.Path, "/bulk") || strings.HasPrefix(r.URL.Path, "/api/test-fetch") || strings.HasPrefix(r.URL.Path, "/api/config/validate") {
 			allowed = http.MethodPost
 		}
 

@@ -253,10 +253,12 @@ func main() {
 	limiter := middleware.NewConcurrencyLimiter(maxConcurrent, m)
 
 	testFetchHandler := handler.NewTestFetchHandler()
+	configValidateHandler := handler.NewConfigValidateHandler()
 
 	// Application routes wrapped with concurrency limiter
 	appMux := http.NewServeMux()
 	appMux.Handle("/api/test-fetch", testFetchHandler)
+	appMux.Handle("/api/config/validate", configValidateHandler)
 	appMux.Handle("/api/cache/status", statusHandler)
 	appMux.Handle("/api/cache/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/_meta") {
@@ -299,6 +301,18 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Hot config reload: watch config file for changes + SIGHUP
+	configWatcher := config.NewWatcher(cfgPath, func(newEndpoints []config.Endpoint) error {
+		slog.Info("config reloaded", "component", "config", "endpoints", len(newEndpoints))
+		cacheHandler.UpdateEndpoints(newEndpoints)
+		// Note: scheduler cron jobs are not hot-reloaded — schedule changes require restart.
+		slog.Info("scheduler not hot-reloaded — schedule changes require restart", "component", "config")
+		return nil
+	})
+	if err := configWatcher.Start(); err != nil {
+		slog.Warn("config watcher failed to start — hot reload disabled", "component", "config", "error", err)
+	}
+
 	// Trigger initial warmup (includes parameterized queries) in background
 	if enableScheduler {
 		warmupOrchestrator.TriggerWarmup(nil, false)
@@ -313,6 +327,7 @@ func main() {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
 		slog.Info("shutting down", "component", "server")
+		configWatcher.Stop()
 		if sysCollector != nil {
 			sysCollector.Stop()
 		}

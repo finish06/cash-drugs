@@ -1,32 +1,35 @@
 # Session Handoff
-**Written:** 2026-03-17
+**Written:** 2026-03-21
 
 ## In Progress
-- PR #20 (feature/upstream-404-handling) — awaiting human review and merge
+- Nothing actively in progress — all cycles complete, working tree clean
 
 ## Completed This Session
-- Fixed all golangci-lint issues (41+ errcheck/staticcheck) across 22 files (commit 0a26890)
-- Added coverage tests to close 78.9% → 80.4% gap (commit 0a26890)
-- Reviewed upstream-404-handling spec, updated to v1.0.0 with design decisions (commit ed2d5bd)
-- Created cycle-4 plan for M12 completion (commit ed2d5bd)
-- TDD RED: 13 tests for 10 ACs (commit 8a50a2e)
-- TDD GREEN: Implemented upstream 404 handling in 5 files (commit 724ba8c)
-- All gates pass: 0 lint issues, all tests pass, 80.7% coverage
-- Pushed feature branch, created PR #20
+- **Cycle 7 (M14):** Request IDs, error taxonomy, cache status, alerting rules (commit 394a667)
+- **Cycle 8 (M15):** Per-slug metadata, bulk query, rich discovery (commit eebd736)
+- **Cycle 9 (M16):** Operational runbooks, test-fetch endpoint (commit 32fe38d)
+- **Bug fixes:** 6 critical bugs from swarm audit + cooldown arming (commits bcd1409, 05e6f91)
+- **Coverage:** 83% → 95.4% (~1000 test lines added)
+- **k6 suite:** 41 smoke checks + load test, validated on staging
+- **Dashboard:** reports/dashboard.html generated
+- **Retro:** Scores 8.5/7.2/8.5 (collab/ADD/swarm)
+- **Tagged:** v0.11.0 (commit 60068c0), CI published :v0.11.0 + :latest
+- **Staging:** validated at beta-60068c0, all k6 checks pass
 
 ## Decisions Made
-- Negative cache takes precedence over stale data (don't delete existing cache)
-- `upstream_404_total` Prometheus counter per slug for Grafana visibility
-- Negative entries cached in both LRU + MongoDB for sub-ms repeated 404 lookups
-- 10-minute hardcoded TTL for negative cache (not configurable in v1)
+- Go SDK (M15) deferred — API surface should stabilize first
+- M16 split: runbooks + test-fetch now, hot reload + chaos + config validate later
+- Error codes: CD-H001-H005, CD-U001-U003, CD-S001 (9 total)
+- Retro action items: stricter TDD, auto-checkpoints after deploy/bugfix
+- v0.10.2 tagged for bugfixes, v0.11.0 for full feature release
 
 ## Blockers
-- None
+- **GA promotion:** 30-day stability window, eligible 2026-04-04 (14 days)
+- **Production deploy:** v0.11.0 ready, awaiting human approval
 
 ## Next Steps
-1. Review and merge PR #20 (upstream-404-handling)
-2. Run `/add:cycle --complete` to close cycle 4
-3. Close M12 milestone (all 4 features will be DONE)
-4. Tag release (v0.9.1 or v1.0.0 — human decision)
-5. Production deployment
-6. GA maturity promotion assessment via `/add:retro`
+1. Deploy v0.11.0 to production (requires approval)
+2. Cycle 10 — remaining M16: hot config reload, chaos tests, config validate
+3. Tier 2 bug fixes from swarm report (5 items)
+4. GA promotion retro on 2026-04-04
+5. M17 planning (cross-slug search, autocomplete, pprof, TTL indexes)
