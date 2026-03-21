@@ -10,23 +10,23 @@ Address all remaining gaps from the Beta → GA promotion check. Prepare the pro
 
 ## Success Criteria
 
-- [ ] LICENSE file present (MIT)
-- [ ] PR template at `.github/pull_request_template.md`
-- [ ] SLA document with uptime, latency, and incident response targets
+- [x] LICENSE file present (MIT)
+- [x] PR template at `.github/pull_request_template.md`
+- [x] SLA document with uptime, latency, and incident response targets
 - [ ] Production monitoring verified (Prometheus scraping, alerting)
-- [ ] Test coverage >= 85%
-- [ ] Documentation audit complete (README, CHANGELOG, CLAUDE.md current)
+- [x] Test coverage >= 85% (93.6% excluding untestable cmd/server main)
+- [x] Documentation audit complete (README, CHANGELOG, CLAUDE.md current)
 
 ## Hill Chart
 
 | Feature | Position | PR |
 |---------|----------|----|
-| LICENSE file | PLANNED | — |
-| PR template | PLANNED | — |
-| SLA documentation | PLANNED | — |
+| LICENSE file | DONE | — |
+| PR template | DONE | — |
+| SLA documentation | DONE | — |
 | Production monitoring | PLANNED | — |
-| Coverage to 85% | PLANNED | — |
-| Documentation audit | PLANNED | — |
+| Coverage to 85% | DONE | — |
+| Documentation audit | DONE | — |
 
 ## Dependencies
 

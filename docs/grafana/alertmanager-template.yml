@@ -1,0 +1,44 @@
+# Alertmanager routing template for cash-drugs alerts.
+#
+# Merge this into your alertmanager.yml configuration.
+# Adjust receiver settings to match your notification channels
+# (Slack webhook, PagerDuty key, email, etc.).
+
+route:
+  receiver: default
+  group_by: ["alertname", "service"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - match:
+        service: cash-drugs
+        severity: critical
+      receiver: cash-drugs-critical
+      repeat_interval: 1h
+
+    - match:
+        service: cash-drugs
+        severity: warning
+      receiver: cash-drugs-warning
+      repeat_interval: 4h
+
+receivers:
+  - name: default
+    # Fallback — configure as needed
+
+  - name: cash-drugs-critical
+    # Example: Slack channel for critical alerts
+    # slack_configs:
+    #   - api_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+    #     channel: "#alerts-critical"
+    #     title: '{{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ "\n" }}{{ end }}'
+
+  - name: cash-drugs-warning
+    # Example: Slack channel for warnings
+    # slack_configs:
+    #   - api_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+    #     channel: "#alerts-warning"
+    #     title: '{{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ "\n" }}{{ end }}'

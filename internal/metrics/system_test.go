@@ -255,6 +255,74 @@ func TestResolvePath_BothMissing(t *testing.T) {
 	}
 }
 
+// --- NewProcfsSource ---
+
+func TestNewProcfsSource_DefaultPaths(t *testing.T) {
+	src := NewProcfsSource()
+	if src.procPath != "/proc" {
+		t.Errorf("expected procPath '/proc', got %q", src.procPath)
+	}
+	if src.cgroupPath != "/sys/fs/cgroup" {
+		t.Errorf("expected cgroupPath '/sys/fs/cgroup', got %q", src.cgroupPath)
+	}
+}
+
+// --- DiskUsage error path ---
+
+func TestDiskUsage_InvalidPath(t *testing.T) {
+	src := &ProcfsSource{}
+	_, err := src.DiskUsage("/nonexistent/path/that/should/not/exist")
+	if err == nil {
+		t.Error("expected error for invalid disk path")
+	}
+}
+
+// --- MemoryInfo error path ---
+
+func TestMemoryInfo_InvalidProcPath(t *testing.T) {
+	src := &ProcfsSource{procPath: "/nonexistent"}
+	_, err := src.MemoryInfo()
+	if err == nil {
+		t.Error("expected error for invalid proc path")
+	}
+}
+
+// --- NetworkStats error path ---
+
+func TestNetworkStats_InvalidProcPath(t *testing.T) {
+	src := &ProcfsSource{procPath: "/nonexistent"}
+	_, err := src.NetworkStats()
+	if err == nil {
+		t.Error("expected error for invalid proc path")
+	}
+}
+
+// --- parseKBLine tests ---
+
+func TestParseKBLine_Valid(t *testing.T) {
+	val, err := parseKBLine("VmRSS:    32768 kB")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if val != 32768 {
+		t.Errorf("expected 32768, got %d", val)
+	}
+}
+
+func TestParseKBLine_NoColon(t *testing.T) {
+	_, err := parseKBLine("no colon here")
+	if err == nil {
+		t.Error("expected error for line without colon")
+	}
+}
+
+func TestParseKBLine_InvalidNumber(t *testing.T) {
+	_, err := parseKBLine("VmRSS:    notanumber kB")
+	if err == nil {
+		t.Error("expected error for non-numeric value")
+	}
+}
+
 // --- CPU usage ---
 
 // AC-CSM-004: CPUUsage returns non-negative values

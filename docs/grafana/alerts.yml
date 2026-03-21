@@ -1,0 +1,120 @@
+# Prometheus alerting rules for cash-drugs microservice.
+# Load via prometheus.yml:
+#   rule_files:
+#     - "alerts.yml"
+
+groups:
+  - name: cash-drugs
+    rules:
+
+      # --- Critical: Service-degrading conditions ---
+
+      - alert: CashDrugsMongoDBDown
+        expr: cashdrugs_mongodb_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: cash-drugs
+        annotations:
+          summary: "MongoDB is unreachable"
+          description: >-
+            The cash-drugs instance {{ $labels.instance }} has been unable to
+            ping MongoDB for more than 1 minute. All cache lookups will miss
+            and upstream fetches cannot be stored.
+
+      - alert: CashDrugsCircuitBreakerOpen
+        expr: cashdrugs_circuit_state == 2
+        for: 1m
+        labels:
+          severity: critical
+          service: cash-drugs
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.slug }}"
+          description: >-
+            The circuit breaker for upstream slug "{{ $labels.slug }}" on
+            {{ $labels.instance }} has been open for more than 1 minute.
+            Requests to this upstream are being rejected. Check upstream
+            health and error logs.
+
+      # --- Warning: Performance and capacity ---
+
+      - alert: CashDrugsHighLatency
+        expr: >-
+          histogram_quantile(0.95,
+            sum by (le, instance) (
+              rate(cashdrugs_http_request_duration_seconds_bucket[5m])
+            )
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: cash-drugs
+        annotations:
+          summary: "P95 request latency above 100ms"
+          description: >-
+            The 95th percentile HTTP request latency on {{ $labels.instance }}
+            has exceeded 100ms for 5 minutes. Current value: {{ $value | humanizeDuration }}.
+
+      - alert: CashDrugsUpstreamErrorRate
+        expr: >-
+          sum by (instance) (rate(cashdrugs_upstream_fetch_errors_total[5m]))
+          /
+          (sum by (instance) (rate(cashdrugs_upstream_fetch_errors_total[5m]))
+           + sum by (instance) (rate(cashdrugs_http_requests_total[5m])))
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: cash-drugs
+        annotations:
+          summary: "Upstream error rate above 5%"
+          description: >-
+            More than 5% of upstream fetch attempts on {{ $labels.instance }}
+            are failing. Current error ratio: {{ $value | humanizePercentage }}.
+
+      - alert: CashDrugsHighMemory
+        expr: >-
+          cashdrugs_container_memory_rss_bytes
+          / cashdrugs_container_memory_limit_bytes > 0.8
+          and cashdrugs_container_memory_limit_bytes > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: cash-drugs
+        annotations:
+          summary: "Memory usage above 80% of limit"
+          description: >-
+            Container RSS on {{ $labels.instance }} is at
+            {{ $value | humanizePercentage }} of its memory limit.
+            Current RSS: {{ with printf `cashdrugs_container_memory_rss_bytes{instance="%s"}` $labels.instance | query }}{{ . | first | value | humanize1024 }}B{{ end }}.
+
+      - alert: CashDrugsConcurrencyExhaustion
+        expr: rate(cashdrugs_rejected_requests_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: cash-drugs
+        annotations:
+          summary: "Requests being rejected by concurrency limiter"
+          description: >-
+            The concurrency limiter on {{ $labels.instance }} has been
+            rejecting requests for 5 minutes. This means the max in-flight
+            request limit is being sustained. Consider scaling or increasing
+            the limit.
+
+      - alert: CashDrugsSchedulerStalled
+        expr: >-
+          sum by (instance) (
+            increase(cashdrugs_scheduler_runs_total[1h])
+          ) == 0
+          and cashdrugs_instance_leader == 1
+        for: 1h
+        labels:
+          severity: warning
+          service: cash-drugs
+        annotations:
+          summary: "Scheduler has not run in over 1 hour"
+          description: >-
+            The scheduler on leader instance {{ $labels.instance }} has not
+            recorded any runs in the last hour. Cached data may become stale.
+            Check scheduler configuration and logs.

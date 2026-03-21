@@ -199,6 +199,13 @@ func main() {
 	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m), handler.WithLRU(lruCache), handler.WithCircuit(circuitReg), handler.WithCooldown(cooldownTracker))
 	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
 	endpointsHandler := handler.NewEndpointsHandler(endpoints)
+
+	// Build endpoint map for status handler
+	epMap := make(map[string]config.Endpoint, len(endpoints))
+	for _, ep := range endpoints {
+		epMap[ep.Slug] = ep
+	}
+	statusHandler := handler.NewStatusHandler(epMap, repo)
 	versionHandler := handler.NewVersionHandler(version, gitCommit, gitBranch, buildDate, len(endpoints),
 		handler.WithLeader(enableScheduler))
 
@@ -244,6 +251,7 @@ func main() {
 
 	// Application routes wrapped with concurrency limiter
 	appMux := http.NewServeMux()
+	appMux.Handle("/api/cache/status", statusHandler)
 	appMux.Handle("/api/cache/", cacheHandler)
 	appMux.Handle("/api/endpoints", endpointsHandler)
 	appMux.Handle("/api/warmup", warmupHandler)
@@ -266,9 +274,12 @@ func main() {
 	// Wrap outermost handler with gzip middleware (compresses all responses including 503)
 	gzipHandler := middleware.GzipMiddleware(mux)
 
+	// Request ID is the outermost middleware so all downstream handlers have access
+	handler := middleware.RequestIDMiddleware(gzipHandler)
+
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      gzipHandler,
+		Handler:      handler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

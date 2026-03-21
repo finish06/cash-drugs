@@ -61,6 +61,11 @@ cash-drugs/
 ├── docs/
 │   ├── prd.md             # Product Requirements Document
 │   ├── plans/             # Implementation plans
+│   ├── milestones/        # Milestone tracking (M1-M13+)
+│   ├── grafana/           # Grafana dashboard JSON + alerting rules (alerts.yml, alertmanager-template.yml)
+│   ├── sequence-diagram.md # Mermaid sequence diagrams for all flows
+│   ├── prometheus-setup.md # Prometheus/Grafana monitoring setup
+│   ├── staging-deployment.md # Staging environment docs
 │   └── swagger.*          # OpenAPI/Swagger docs
 ├── tests/
 │   └── e2e/               # End-to-end tests
@@ -68,15 +73,15 @@ cash-drugs/
 │   └── server/            # Application entrypoint
 ├── internal/
 │   ├── cache/             # MongoDB cache layer + sharded LRU (16-shard FNV-1a)
-│   ├── config/            # YAML config loader
-│   ├── handler/           # HTTP handlers
-│   ├── upstream/          # Upstream API fetcher + circuit breaker + cooldown + parallel page fetches
-│   ├── scheduler/         # Cron-based refresh
-│   ├── fetchlock/         # Dedup concurrent fetches
-│   ├── logging/           # Structured logging setup
-│   ├── metrics/           # Prometheus metrics + MongoDB/System collectors
-│   ├── middleware/         # Concurrency limiter + gzip compression
-│   └── model/             # Response models
+│   ├── config/            # YAML config loader + staleness/TTL helpers
+│   ├── handler/           # HTTP handlers + warmup orchestrator + warmup state tracker + cache status (status.go)
+│   ├── upstream/          # Upstream API fetcher + circuit breaker + cooldown + 404 detection + parallel page fetches
+│   ├── scheduler/         # Cron-based refresh (endpoints with refresh, no path params)
+│   ├── fetchlock/         # Dedup concurrent fetches (sync.Mutex per slug)
+│   ├── logging/           # Structured logging setup (slog)
+│   ├── metrics/           # Prometheus metrics + MongoDB collector + system collector (procfs)
+│   ├── middleware/         # RequestID (outermost, UUID v4) + concurrency limiter (default 50, 503+Retry-After:1) + gzip compression
+│   └── model/             # Response models (APIResponse, CachedResponse, ErrorResponse) + error codes (errors.go: CD-H/U/S category codes)
 ├── docker-compose.yml          # Local development
 ├── docker-compose.prod.yml     # Production (pulls from registry)
 ├── docker-compose.test.yml     # Test MongoDB

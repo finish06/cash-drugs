@@ -6,6 +6,7 @@ import (
 
 	"github.com/finish06/cash-drugs/internal/model"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // --- reassemblePages tests ---
@@ -1019,6 +1020,124 @@ func TestAC010_RegexHelpersRemoved(t *testing.T) {
 				t.Error("Get filter should not use $regex after optimization")
 			}
 		}
+	}
+}
+
+// --- NewShardedLRUCache minShardBytes branch ---
+
+func TestNewShardedLRUCache_MinShardBytesClamping(t *testing.T) {
+	// When maxBytes/shardCount < minShardBytes (32768), shard count is reduced
+	lru := NewShardedLRUCache(50000, 4) // 50000/4 = 12500 < 32768
+	if lru == nil {
+		t.Fatal("expected non-nil LRU cache")
+	}
+	// Should still work — shard count was reduced to 1 (50000/32768 = 1)
+	resp := &model.CachedResponse{Slug: "test"}
+	lru.Set("key", resp, time.Minute)
+	got, ok := lru.Get("key")
+	if !ok {
+		t.Fatal("expected cache hit")
+	}
+	if got.Slug != "test" {
+		t.Errorf("expected slug 'test', got %q", got.Slug)
+	}
+}
+
+// --- backfillBaseKey tests ---
+
+func TestBackfillBaseKey_HappyPath(t *testing.T) {
+	doc := bson.M{"cache_key": "drugnames:page:1"}
+	mock := &mockCollection{
+		findDocs:     []any{doc},
+		updateResult: &mongo.UpdateResult{ModifiedCount: 1},
+	}
+	repo := newTestRepo(mock)
+
+	err := repo.backfillBaseKey(t.Context())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !mock.findCalled {
+		t.Error("expected Find to be called")
+	}
+	if mock.updateOneCalled != 1 {
+		t.Errorf("expected 1 UpdateOne call, got %d", mock.updateOneCalled)
+	}
+
+	// Verify the update sets base_key to "drugnames" (stripped :page:1)
+	if len(mock.updateOneUpdates) != 1 {
+		t.Fatalf("expected 1 update, got %d", len(mock.updateOneUpdates))
+	}
+	updateDoc, ok := mock.updateOneUpdates[0].(bson.M)
+	if !ok {
+		t.Fatalf("expected bson.M, got %T", mock.updateOneUpdates[0])
+	}
+	setFields, ok := updateDoc["$set"].(bson.M)
+	if !ok {
+		t.Fatalf("expected $set bson.M, got %T", updateDoc["$set"])
+	}
+	if setFields["base_key"] != "drugnames" {
+		t.Errorf("expected base_key 'drugnames', got %v", setFields["base_key"])
+	}
+}
+
+func TestBackfillBaseKey_FindError(t *testing.T) {
+	mock := &mockCollection{findErr: errMock}
+	repo := newTestRepo(mock)
+
+	err := repo.backfillBaseKey(t.Context())
+	if err == nil {
+		t.Fatal("expected error when Find fails")
+	}
+}
+
+func TestBackfillBaseKey_UpdateError(t *testing.T) {
+	doc := bson.M{"cache_key": "some-key"}
+	mock := &mockCollection{
+		findDocs:  []any{doc},
+		updateErr: errMock,
+	}
+	repo := newTestRepo(mock)
+
+	// Should not return error — update failures are logged and skipped
+	err := repo.backfillBaseKey(t.Context())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mock.updateOneCalled != 1 {
+		t.Errorf("expected 1 UpdateOne attempt, got %d", mock.updateOneCalled)
+	}
+}
+
+func TestBackfillBaseKey_DecodeError(t *testing.T) {
+	// Document missing cache_key field — decode will produce empty string
+	badDoc := bson.M{"not_cache_key": "value"}
+	mock := &mockCollection{
+		findDocs:     []any{badDoc},
+		updateResult: &mongo.UpdateResult{ModifiedCount: 1},
+	}
+	repo := newTestRepo(mock)
+
+	err := repo.backfillBaseKey(t.Context())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should still call UpdateOne with empty base_key derived from empty cache_key
+	if mock.updateOneCalled != 1 {
+		t.Errorf("expected 1 UpdateOne call, got %d", mock.updateOneCalled)
+	}
+}
+
+func TestBackfillBaseKey_NoDocs(t *testing.T) {
+	mock := &mockCollection{findDocs: []any{}}
+	repo := newTestRepo(mock)
+
+	err := repo.backfillBaseKey(t.Context())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mock.updateOneCalled != 0 {
+		t.Errorf("expected no UpdateOne calls, got %d", mock.updateOneCalled)
 	}
 }
 

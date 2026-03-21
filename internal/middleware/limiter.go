@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/finish06/cash-drugs/internal/metrics"
+	"github.com/finish06/cash-drugs/internal/model"
 )
 
 // ConcurrencyLimiter limits the number of in-flight requests using a channel-based semaphore.
@@ -51,15 +52,14 @@ func (cl *ConcurrencyLimiter) Wrap(next http.Handler) http.Handler {
 			// Semaphore full — reject with 503
 			if cl.metrics != nil {
 				cl.metrics.RejectedRequestsTotal.Inc()
+				cl.metrics.ErrorsTotal.WithLabelValues(model.ErrCodeServiceOverloaded, "").Inc()
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(struct {
-				Error      string `json:"error"`
-				RetryAfter int    `json:"retry_after"`
-			}{
+			_ = json.NewEncoder(w).Encode(model.ErrorResponse{
 				Error:      "service overloaded",
+				ErrorCode:  model.ErrCodeServiceOverloaded,
 				RetryAfter: 1,
 			})
 		}

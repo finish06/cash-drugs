@@ -114,11 +114,13 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "status", 404, "duration", time.Since(start))
 		h.recordHTTPMetrics(slug, r.Method, http.StatusNotFound, start)
+		h.recordErrorMetric(model.ErrCodeEndpointNotFound, slug)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(model.ErrorResponse{
-			Error: "endpoint not configured",
-			Slug:  slug,
+			Error:     "endpoint not configured",
+			ErrorCode: model.ErrCodeEndpointNotFound,
+			Slug:      slug,
 		})
 		return
 	}
@@ -242,14 +244,12 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// No cache — return 503
 		retryAfter := int(h.circuit.OpenDuration().Seconds())
 		h.recordHTTPMetrics(slug, r.Method, http.StatusServiceUnavailable, start)
+		h.recordErrorMetric(model.ErrCodeCircuitOpen, slug)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(struct {
-			Error      string `json:"error"`
-			Slug       string `json:"slug"`
-			RetryAfter int    `json:"retry_after"`
-		}{
+		_ = json.NewEncoder(w).Encode(model.ErrorResponse{
 			Error:      "upstream circuit open",
+			ErrorCode:  model.ErrCodeCircuitOpen,
 			Slug:       slug,
 			RetryAfter: retryAfter,
 		})
@@ -342,11 +342,13 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// No cache, return 502
 		slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 502, "cache", "miss", "duration", time.Since(start))
 		h.recordHTTPMetrics(slug, r.Method, http.StatusBadGateway, start)
+		h.recordErrorMetric(model.ErrCodeUpstreamUnavailable, slug)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
 		_ = json.NewEncoder(w).Encode(model.ErrorResponse{
-			Error: "upstream unavailable",
-			Slug:  slug,
+			Error:     "upstream unavailable",
+			ErrorCode: model.ErrCodeUpstreamUnavailable,
+			Slug:      slug,
 		})
 		return
 	}
@@ -363,6 +365,13 @@ func (h *CacheHandler) recordHTTPMetrics(slug, method string, statusCode int, st
 	}
 	h.metrics.HTTPRequestsTotal.WithLabelValues(slug, method, strconv.Itoa(statusCode)).Inc()
 	h.metrics.HTTPRequestDuration.WithLabelValues(slug, method).Observe(time.Since(start).Seconds())
+}
+
+func (h *CacheHandler) recordErrorMetric(code, slug string) {
+	if h.metrics == nil {
+		return
+	}
+	h.metrics.ErrorsTotal.WithLabelValues(code, slug).Inc()
 }
 
 func (h *CacheHandler) recordCacheOutcome(slug, outcome string) {
@@ -497,12 +506,14 @@ func (h *CacheHandler) backgroundRevalidate(ep config.Endpoint, params map[strin
 // respondNotFound sends a 404 JSON response for upstream-not-found or negative-cache scenarios.
 func (h *CacheHandler) respondNotFound(w http.ResponseWriter, slug string, params map[string]string, start time.Time, method string) {
 	h.recordHTTPMetrics(slug, method, http.StatusNotFound, start)
+	h.recordErrorMetric(model.ErrCodeUpstreamNotFound, slug)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)
 	_ = json.NewEncoder(w).Encode(model.ErrorResponse{
-		Error:  "not found",
-		Slug:   slug,
-		Params: params,
+		Error:     "not found",
+		ErrorCode: model.ErrCodeUpstreamNotFound,
+		Slug:      slug,
+		Params:    params,
 	})
 }
 

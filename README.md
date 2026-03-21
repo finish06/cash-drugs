@@ -1,8 +1,8 @@
-# drugs
+# cash-drugs
 
 **Configure once, cache forever, use everywhere.**
 
-Point drugs at any REST API — it fetches the data, stores it in MongoDB, and serves it back instantly. Your microservices hit drugs instead of upstream APIs. One cache, zero redundant calls.
+Point cash-drugs at any REST API — it fetches the data, stores it in MongoDB, and serves it back instantly. Your microservices hit cash-drugs instead of upstream APIs. One cache, zero redundant calls.
 
 ```yaml
 # config.yaml — that's it
@@ -25,7 +25,7 @@ Every internal service calling the same external API means:
 - **Rate limit pain** — one service burns the quota, all services fail
 - **Cascade failures** — upstream goes down, everything goes down
 
-drugs sits in between. Call once, cache in MongoDB, serve to everyone. When upstream goes down, your services keep running on cached data.
+cash-drugs sits in between. Call once, cache in MongoDB, serve to everyone. When upstream goes down, your services keep running on cached data.
 
 ## Quick Start
 
@@ -36,6 +36,7 @@ docker-compose up
 Service starts at **http://localhost:8080**. Explore:
 - **Swagger UI:** http://localhost:8080/swagger/
 - **All endpoints:** http://localhost:8080/api/endpoints
+- **Cache status:** http://localhost:8080/api/cache/status
 - **Health:** http://localhost:8080/health
 - **Readiness:** http://localhost:8080/ready
 - **Version:** http://localhost:8080/version
@@ -68,7 +69,7 @@ endpoints:
     pagesize: 50
 ```
 
-drugs walks every page automatically and stores them as separate MongoDB documents (no 16MB limit). Consumers get one combined response.
+cash-drugs walks every page automatically and stores them as separate MongoDB documents (no 16MB limit). Consumers get one combined response.
 
 ### Offset pagination (skip/limit APIs)
 
@@ -88,11 +89,11 @@ Some APIs use offset-based pagination (e.g., FDA openFDA). Set `pagination_style
     ttl: "24h"
 ```
 
-The fetcher sends `skip=0&limit=100`, `skip=100&limit=100`, etc. If the API caps skip (e.g., FDA's 25K limit), drugs stops gracefully and stores whatever was fetched.
+The fetcher sends `skip=0&limit=100`, `skip=100&limit=100`, etc. If the API caps skip (e.g., FDA's 25K limit), cash-drugs stops gracefully and stores whatever was fetched.
 
 ### Custom response structure
 
-APIs return data in different JSON keys. Use `data_key` and `total_key` to tell drugs where to find items and totals:
+APIs return data in different JSON keys. Use `data_key` and `total_key` to tell cash-drugs where to find items and totals:
 
 ```yaml
   - slug: fda-enforcement
@@ -231,9 +232,9 @@ environment:
 ## How It Works
 
 ```
-Your Services → drugs → MongoDB cache
-                  ↕            ↕
-            Upstream APIs   Prometheus → Grafana
+Your Services → cash-drugs → MongoDB cache
+                     ↕              ↕
+               Upstream APIs   Prometheus → Grafana
 ```
 
 1. **First request** → cache miss → fetch from upstream → store in MongoDB → return
@@ -261,10 +262,37 @@ JSON endpoints return:
 }
 ```
 
+## Error Codes
+
+All error responses include a stable `error_code` field for programmatic handling. Codes follow the pattern `CD-{CATEGORY}{NNN}`.
+
+| Code | HTTP | Meaning | Retry? |
+|------|------|---------|--------|
+| `CD-H001` | 404 | Endpoint slug not configured | No — check config |
+| `CD-H002` | 200 | Force-refresh blocked by cooldown | Cached data returned |
+| `CD-U001` | 502 | Upstream fetch failed, no cached data available | Yes — upstream may recover |
+| `CD-U002` | 404 | Upstream API returned 404 for the given parameters | No — check parameters |
+| `CD-U003` | 503 | Circuit breaker open — upstream is failing | Yes — respect `retry_after` |
+| `CD-S001` | 503 | Service overloaded — concurrency limit reached | Yes — respect `Retry-After` header |
+
+Error response envelope:
+
+```json
+{
+  "error": "upstream unavailable",
+  "error_code": "CD-U001",
+  "slug": "drugnames",
+  "request_id": "a1b2c3d4-...",
+  "retry_after": 30
+}
+```
+
+Every response includes an `X-Request-ID` header for tracing. If the caller sends `X-Request-ID`, cash-drugs preserves it; otherwise a UUID v4 is generated.
+
 ## Go Client
 
 ```go
-resp, _ := http.Get("http://drugs:8080/api/cache/products")
+resp, _ := http.Get("http://cash-drugs:8080/api/cache/products")
 defer resp.Body.Close()
 
 var result struct {
@@ -408,7 +436,7 @@ graph TD
 docker-compose up
 
 # Run directly
-MONGO_URI=mongodb://localhost:27017/drugs go run ./cmd/server
+MONGO_URI=mongodb://localhost:27017/cash-drugs go run ./cmd/server
 
 # Tests
 make test-unit          # Fast, no Docker

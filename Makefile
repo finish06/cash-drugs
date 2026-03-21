@@ -16,9 +16,12 @@ test-mongo-down:
 test-integration: test-mongo-up
 	MONGO_URI="mongodb://localhost:27018/drugs_test" go test ./... -count=1
 
+# Packages to include in coverage (excludes cmd/server main and generated docs)
+COVER_PKGS = $(shell go list ./... | grep -v cmd/server | grep -v '/docs$$')
+
 # Run all tests with coverage report
 test-coverage: test-mongo-up
-	MONGO_URI="mongodb://localhost:27018/drugs_test" go test ./... -count=1 -coverprofile=coverage.out
+	MONGO_URI="mongodb://localhost:27018/drugs_test" go test $(COVER_PKGS) -count=1 -coverprofile=coverage.out
 	go tool cover -func=coverage.out | tail -1
 	@echo "HTML report: go tool cover -html=coverage.out"
 

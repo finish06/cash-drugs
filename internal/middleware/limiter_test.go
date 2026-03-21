@@ -68,9 +68,10 @@ func TestAC002_RequestRejectedAtLimit(t *testing.T) {
 		t.Errorf("expected Retry-After header '1', got '%s'", retryAfter)
 	}
 
-	// AC-004: JSON error body
+	// AC-004: JSON error body with error code
 	var errResp struct {
 		Error      string `json:"error"`
+		ErrorCode  string `json:"error_code"`
 		RetryAfter int    `json:"retry_after"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &errResp); err != nil {
@@ -78,6 +79,9 @@ func TestAC002_RequestRejectedAtLimit(t *testing.T) {
 	}
 	if errResp.Error != "service overloaded" {
 		t.Errorf("expected error 'service overloaded', got '%s'", errResp.Error)
+	}
+	if errResp.ErrorCode != "CD-S001" {
+		t.Errorf("expected error_code 'CD-S001', got '%s'", errResp.ErrorCode)
 	}
 	if errResp.RetryAfter != 1 {
 		t.Errorf("expected retry_after 1, got %d", errResp.RetryAfter)

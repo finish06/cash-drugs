@@ -391,6 +391,34 @@
       "date": "2026-03-18",
       "classified_by": "agent",
       "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-027",
+      "title": "Cycle 7 complete: M14 Observability \u2014 4 features in single session",
+      "body": "Delivered request correlation IDs, error taxonomy (6 codes), cache status endpoint, and 7 Prometheus alerting rules in one cycle. Parallel agent dispatch (4 agents) worked cleanly \u2014 no file conflicts because features touched independent files. Coverage held at 93.8%. Key insight: error taxonomy should be middleware-based for consistency, but handler-level was sufficient for v1.",
+      "scope": "project",
+      "stack": [
+        "go"
+      ],
+      "category": "process",
+      "severity": "medium",
+      "source": "cash-drugs",
+      "date": "2026-03-20",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-028",
+      "title": "Parallel agent dispatch scales well for independent features",
+      "body": "4 agents ran concurrently on M14 features with zero file conflicts. Success factors: each feature owned distinct files (middleware/requestid.go, model/errors.go, handler/status.go, docs/grafana/alerts.yml). Only cmd/server/main.go was a shared file \u2014 resolved by having agents write to different registration blocks. Pattern: dispatch parallel agents when features touch non-overlapping file sets.",
+      "scope": "workstation",
+      "stack": [],
+      "category": "process",
+      "severity": "high",
+      "source": "cash-drugs",
+      "date": "2026-03-20",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
     }
   ]
 }

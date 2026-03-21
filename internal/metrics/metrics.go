@@ -53,6 +53,9 @@ type Metrics struct {
 	// Upstream 404 metrics
 	Upstream404Total *prometheus.CounterVec
 
+	// Error taxonomy metrics
+	ErrorsTotal *prometheus.CounterVec
+
 	// Singleflight metrics
 	SingleflightDedupTotal *prometheus.CounterVec
 
@@ -356,6 +359,16 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			[]string{"slug"},
 		),
 
+		// Error taxonomy metrics
+		ErrorsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "errors_total",
+				Help:      "Total errors by error code and slug.",
+			},
+			[]string{"code", "slug"},
+		),
+
 		// Singleflight metrics
 		SingleflightDedupTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -445,6 +458,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.LRUCacheMissesTotal,
 		m.LRUCacheSizeBytes,
 		m.Upstream404Total,
+		m.ErrorsTotal,
 		m.SingleflightDedupTotal,
 		m.WarmupQueriesTotal,
 		m.WarmupQueriesPending,

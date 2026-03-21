@@ -5,20 +5,30 @@
 ```mermaid
 sequenceDiagram
     actor Client as Internal Service
+    participant RID as RequestID Middleware
     participant GZ as Gzip Middleware
     participant LIM as Concurrency Limiter
     participant CH as CacheHandler
     participant LRU as Sharded LRU Cache<br/>(16 shards, FNV-1a)
     participant DB as MongoDB<br/>(cached_responses)
 
-    Client->>GZ: GET /api/cache/{slug}?param=value
+    Client->>RID: GET /api/cache/{slug}?param=value
+    Note over RID: Preserve X-Request-ID or generate UUID v4
+    RID->>GZ: pass through (ID in context)
     GZ->>LIM: pass through
     LIM->>CH: ServeHTTP(w, r)
     CH->>CH: Build cache key<br/>(slug + sorted params)
     CH->>LRU: Get(cacheKey)
     Note over LRU: FNV-1a hash → shard N<br/>lock shard N mutex
-    alt LRU hit
+    alt LRU hit (positive)
         LRU-->>CH: CachedResponse (fresh)
+    end
+    alt LRU hit (negative cache — upstream 404)
+        LRU-->>CH: CachedResponse (NotFound=true)
+        CH-->>GZ: 404 {"error": "not found", "error_code": "CD-U002"}
+        GZ-->>RID: 404
+        RID-->>Client: 404 + X-Request-ID
+        Note over CH: Sub-ms — no DB or upstream call
     end
     alt LRU miss
         LRU-->>CH: nil
@@ -29,7 +39,8 @@ sequenceDiagram
     end
     CH->>CH: Set X-Cache-Stale: false
     CH-->>GZ: 200 {"data": [...], "meta": {slug, fetched_at, results_count, stale: false}}
-    GZ-->>Client: 200 (gzip compressed)
+    GZ-->>RID: 200 (gzip compressed)
+    RID-->>Client: 200 + X-Request-ID (gzip compressed)
 ```
 
 ## Cache Miss — Upstream Fetch Flow
@@ -116,7 +127,7 @@ sequenceDiagram
             alt No cache at all
                 SF->>FL: Unlock(slug)
                 SF-->>CH: error
-                CH-->>Client: 502 {"error": "upstream_error"}
+                CH-->>Client: 502 {"error": "upstream_error", "error_code": "CD-U001"}
             end
         end
     end
@@ -156,11 +167,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor Client as Internal Service
+    participant RID as RequestID Middleware
     participant GZ as Gzip Middleware
     participant LIM as Concurrency Limiter<br/>(max 50 in-flight)
     participant MUX as ServeMux
 
-    Client->>GZ: GET /api/cache/{slug}
+    Client->>RID: GET /api/cache/{slug}
+    RID->>GZ: pass through (ID in context)
     GZ->>LIM: pass through
 
     alt Under limit (< 50 in-flight)
@@ -169,13 +182,15 @@ sequenceDiagram
         MUX-->>LIM: response
         LIM->>LIM: Release semaphore
         LIM-->>GZ: response
-        GZ-->>Client: 200 (gzip compressed)
+        GZ-->>RID: 200 (gzip compressed)
+        RID-->>Client: 200 + X-Request-ID
     end
 
     alt At limit (50 in-flight)
         LIM->>LIM: Cannot acquire
-        LIM-->>GZ: 503 {"error": "server_busy"}<br/>+ Retry-After: 5
-        GZ-->>Client: 503 (gzip compressed)
+        LIM-->>GZ: 503 {"error": "service_overloaded", "error_code": "CD-S001"}<br/>+ Retry-After: 1
+        GZ-->>RID: 503 (gzip compressed)
+        RID-->>Client: 503 + X-Request-ID
     end
 
     Note over LIM: Exempt paths: /health, /metrics, /ready<br/>bypass the limiter entirely<br/>(/version also exempt — registered on outer mux)
@@ -220,7 +235,7 @@ sequenceDiagram
             CH-->>CH: Return stale with X-Circuit-State: open
         end
         alt No cache
-            CH-->>CH: 503 {"error": "circuit_open"}
+            CH-->>CH: 503 {"error": "circuit_open", "error_code": "CD-U003"}
         end
         Note over CB: After open_duration elapses<br/>→ transition to HALF-OPEN
     end
@@ -422,12 +437,12 @@ sequenceDiagram
 
     alt MongoDB reachable
         DB-->>HC: ok
-        HC-->>Client: 200 {"status": "ok", "db": "connected", "version": "v0.8.0"}
+        HC-->>Client: 200 {"status": "ok", "db": "connected", "version": "v0.10.1"}
     end
 
     alt MongoDB unreachable
         DB-->>HC: error
-        HC-->>Client: 503 {"status": "degraded", "db": "disconnected", "version": "v0.8.0"}
+        HC-->>Client: 503 {"status": "degraded", "db": "disconnected", "version": "v0.10.1"}
     end
 ```
 
@@ -488,7 +503,7 @@ sequenceDiagram
     Note over GW: Exempt from concurrency limiter
     GW->>VH: ServeHTTP(w, r)
     VH->>VH: Collect runtime info<br/>(version, git_commit, git_branch,<br/>build_date, go_version, os, arch,<br/>hostname, GOMAXPROCS, uptime)
-    VH-->>Client: 200 {"version": "v0.8.0", "git_commit": "abc1234",<br/>"uptime_seconds": 3600, "endpoint_count": 17, ...}
+    VH-->>Client: 200 {"version": "v0.10.1", "git_commit": "abc1234",<br/>"uptime_seconds": 3600, "endpoint_count": 17, ...}
 
     Note over VH: Prometheus gauges updated independently:<br/>cashdrugs_build_info (labels: version, commit, go, date)<br/>cashdrugs_uptime_seconds (updated every 15s)
 ```
@@ -591,7 +606,9 @@ sequenceDiagram
         WS-->>RH: false
         RH->>WS: Progress()
         WS-->>RH: done, total
-        RH-->>Client: 503 {"status": "warming", "progress": "5/17"}
+        RH->>WS: Phase()
+        WS-->>RH: "scheduled" | "queries"
+        RH-->>Client: 503 {"status": "warming", "progress": "5/17", "phase": "scheduled"}
     end
 ```
 
@@ -637,6 +654,125 @@ sequenceDiagram
     Note over WS: IsReady() returns true<br/>when done == total
 ```
 
+## Upstream 404 / Negative Cache Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant CH as CacheHandler
+    participant LRU as Sharded LRU Cache
+    participant DB as MongoDB
+    participant SF as Singleflight
+    participant UF as HTTPFetcher
+    participant API as Upstream API
+
+    Client->>CH: GET /api/cache/{slug}?PARAM=unknown
+
+    CH->>LRU: Get(cacheKey)
+    alt LRU negative cache hit
+        LRU-->>CH: CachedResponse (NotFound=true)
+        CH-->>Client: 404 {"error": "not found", "slug": "...", "params": {...}}
+        Note over CH: Sub-ms response — no DB or upstream call
+    end
+
+    alt LRU miss
+        LRU-->>CH: nil
+        CH->>DB: Get(cacheKey)
+        alt MongoDB negative cache hit (within 10-min TTL)
+            DB-->>CH: CachedResponse (NotFound=true, age < 10m)
+            CH-->>Client: 404 {"error": "not found", "slug": "...", "params": {...}}
+        end
+        alt Negative cache expired (> 10 min)
+            DB-->>CH: CachedResponse (NotFound=true, age > 10m)
+            Note over CH: Fall through to upstream fetch
+        end
+        alt No cache
+            DB-->>CH: nil
+        end
+    end
+
+    CH->>SF: Do(cacheKey, fetchFn)
+    SF->>UF: Fetch(endpoint, params)
+    UF->>API: GET {base_url}{path}?PARAM=unknown
+    API-->>UF: 404 Not Found
+
+    UF-->>SF: ErrUpstreamNotFound
+    SF-->>CH: error (ErrUpstreamNotFound)
+
+    Note over CH: Store negative cache entry
+    CH->>DB: Upsert(NotFound=true, FetchedAt=now)
+    CH->>LRU: Set(cacheKey, NotFound=true, TTL=10m)
+    Note over CH: Increment cashdrugs_upstream_404_total{slug}
+
+    CH-->>Client: 404 {"error": "not found", "slug": "...", "params": {...}}
+```
+
+## Cache Status Endpoint Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant RID as RequestID Middleware
+    participant GZ as Gzip Middleware
+    participant LIM as Concurrency Limiter
+    participant SH as StatusHandler
+    participant DB as MongoDB
+
+    Client->>RID: GET /api/cache/status
+    Note over RID: Preserve X-Request-ID or generate UUID v4
+    RID->>GZ: pass through (ID in context)
+    GZ->>LIM: pass through
+    LIM->>SH: ServeHTTP(w, r)
+
+    loop For each configured endpoint slug
+        SH->>DB: FetchedAt(slug)
+        alt Cached
+            DB-->>SH: timestamp, true
+            SH->>SH: Compute staleness via config.IsStale<br/>+ TTL remaining + health score
+        end
+        alt Not cached
+            DB-->>SH: _, false
+            SH->>SH: Mark health=0, stale=true
+        end
+    end
+
+    SH-->>LIM: 200 {"slugs": {...}, "total_slugs": N,<br/>"healthy_slugs": M, "stale_slugs": K}
+    LIM-->>GZ: response
+    GZ-->>RID: 200 (gzip compressed)
+    RID-->>Client: 200 + X-Request-ID
+```
+
+## Request Correlation ID Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant RID as RequestID Middleware
+    participant GZ as Gzip Middleware
+    participant Handler as Any Handler
+
+    alt Client sends X-Request-ID
+        Client->>RID: GET /any/path<br/>X-Request-ID: abc-123
+        RID->>RID: Use existing ID "abc-123"
+    end
+
+    alt No X-Request-ID header
+        Client->>RID: GET /any/path
+        RID->>RID: Generate UUID v4
+    end
+
+    RID->>RID: Store ID in request context
+    RID->>RID: Set X-Request-ID response header
+    RID->>GZ: pass through
+    GZ->>Handler: ServeHTTP(w, r)
+    Handler-->>GZ: response
+    GZ-->>RID: response
+    RID-->>Client: response + X-Request-ID header
+
+    Note over RID,Handler: All handlers can access ID via<br/>middleware.RequestID(ctx)
+    Note over RID: Error responses include request_id<br/>in JSON body for tracing
+```
+
 ## System Overview
 
 ```mermaid
@@ -645,6 +781,7 @@ sequenceDiagram
     actor Svc as Internal Service
     actor Prom as Prometheus
     participant SW as Swagger UI
+    participant RID as RequestID
     participant GZ as Gzip
     participant LIM as Limiter
     participant CD as cash-drugs<br/>:8080
@@ -659,7 +796,8 @@ sequenceDiagram
     Dev->>CD: GET /openapi.json
     CD-->>Dev: OpenAPI spec
 
-    Svc->>GZ: GET /api/cache/drugnames
+    Svc->>RID: GET /api/cache/drugnames
+    RID->>GZ: pass through
     GZ->>LIM: pass through
     LIM->>CD: ServeHTTP
     CD->>LRU: Hash key → shard → check
@@ -675,7 +813,8 @@ sequenceDiagram
     CD-->>GZ: {"data": [...], "meta": {results_count: M, stale: false}}
     GZ-->>Svc: 200 (gzip compressed)
 
-    Svc->>GZ: GET /api/cache/fda-enforcement
+    Svc->>RID: GET /api/cache/fda-enforcement
+    RID->>GZ: pass through
     GZ->>LIM: pass through
     LIM->>CD: ServeHTTP
     CD->>LRU: Hash key → shard → check
@@ -683,7 +822,8 @@ sequenceDiagram
     CD-->>GZ: {"data": [...], "meta": {results_count: M, stale: false}}
     GZ-->>Svc: 200 (gzip compressed)
 
-    Svc->>GZ: GET /api/cache/rxnorm-interaction
+    Svc->>RID: GET /api/cache/rxnorm-interaction
+    RID->>GZ: pass through
     GZ->>LIM: pass through
     LIM->>CD: ServeHTTP
     CD->>LRU: Hash key → shard → check
@@ -706,13 +846,21 @@ sequenceDiagram
 
     Svc->>CD: GET /version
     Note over LIM: Exempt — bypasses limiter
-    CD-->>Svc: {"version": "v0.8.0", "uptime_seconds": 3600, ...}
+    CD-->>Svc: {"version": "...", "uptime_seconds": 3600, "leader": true, ...}
 
     Svc->>CD: GET /health
     Note over LIM: Exempt — bypasses limiter
-    CD-->>Svc: {"status": "ok", "db": "connected", "version": "v0.8.0"}
+    CD-->>Svc: {"status": "ok", "db": "connected", "version": "..."}
+
+    Svc->>RID: GET /api/cache/status
+    RID->>GZ: pass through
+    GZ->>LIM: pass through
+    LIM->>CD: ServeHTTP
+    CD-->>GZ: {"slugs": {...}, "healthy_slugs": N, "stale_slugs": M}
+    GZ-->>RID: 200 (gzip compressed)
+    RID-->>Svc: 200 + X-Request-ID
 
     Prom->>CD: GET /metrics
     Note over LIM: Exempt — bypasses limiter
-    CD-->>Prom: cashdrugs_* + build_info + uptime + system metrics
+    CD-->>Prom: cashdrugs_* + build_info + uptime + errors_total + system metrics
 ```

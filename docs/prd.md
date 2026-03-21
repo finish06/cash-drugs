@@ -1,6 +1,6 @@
 # cash-drugs — Product Requirements Document
 
-**Version:** 0.6.0
+**Version:** 0.7.0
 **Created:** 2026-03-05
 **Author:** calebdunn
 **Status:** Active
@@ -48,6 +48,12 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - Cache invalidation API
 - Response diffing or change detection
 - Webhook notifications on data changes
+- Multi-tenancy / API keys (until 3+ consumer teams)
+- Response diffing / change detection
+- Pre-materialized responses
+- Consistent hash routing (until 4+ instances)
+- Dynamic config API (MongoDB-backed)
+- Built-in HTML dashboard (Grafana covers this)
 
 ## 5. Architecture
 
@@ -104,19 +110,27 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M11: RxNorm + Warmup | RxNorm API integration, parameterized warmup, multi-instance support | beta | DONE | 6 RxNorm endpoints, warmup-queries.yaml (top 100 drugs), ENABLE_SCHEDULER leader/replica, nginx LB |
 | M12: Client Enhancements | Readiness endpoint, response normalization, API doc fixes, upstream 404 handling | beta | DONE | /ready, /api/warmup, flatten config, upstream-404-handling |
 | M13: GA Readiness | LICENSE, PR template, SLA doc, CI hardening, coverage, docs audit | ga | IN_PROGRESS | 30-day stability (eligible 2026-04-04), SLA targets, 85%+ coverage |
+| M14: Observability & Operational Foundation | SLAs, alerting rules, request tracing, error taxonomy, cache status API | ga | NEXT | SLA doc, X-Request-ID tracing, error codes, 7+ alert rules, /api/cache/status |
+| M15: Consumer Value & API Ergonomics | Bulk queries, rich discovery, Go SDK, per-slug metadata | ga | NEXT | Bulk endpoint, parameter docs, Go client pkg, /_meta endpoint |
+| M16: Operational Resilience & Runtime Management | Runbooks, chaos tests, hot config reload, test-fetch dry-run | ga | LATER | Runbook per alert, 4+ chaos tests, fsnotify reload, test-fetch endpoint |
+| M17: Intelligent Data Layer | Cross-slug search, autocomplete, field filtering, pprof, TTL indexes | ga | LATER | Cross-slug search <100ms, autocomplete <20ms, field filtering, pprof, TTL expiry |
 
 ### Milestone Detail
 
 #### M1: Config + Fetch + Store [DONE]
 **Goal:** End-to-end flow — configure an API endpoint, fetch its data, store in MongoDB, serve to internal consumers
+
 **Appetite:** Small — focused core functionality
+
 **Target maturity:** alpha
+
 **Features:**
 - API configuration — define upstream endpoints with URL and query params
 - On-demand fetch — consumer requests trigger upstream fetch if not cached
 - MongoDB storage — store raw API responses with metadata
 - Consumer API — REST endpoints for internal services to retrieve cached data
 - Health check — basic liveness/readiness endpoints
+
 **Success criteria:**
 - [x] Configure at least one upstream API endpoint
 - [x] Fetch and store response in MongoDB
@@ -126,14 +140,18 @@ Internal microservices frequently need data from external REST APIs. Each servic
 
 #### M3: Documentation + Onboarding [DONE]
 **Goal:** Make the service easy for internal teams to discover, understand, and integrate with — no Slack messages or tribal knowledge needed
+
 **Appetite:** Small — documentation and API discoverability
+
 **Target maturity:** beta
+
 **Features:**
 - OpenAPI specification — auto-generated from swaggo annotations, served at `/openapi.json`
 - Interactive API explorer — Swagger UI at `/swagger/`
 - Usage examples — curl commands, Go client snippets, common workflows
 - Endpoint discovery — `GET /api/endpoints` listing all configured slugs with metadata
 - Onboarding guide — README section explaining how to add a new upstream API
+
 **Success criteria:**
 - [x] OpenAPI spec available at `/openapi.json`
 - [x] Interactive docs at `/swagger/`
@@ -142,13 +160,17 @@ Internal microservices frequently need data from external REST APIs. Each servic
 
 #### M5: FDA API Integration [DONE]
 **Goal:** Add FDA openFDA drug API endpoints via generic fetcher enhancements
+
 **Appetite:** Small — config-driven, no new services
+
 **Target maturity:** beta
+
 **Features:**
 - Offset pagination (skip/limit) support via `pagination_style: offset`
 - Configurable JSON response parsing via `data_key` and `total_key`
 - Dot-notation path traversal for nested keys (e.g., `meta.results.total`)
 - 6 FDA endpoints: enforcement, shortages, NDC, Drugs@FDA, labels, adverse events
+
 **Success criteria:**
 - [x] Offset pagination sends skip/limit params
 - [x] Configurable data_key and total_key with dot-path traversal
@@ -157,14 +179,18 @@ Internal microservices frequently need data from external REST APIs. Each servic
 
 #### M6: Docker Build & Publish [DONE]
 **Goal:** Automated Docker image publishing to private registry with versioned tags
+
 **Appetite:** Small — CI/CD enhancement
+
 **Target maturity:** beta
+
 **Features:**
 - Version embedding via `-ldflags` at build time
 - `/health` returns build version
 - CI publishes `:beta` on push to main
 - CI publishes `:vX.Y.Z` + `:latest` on git tag
 - Registry: `dockerhub.calebdunn.tech/finish06/cash-drugs`
+
 **Success criteria:**
 - [x] CI builds and pushes images on push to main and git tags
 - [x] `/health` returns embedded version
@@ -172,8 +198,11 @@ Internal microservices frequently need data from external REST APIs. Each servic
 
 #### M8: Prometheus Metrics [DONE]
 **Goal:** Expose a `/metrics` Prometheus endpoint providing full operational observability — MongoDB health/size, cache performance, upstream API behavior, request throughput, and scheduler stats
+
 **Appetite:** Medium — new metrics package, instrumentation across all layers
+
 **Target maturity:** beta
+
 **Features:**
 - Prometheus `/metrics` endpoint via `promhttp`
 - HTTP request counters and latency histograms per slug/status code
@@ -183,6 +212,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - Scheduler job execution counters and duration per slug
 - Fetch lock deduplication counters
 - Go runtime metrics (goroutines, memory, GC) included by default
+
 **Success criteria:**
 - [x] `/metrics` returns Prometheus exposition format
 - [x] Cache hit ratio visible per slug
@@ -194,13 +224,17 @@ Internal microservices frequently need data from external REST APIs. Each servic
 
 #### M9: Performance & Resilience [DONE]
 **Goal:** Prevent service collapse under concurrent load, optimize response delivery, protect against upstream API instability, and export container-level system metrics
+
 **Appetite:** Medium-Large — 4 features across middleware, cache, upstream, and metrics layers
+
 **Target maturity:** beta
+
 **Features:**
 - Connection resilience — concurrency limiter middleware (503+Retry-After), HTTP server timeouts, health/metrics exemption
 - Response optimization — gzip compression, singleflight request coalescing, in-memory LRU cache (256MB)
 - Upstream resilience — per-endpoint circuit breakers (gobreaker), force-refresh 30s cooldown
 - Container system metrics — CPU/memory/disk/network from procfs/cgroup via SystemCollector
+
 **Success criteria:**
 - [x] Service handles 150 concurrent connections without connection refused
 - [x] Overloaded requests receive 503 + Retry-After
@@ -215,14 +249,18 @@ Internal microservices frequently need data from external REST APIs. Each servic
 
 #### M10: Performance Optimization [DONE]
 **Goal:** Optimize MongoDB query patterns, reduce LRU lock contention, parallelize upstream page fetches, handle empty upstream results gracefully, and add a version/build info endpoint
+
 **Appetite:** Medium — performance improvements across cache, upstream, and handler layers
+
 **Target maturity:** beta
+
 **Features:**
 - MongoDB query optimization — `base_key` exact-match replaces regex, compound index on `base_key + page`, startup migration for existing documents
 - LRU cache sharding — 16-shard FNV-1a hashed cache with per-shard mutexes
 - Parallel page fetches — concurrent upstream pages (cap 3 goroutines) after sequential first page
 - Empty upstream results — 200 with empty data + `results_count: 0` instead of 502
 - Version endpoint — `GET /version` with build info, Prometheus `build_info` and `uptime_seconds` gauges
+
 **Success criteria:**
 - [x] MongoDB queries use `base_key` exact match with compound index
 - [x] Startup migration backfills `base_key` on existing documents
@@ -232,6 +270,131 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [x] `GET /version` returns build metadata and uptime
 - [x] `cashdrugs_build_info` and `cashdrugs_uptime_seconds` Prometheus gauges exported
 - [x] All existing tests pass
+
+#### M14: Observability & Operational Foundation [NEXT]
+**Goal:** Production-grade observability — SLAs defined, alerts firing, requests traceable, errors classified. Sleep-at-night confidence.
+
+**Appetite:** 2 weeks
+
+**Target maturity:** ga
+
+**Priority:** P0 — GA promotion blocker
+
+**Features:**
+- SLA definition (`docs/sla.md`) — P95 cache latency < 50ms, upstream success > 95%, availability > 99.5%, stale-serve guarantee
+- Request correlation IDs — generate `X-Request-ID` on ingress, thread through slog, return in response headers, propagate to upstream
+- Error taxonomy — stable error codes (`CD-U001`, `CD-M001`, etc.) in logs, metrics (`cashdrugs_errors_total{code,category,slug}`), and API responses. Consistent JSON error envelope with `error_code`, `message`, `request_id`, `retry_after`
+- Prometheus alerting rules — 7 rules: cache latency, upstream errors, circuit breaker open, MongoDB down, scheduler stalled, high memory, concurrency exhaustion. Ship as `docs/grafana/alerts.yml` with Alertmanager templates
+- Cache status endpoint — `GET /api/cache/status` returns per-slug freshness summary (doc count, last refresh, staleness, TTL remaining, warmup coverage, health score 0-100)
+
+**Success criteria:**
+- [ ] SLA document with measurable targets
+- [ ] `X-Request-ID` on every log line and response header
+- [ ] All error paths classified with stable codes
+- [ ] 7+ alerting rules with Alertmanager template
+- [ ] `/api/cache/status` returns per-slug health
+- [ ] Alert rules tested (manually trigger each condition)
+
+#### M15: Consumer Value & API Ergonomics [NEXT]
+**Goal:** Eliminate consumer friction — bulk queries, richer discovery, Go SDK. Make adoption effortless.
+
+**Appetite:** 2 weeks
+
+**Target maturity:** ga
+
+**Priority:** P1 — growth accelerator
+
+**Features:**
+- Bulk query API — `POST /api/cache/{slug}/bulk` with `{"queries": [...]}`. Concurrent cache lookups (capped 10 goroutines), partial success with per-query status, batch limit of 100
+- Rich endpoint discovery — enhance `GET /api/endpoints` to include: required/optional parameters with types, example request URLs, response schema from last cached response, cache status per slug
+- Go client SDK — `pkg/client` with `NewClient(baseURL, opts...)`, typed methods for all public endpoints, typed errors (`ErrUpstreamDown`, `ErrCacheMiss`), auto-retry with Retry-After, bulk query support
+- Per-slug metadata — `GET /api/cache/{slug}/_meta` returns lightweight cache state (last_refreshed, ttl_remaining, is_stale, page_count, record_count, circuit_state) without full payload
+
+**Success criteria:**
+- [ ] Bulk endpoint handles 100 queries with concurrent lookups
+- [ ] `/api/endpoints` returns parameter docs and response schemas
+- [ ] Go client package with 80%+ test coverage
+- [ ] `/_meta` returns cache state for any slug
+- [ ] Prometheus metrics for bulk request size and latency
+
+#### M16: Operational Resilience & Runtime Management [LATER]
+**Goal:** Runbooks for every alert, chaos tests that prove resilience, hot config reload that eliminates restart-for-config friction.
+
+**Appetite:** 2 weeks
+
+**Target maturity:** ga
+
+**Priority:** P1 — operational maturity
+
+**Features:**
+- Operational runbooks (`docs/runbooks/`) — one per M14 alerting rule. Each contains: symptom, likely cause, diagnostic steps (specific commands), remediation, escalation. Quick-reference index at `runbook-index.md`
+- Chaos test suite (`tests/chaos/`) — Go tests against local Docker stack: kill MongoDB (verify stale-serve), block upstream (verify circuit breaker), exhaust concurrency (verify 503 + Retry-After), SIGTERM during requests (verify graceful shutdown)
+- Hot config reload — `fsnotify` watcher on `config.yaml` + SIGHUP handler. New slugs added to router immediately, removed slugs stop scheduling, zero downtime during reload
+- Test-fetch endpoint — `POST /api/test-fetch` accepts endpoint config, executes single-page fetch without caching. Returns parsed response or detailed error. Validates new upstream configs before committing
+- Config validation — `POST /api/config/validate` accepts YAML snippet, validates reachability, query params, data_key/total_key paths. No restart required
+
+**Success criteria:**
+- [ ] Runbook exists for every M14 alerting rule
+- [ ] 4+ chaos tests covering major failure modes, all passing
+- [ ] Config file changes reload within 5 seconds, no restart
+- [ ] Test-fetch validates new upstream configs dry-run
+- [ ] Graceful shutdown verified: 0 dropped in-flight requests on SIGTERM
+
+#### M17: Intelligent Data Layer [LATER]
+**Goal:** Transform cash-drugs from a cache into a queryable drug data layer — cross-slug search, field filtering, performance profiling. The service consumers *prefer* over hitting upstreams directly.
+
+**Appetite:** 2–3 weeks
+
+**Target maturity:** ga
+
+**Priority:** P2 — differentiation and long-term value
+
+**Features:**
+- Cross-slug search — `GET /api/search?q=metformin` searches across all cached data with MongoDB text indexes. Results grouped by slug with match count and preview. Exact > prefix > contains ranking
+- Autocomplete — `GET /api/autocomplete?q=met&limit=10` returns fast prefix matches from drugnames/fda-ndc caches for typeahead UIs
+- Field filtering — `GET /api/cache/{slug}?...&fields=product_ndc,brand_name` returns only requested fields. Reduces payload for consumers that need subsets
+- Go pprof endpoints — `net/http/pprof` on internal port (:6060). CPU, heap, goroutine profiles on-demand. Not exposed on :8080
+- Performance baselines — `go test -bench` suite covering cache hit, LRU vs MongoDB latency, upstream fetch with varying page counts. Committed results serve as regression reference
+- MongoDB TTL indexes — TTL index on `updated_at` (2x endpoint TTL) for automatic stale document cleanup. Prevents unbounded collection growth
+
+**Success criteria:**
+- [ ] Cross-slug search returns grouped results in < 100ms
+- [ ] Autocomplete returns in < 20ms
+- [ ] Field filtering reduces response payload to requested fields
+- [ ] pprof accessible on internal port
+- [ ] Benchmark suite with committed P50/P95/P99 baselines
+- [ ] Stale documents automatically expire via TTL index
+
+### Milestone Sequencing
+
+```
+M13 (GA Readiness) ── in progress, eligible 2026-04-04
+    │
+    ▼
+M14: Observability & Operational Foundation (2 weeks)
+    │
+    ├──▶ M15: Consumer Value & API Ergonomics (2 weeks, can overlap M14's second week)
+    │
+    └──▶ M16: Operational Resilience & Runtime Management (2 weeks, starts after M14)
+              │
+              ▼
+         M17: Intelligent Data Layer (2-3 weeks, starts after M15 + M16 core)
+```
+
+M15 and M16 can run partially in parallel once M14's correlation IDs and alerting rules land. M17 starts after M15 (bulk API) and M16 (hot reload) are complete.
+
+**GA promotion gate:** After M14 + M16, the service has SLAs, alerts, runbooks, chaos tests, and tracing. M15 and M17 are growth milestones that can ship post-GA.
+
+### Deferred Items (Future Milestones)
+
+| Item | Rationale |
+|------|-----------|
+| Multi-tenancy / API keys | Platform play — premature until 3+ consumer teams |
+| Response diffing / change detection | High value but high complexity. Revisit post-GA |
+| Pre-materialized responses | Architectural risk. Only if page reassembly proves bottleneck |
+| Consistent hash routing | Only matters at 4+ instances |
+| Dynamic config API (MongoDB-backed) | Hot reload (file-based) covers 90% of the pain |
+| Built-in HTML dashboard | Grafana exists. Spike only if operator feedback demands it |
 
 ### Maturity Promotion Path
 
@@ -285,3 +448,4 @@ Automated CI/CD pipeline builds and publishes Docker images to a private registr
 | 2026-03-14 | 0.3.0 | calebdunn | Added M9 (Performance & Resilience) as DONE, M10 (Performance Optimization) as LATER, updated NFRs with resilience |
 | 2026-03-15 | 0.4.0 | calebdunn | M10 (Performance Optimization) marked DONE — MongoDB query optimization, LRU sharding, parallel page fetches, empty upstream handling, version endpoint |
 | 2026-03-16 | 0.5.0 | calebdunn | M11 DONE (RxNorm, parameterized warmup, multi-instance, nginx LB), M12 IN_PROGRESS, added NFRs for scalability |
+| 2026-03-20 | 0.7.0 | calebdunn | Added M14–M17 roadmap (observability, consumer value, operational resilience, intelligent data layer), deferred items, milestone sequencing, updated Out of Scope |

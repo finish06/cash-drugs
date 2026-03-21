@@ -15,6 +15,26 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/cache/status": {
+            "get": {
+                "description": "Returns per-slug cache health including staleness, TTL remaining, and health score.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Cache status overview",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.CacheStatusResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/cache/{slug}": {
             "get": {
                 "description": "Returns cached upstream API data. Fetches from upstream if not cached.\nThe response data shape depends on the upstream API. For example, the\n` + "`" + `drugclasses` + "`" + ` endpoint returns objects with fields: ` + "`" + `name` + "`" + ` (string),\n` + "`" + `type` + "`" + ` (string), ` + "`" + `code` + "`" + ` (string), ` + "`" + `codingSystem` + "`" + ` (string).\nAvailable query parameters vary by endpoint — use ` + "`" + `GET /api/endpoints` + "`" + `\nto discover each endpoint's supported params (e.g. BRAND_NAME, GENERIC_NAME,\nNDC, PHARM_CLASS for fda-ndc; SETID for spl-detail).",
@@ -270,6 +290,9 @@ const docTemplate = `{
                 "error": {
                     "type": "string"
                 },
+                "error_code": {
+                    "type": "string"
+                },
                 "message": {
                     "type": "string"
                 },
@@ -278,6 +301,12 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "retry_after": {
+                    "type": "integer"
                 },
                 "slug": {
                     "type": "string"
@@ -313,6 +342,29 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.CacheStatusResponse": {
+            "type": "object",
+            "properties": {
+                "generated_at": {
+                    "type": "string"
+                },
+                "healthy_slugs": {
+                    "type": "integer"
+                },
+                "slugs": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/internal_handler.SlugStatus"
+                    }
+                },
+                "stale_slugs": {
+                    "type": "integer"
+                },
+                "total_slugs": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_handler.EndpointInfo": {
             "type": "object",
             "properties": {
@@ -335,6 +387,35 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.SlugStatus": {
+            "type": "object",
+            "properties": {
+                "configured": {
+                    "type": "boolean"
+                },
+                "has_schedule": {
+                    "type": "boolean"
+                },
+                "health": {
+                    "type": "integer"
+                },
+                "is_stale": {
+                    "type": "boolean"
+                },
+                "last_refresh": {
+                    "type": "string"
+                },
+                "schedule": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "ttl_remaining": {
                     "type": "string"
                 }
             }

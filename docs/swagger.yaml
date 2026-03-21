@@ -10,12 +10,18 @@ definitions:
     properties:
       error:
         type: string
+      error_code:
+        type: string
       message:
         type: string
       params:
         additionalProperties:
           type: string
         type: object
+      request_id:
+        type: string
+      retry_after:
+        type: integer
       slug:
         type: string
       upstream_status:
@@ -38,6 +44,21 @@ definitions:
       stale_reason:
         type: string
     type: object
+  internal_handler.CacheStatusResponse:
+    properties:
+      generated_at:
+        type: string
+      healthy_slugs:
+        type: integer
+      slugs:
+        additionalProperties:
+          $ref: '#/definitions/internal_handler.SlugStatus'
+        type: object
+      stale_slugs:
+        type: integer
+      total_slugs:
+        type: integer
+    type: object
   internal_handler.EndpointInfo:
     properties:
       format:
@@ -53,6 +74,25 @@ definitions:
       scheduled:
         type: boolean
       slug:
+        type: string
+    type: object
+  internal_handler.SlugStatus:
+    properties:
+      configured:
+        type: boolean
+      has_schedule:
+        type: boolean
+      health:
+        type: integer
+      is_stale:
+        type: boolean
+      last_refresh:
+        type: string
+      schedule:
+        type: string
+      slug:
+        type: string
+      ttl_remaining:
         type: string
     type: object
   internal_handler.VersionInfo:
@@ -138,6 +178,20 @@ paths:
       summary: Get cached data for an endpoint
       tags:
       - cache
+  /api/cache/status:
+    get:
+      description: Returns per-slug cache health including staleness, TTL remaining,
+        and health score.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.CacheStatusResponse'
+      summary: Cache status overview
+      tags:
+      - system
   /api/endpoints:
     get:
       description: Returns all configured upstream API endpoints with their metadata.
