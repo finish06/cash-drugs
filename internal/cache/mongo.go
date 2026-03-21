@@ -323,8 +323,24 @@ func (r *MongoRepository) ensureIndexes(ctx context.Context) error {
 		Options: options.Index().SetName("idx_base_key_page"),
 	}
 
-	_, err := r.collection.Indexes().CreateOne(ctx, baseKeyIndex)
-	return err
+	if _, err := r.collection.Indexes().CreateOne(ctx, baseKeyIndex); err != nil {
+		return err
+	}
+
+	// TTL index — automatically delete documents not refreshed within 48 hours.
+	// MongoDB's background TTL monitor removes docs where updated_at is older
+	// than expireAfterSeconds. Documents are refreshed on each scheduled fetch
+	// (typically every 4-6h), so only truly orphaned entries expire.
+	ttlIndex := mongo.IndexModel{
+		Keys:    bson.D{{Key: "updated_at", Value: 1}},
+		Options: options.Index().SetName("idx_ttl_updated_at").SetExpireAfterSeconds(172800),
+	}
+	if _, err := r.collection.Indexes().CreateOne(ctx, ttlIndex); err != nil {
+		slog.Warn("failed to create TTL index (non-fatal)", "component", "cache", "error", err)
+		// Non-fatal — service works without TTL, just doesn't auto-clean
+	}
+
+	return nil
 }
 
 // backfillBaseKey populates the base_key field on documents that are missing it.

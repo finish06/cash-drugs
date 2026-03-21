@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -321,6 +322,26 @@ func main() {
 		slog.Info("warmup skipped (follower instance)", "component", "warmup")
 	}
 
+	// Start pprof server on separate port (not exposed via nginx)
+	pprofMux := http.NewServeMux()
+	pprofMux.HandleFunc("/debug/pprof/", pprof.Index)
+	pprofMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	pprofMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	pprofMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	pprofMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	pprofAddr := os.Getenv("PPROF_ADDR")
+	if pprofAddr == "" {
+		pprofAddr = ":6060"
+	}
+	pprofSrv := &http.Server{Addr: pprofAddr, Handler: pprofMux}
+	go func() {
+		slog.Info("pprof server starting", "component", "pprof", "addr", pprofAddr)
+		if err := pprofSrv.ListenAndServe(); err != http.ErrServerClosed {
+			slog.Warn("pprof server failed", "component", "pprof", "error", err)
+		}
+	}()
+
 	go func() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -336,6 +357,7 @@ func main() {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		_ = pprofSrv.Shutdown(ctx)
 		_ = srv.Shutdown(ctx)
 	}()
 

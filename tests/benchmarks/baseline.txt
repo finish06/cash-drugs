@@ -1,0 +1,36 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/finish06/cash-drugs/internal/cache
+cpu: Apple M4 Pro
+BenchmarkLRUGet_Hit-12                       	34695136	        34.82 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLRUGet_Miss-12                      	164576205	         7.112 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLRUSet-12                           	13329685	        89.24 ns/op	     112 B/op	       2 allocs/op
+BenchmarkLRUSet_UniqueKeys-12                	13343253	        93.40 ns/op	     112 B/op	       2 allocs/op
+BenchmarkLRUConcurrent-12                    	14026706	        87.27 ns/op	      25 B/op	       1 allocs/op
+BenchmarkLRUInvalidate-12                    	 8086114	       149.8 ns/op	     136 B/op	       4 allocs/op
+BenchmarkLRUSizeBytes-12                     	52981495	        22.83 ns/op	       0 B/op	       0 allocs/op
+BenchmarkReassemblePages_10Pages-12          	  652788	      1964 ns/op	   16648 B/op	       3 allocs/op
+BenchmarkReassemblePages_SingleDoc-12        	949465677	         1.226 ns/op	       0 B/op	       0 allocs/op
+BenchmarkReassemblePages_100Pages-12         	  107785	     11206 ns/op	   82184 B/op	       3 allocs/op
+BenchmarkEstimateSize-12                     	1000000000	         0.2252 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEstimateSize_NoPages-12             	1000000000	         0.2261 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuildCacheKey_WithParams-12         	 5784136	       207.4 ns/op	     248 B/op	       9 allocs/op
+BenchmarkBuildCacheKey_NoParams-12           	1000000000	         1.142 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuildCacheKey_ManyParams-12         	 2461576	       489.2 ns/op	     696 B/op	      20 allocs/op
+BenchmarkExtractBaseKey_WithPageSuffix-12    	160748524	         7.528 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractBaseKey_NoSuffix-12          	128553034	         9.347 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuildUpsertFilter-12                	100000000	        10.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuildSingleUpdate-12                	 3552537	       329.3 ns/op	    1152 B/op	      14 allocs/op
+PASS
+ok  	github.com/finish06/cash-drugs/internal/cache	26.934s
+goos: darwin
+goarch: arm64
+pkg: github.com/finish06/cash-drugs/internal/handler
+cpu: Apple M4 Pro
+BenchmarkCacheHandler_LRUHit-12           	 1307239	       910.7 ns/op	    1457 B/op	      18 allocs/op
+BenchmarkCacheHandler_MongoHit-12         	 1370857	       876.8 ns/op	    1457 B/op	      18 allocs/op
+BenchmarkCacheHandler_404-12              	 2147895	       554.3 ns/op	    1216 B/op	      13 allocs/op
+BenchmarkCacheHandler_LargeResponse-12    	    3204	    375291 ns/op	  405530 B/op	    9018 allocs/op
+BenchmarkJSONEncode_APIResponse-12        	   59991	     20158 ns/op	   18668 B/op	     510 allocs/op
+PASS
+ok  	github.com/finish06/cash-drugs/internal/handler	8.736s
