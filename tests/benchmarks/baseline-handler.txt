@@ -1,0 +1,11 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/finish06/cash-drugs/internal/handler
+cpu: Apple M4 Pro
+BenchmarkCacheHandler_LRUHit-12           	 1307239	       910.7 ns/op	    1457 B/op	      18 allocs/op
+BenchmarkCacheHandler_MongoHit-12         	 1370857	       876.8 ns/op	    1457 B/op	      18 allocs/op
+BenchmarkCacheHandler_404-12              	 2147895	       554.3 ns/op	    1216 B/op	      13 allocs/op
+BenchmarkCacheHandler_LargeResponse-12    	    3204	    375291 ns/op	  405530 B/op	    9018 allocs/op
+BenchmarkJSONEncode_APIResponse-12        	   59991	     20158 ns/op	   18668 B/op	     510 allocs/op
+PASS
+ok  	github.com/finish06/cash-drugs/internal/handler	8.736s
