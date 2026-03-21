@@ -25,6 +25,7 @@ Thumbs.db
 
 # ADD — ephemeral artifacts (don't commit)
 .add/away-logs/
+.swarm/
 tests/screenshots/errors/
 
 # ADD — these SHOULD be committed (don't ignore)
