@@ -38,3 +38,4 @@ tests/screenshots/errors/
 /server
 staging-key
 staging-key.pub
+tests/k6/results.json

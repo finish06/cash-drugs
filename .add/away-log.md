@@ -20,7 +20,9 @@
 | 22:46 | Update PRD M14 status | DONE | M14 → DONE in roadmap table |
 | 22:47 | Update CHANGELOG.md | DONE | v0.11.0 section with M13+M14 changes |
 | 22:48 | Write M15 specs (4) + milestone + plan | DONE | 6 files: 4 specs, milestone, plan |
-| 22:48 | Improve test coverage → 95% | IN_PROGRESS | agent dispatched |
+| 22:48 | Improve test coverage → 95% | DONE | 93.8% → 95.4%, ~1000 test lines added |
+| 23:10 | Fix flaky collector test | DONE | mock ping with 1ms sleep |
+| 23:12 | Commit + push all away work | DONE | commit bf1f7c8, 16 files +2115 lines |
 
 ## Queued for Return
 1. M15 spec review and approval (SDK API design decisions)
