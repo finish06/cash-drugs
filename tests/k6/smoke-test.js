@@ -66,6 +66,95 @@ export default function () {
     'GET /api/cache/unknown: has error_code': (r) => JSON.parse(r.body).error_code === 'CD-H001',
   });
 
+  // --- M15: New Endpoints ---
+
+  // Per-slug metadata
+  const meta = http.get(`${BASE_URL}/api/cache/drugnames/_meta`);
+  check(meta, {
+    'GET /_meta: 200': (r) => r.status === 200,
+    'GET /_meta: has slug': (r) => JSON.parse(r.body).slug === 'drugnames',
+    'GET /_meta: has is_stale': (r) => JSON.parse(r.body).is_stale !== undefined,
+    'GET /_meta: has record_count': (r) => JSON.parse(r.body).record_count !== undefined,
+    'GET /_meta: has circuit_state': (r) => JSON.parse(r.body).circuit_state !== undefined,
+  });
+
+  // Per-slug metadata — unknown slug
+  const metaNotFound = http.get(`${BASE_URL}/api/cache/nonexistent/_meta`);
+  check(metaNotFound, {
+    'GET /_meta unknown: 404': (r) => r.status === 404,
+    'GET /_meta unknown: CD-H001': (r) => JSON.parse(r.body).error_code === 'CD-H001',
+  });
+
+  // Bulk query API
+  const bulkPayload = JSON.stringify({
+    queries: [
+      { params: { DRUGNAME: 'aspirin' } },
+      { params: { DRUGNAME: 'ibuprofen' } },
+    ],
+  });
+  const bulkRes = http.post(`${BASE_URL}/api/cache/spls-by-name/bulk`, bulkPayload, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  check(bulkRes, {
+    'POST /bulk: 200': (r) => r.status === 200,
+    'POST /bulk: has results': (r) => JSON.parse(r.body).results !== undefined,
+    'POST /bulk: has total_queries': (r) => JSON.parse(r.body).total_queries === 2,
+    'POST /bulk: has request_id': (r) => JSON.parse(r.body).request_id !== undefined,
+  });
+
+  // Bulk query — empty queries
+  const bulkEmpty = http.post(`${BASE_URL}/api/cache/drugnames/bulk`,
+    JSON.stringify({ queries: [] }),
+    { headers: { 'Content-Type': 'application/json' } },
+  );
+  check(bulkEmpty, {
+    'POST /bulk empty: 200': (r) => r.status === 200,
+    'POST /bulk empty: total_queries 0': (r) => JSON.parse(r.body).total_queries === 0,
+  });
+
+  // Bulk query — unknown slug
+  const bulkNotFound = http.post(`${BASE_URL}/api/cache/nonexistent/bulk`,
+    JSON.stringify({ queries: [{ params: {} }] }),
+    { headers: { 'Content-Type': 'application/json' } },
+  );
+  check(bulkNotFound, {
+    'POST /bulk unknown: 404': (r) => r.status === 404,
+  });
+
+  // Enhanced endpoints discovery
+  const endpointsEnhanced = http.get(`${BASE_URL}/api/endpoints`);
+  const epData = JSON.parse(endpointsEnhanced.body);
+  check(endpointsEnhanced, {
+    'GET /api/endpoints: has params as objects': (r) => {
+      const ep = epData.find(e => e.params && e.params.length > 0);
+      return ep && ep.params[0].name !== undefined;
+    },
+    'GET /api/endpoints: has example_url': (r) => epData[0].example_url !== undefined,
+    'GET /api/endpoints: has cache_status': (r) => {
+      const scheduled = epData.find(e => e.scheduled);
+      return scheduled && scheduled.cache_status !== undefined;
+    },
+  });
+
+  // Method enforcement — POST to GET endpoint returns 405
+  const methodCheck = http.post(`${BASE_URL}/api/cache/drugnames/_meta`);
+  check(methodCheck, {
+    'POST to /_meta: 405': (r) => r.status === 405,
+  });
+
+  // Method enforcement — GET to bulk returns 405
+  const bulkGetCheck = http.get(`${BASE_URL}/api/cache/drugnames/bulk`);
+  check(bulkGetCheck, {
+    'GET to /bulk: 405': (r) => r.status === 405,
+  });
+
+  // Missing params returns 400
+  const missingParams = http.get(`${BASE_URL}/api/cache/spls-by-name`);
+  check(missingParams, {
+    'GET missing params: 400': (r) => r.status === 400,
+    'GET missing params: CD-H003': (r) => JSON.parse(r.body).error_code === 'CD-H003',
+  });
+
   // Metrics endpoint
   const metrics = http.get(`${BASE_URL}/metrics`);
   check(metrics, {

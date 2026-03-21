@@ -595,7 +595,7 @@ func TestEndpoints_NoParams(t *testing.T) {
 	var result []handler.EndpointInfo
 	_ = json.NewDecoder(w.Body).Decode(&result)
 
-	if result[0].Params != nil && len(result[0].Params) != 0 {
+	if len(result[0].Params) != 0 {
 		t.Errorf("expected empty/nil params for no-param endpoint, got %d", len(result[0].Params))
 	}
 }

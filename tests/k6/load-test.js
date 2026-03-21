@@ -31,6 +31,8 @@ export const options = {
     errors: ['rate<0.10'],                                          // error rate < 10% (force-refresh timeouts expected)
     'http_req_duration{endpoint:cached}': ['p(95)<500'],            // cached responses < 500ms P95 (homelab network)
     'http_req_duration{endpoint:status}': ['p(95)<200'],            // status endpoints < 200ms P95
+    'http_req_duration{endpoint:meta}': ['p(95)<200'],              // metadata endpoints < 200ms P95
+    'http_req_duration{endpoint:bulk}': ['p(95)<2000'],             // bulk queries < 2s P95
   },
 };
 
@@ -54,18 +56,30 @@ const STATUS_ENDPOINTS = [
   '/api/endpoints',
 ];
 
+const META_ENDPOINTS = [
+  '/api/cache/drugnames/_meta',
+  '/api/cache/spls/_meta',
+  '/api/cache/fda-ndc/_meta',
+];
+
 export default function () {
   const scenario = Math.random();
 
-  if (scenario < 0.4) {
-    // 40% — cached bulk endpoints (should be fast, from LRU/MongoDB)
+  if (scenario < 0.3) {
+    // 30% — cached bulk endpoints (should be fast, from LRU/MongoDB)
     testCachedEndpoint();
-  } else if (scenario < 0.7) {
-    // 30% — parameterized queries
+  } else if (scenario < 0.5) {
+    // 20% — parameterized queries
     testParamEndpoint();
-  } else if (scenario < 0.9) {
-    // 20% — status/health endpoints
+  } else if (scenario < 0.65) {
+    // 15% — status/health endpoints
     testStatusEndpoint();
+  } else if (scenario < 0.8) {
+    // 15% — metadata endpoints (new M15)
+    testMetaEndpoint();
+  } else if (scenario < 0.9) {
+    // 10% — bulk query (new M15)
+    testBulkEndpoint();
   } else {
     // 10% — force refresh (triggers upstream fetch)
     testForceRefresh();
@@ -145,6 +159,63 @@ function testStatusEndpoint() {
     'status: responds 200': (r) => r.status === 200,
     'status: valid JSON': (r) => {
       try { JSON.parse(r.body); return true; }
+      catch { return false; }
+    },
+  });
+
+  errorRate.add(!passed);
+}
+
+function testMetaEndpoint() {
+  const endpoint = META_ENDPOINTS[Math.floor(Math.random() * META_ENDPOINTS.length)];
+  const res = http.get(`${BASE_URL}${endpoint}`, {
+    tags: { endpoint: 'meta' },
+  });
+
+  const passed = check(res, {
+    'meta: responds 200': (r) => r.status === 200,
+    'meta: has slug': (r) => {
+      try { return JSON.parse(r.body).slug !== undefined; }
+      catch { return false; }
+    },
+    'meta: has is_stale': (r) => {
+      try { return JSON.parse(r.body).is_stale !== undefined; }
+      catch { return false; }
+    },
+    'meta: has X-Request-ID': (r) => r.headers['X-Request-Id'] !== undefined,
+  });
+
+  errorRate.add(!passed);
+}
+
+function testBulkEndpoint() {
+  const drugs = ['aspirin', 'ibuprofen', 'metformin', 'lisinopril', 'atorvastatin'];
+  const queryCount = 2 + Math.floor(Math.random() * 4); // 2-5 queries
+  const queries = [];
+  for (let i = 0; i < queryCount; i++) {
+    queries.push({ params: { DRUGNAME: drugs[Math.floor(Math.random() * drugs.length)] } });
+  }
+
+  const res = http.post(`${BASE_URL}/api/cache/spls-by-name/bulk`,
+    JSON.stringify({ queries }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      tags: { endpoint: 'bulk' },
+    },
+  );
+
+  const passed = check(res, {
+    'bulk: responds 200': (r) => r.status === 200,
+    'bulk: has results': (r) => {
+      try { return JSON.parse(r.body).results !== undefined; }
+      catch { return false; }
+    },
+    'bulk: total_queries matches': (r) => {
+      try { return JSON.parse(r.body).total_queries === queryCount; }
+      catch { return false; }
+    },
+    'bulk: has request_id': (r) => {
+      try { return JSON.parse(r.body).request_id !== ''; }
       catch { return false; }
     },
   });
