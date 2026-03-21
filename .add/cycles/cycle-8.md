@@ -2,9 +2,9 @@
 
 **Milestone:** M15 — Consumer Value & API Ergonomics
 **Maturity:** Beta
-**Status:** PLANNED
-**Started:** TBD
-**Completed:** TBD
+**Status:** COMPLETE
+**Started:** 2026-03-21
+**Completed:** 2026-03-21
 **Duration Budget:** 1 day
 
 ## Work Items

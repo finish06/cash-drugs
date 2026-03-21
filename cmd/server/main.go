@@ -252,8 +252,11 @@ func main() {
 
 	limiter := middleware.NewConcurrencyLimiter(maxConcurrent, m)
 
+	testFetchHandler := handler.NewTestFetchHandler()
+
 	// Application routes wrapped with concurrency limiter
 	appMux := http.NewServeMux()
+	appMux.Handle("/api/test-fetch", testFetchHandler)
 	appMux.Handle("/api/cache/status", statusHandler)
 	appMux.Handle("/api/cache/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/_meta") {
