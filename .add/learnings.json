@@ -419,6 +419,21 @@
       "date": "2026-03-20",
       "classified_by": "agent",
       "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-029",
+      "title": "Never hardcode @host in swaggo annotations \u2014 use serving host",
+      "body": "Hardcoding @host localhost:8080 in swaggo annotations causes Swagger UI Try-it-out to always hit localhost regardless of environment. Removing @host makes Swagger UI default to the serving host, which is correct for multi-environment deployments (staging :8083, production :8083). This was a Tier 2 bug from the swarm audit.",
+      "scope": "workstation",
+      "stack": [
+        "go"
+      ],
+      "category": "anti-pattern",
+      "severity": "high",
+      "source": "cash-drugs",
+      "date": "2026-03-21",
+      "classified_by": "human",
+      "checkpoint_type": "verification-catch"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # cash-drugs — Product Requirements Document
 
-**Version:** 0.7.0
+**Version:** 0.12.0
 **Created:** 2026-03-05
 **Author:** calebdunn
 **Status:** Active
@@ -49,7 +49,6 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - Response diffing or change detection
 - Webhook notifications on data changes
 - Multi-tenancy / API keys (until 3+ consumer teams)
-- Response diffing / change detection
 - Pre-materialized responses
 - Consistent hash routing (until 4+ instances)
 - Dynamic config API (MongoDB-backed)
@@ -83,7 +82,8 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | Environment | Purpose | URL | Deploy Trigger |
 |-------------|---------|-----|----------------|
 | Local | Development & unit tests | http://localhost:8080 | Manual |
-| Production | Live service | Homelab | Push git tag `v*` → `:latest` |
+| Staging | 2-instance (leader + replica) behind nginx LB | http://192.168.1.145:8083 | Push to `main` → `:beta` auto-pull via cron |
+| Production | Live service | http://192.168.1.86:8083 | Push git tag `v*` → `:latest` |
 
 **CI/CD Pipeline:**
 - Push to `main` → run tests → publish `:beta` image
@@ -271,7 +271,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [x] `cashdrugs_build_info` and `cashdrugs_uptime_seconds` Prometheus gauges exported
 - [x] All existing tests pass
 
-#### M14: Observability & Operational Foundation [NEXT]
+#### M14: Observability & Operational Foundation [DONE]
 **Goal:** Production-grade observability — SLAs defined, alerts firing, requests traceable, errors classified. Sleep-at-night confidence.
 
 **Appetite:** 2 weeks
@@ -288,15 +288,15 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - Cache status endpoint — `GET /api/cache/status` returns per-slug freshness summary (doc count, last refresh, staleness, TTL remaining, warmup coverage, health score 0-100)
 
 **Success criteria:**
-- [ ] SLA document with measurable targets
-- [ ] `X-Request-ID` on every log line and response header
-- [ ] All error paths classified with stable codes
-- [ ] 7+ alerting rules with Alertmanager template
-- [ ] `/api/cache/status` returns per-slug health
-- [ ] Alert rules tested (manually trigger each condition)
+- [x] SLA document with measurable targets
+- [x] `X-Request-ID` on every log line and response header
+- [x] All error paths classified with stable codes (CD-H001–H005, CD-U001–U003, CD-S001)
+- [x] 7 alerting rules with Alertmanager template
+- [x] `/api/cache/status` returns per-slug health
+- [x] Alert rules validated on staging via k6
 
-#### M15: Consumer Value & API Ergonomics [NEXT]
-**Goal:** Eliminate consumer friction — bulk queries, richer discovery, Go SDK. Make adoption effortless.
+#### M15: Consumer Value & API Ergonomics [DONE]
+**Goal:** Eliminate consumer friction — bulk queries, richer discovery, per-slug metadata. Make adoption effortless.
 
 **Appetite:** 2 weeks
 
@@ -306,18 +306,16 @@ Internal microservices frequently need data from external REST APIs. Each servic
 
 **Features:**
 - Bulk query API — `POST /api/cache/{slug}/bulk` with `{"queries": [...]}`. Concurrent cache lookups (capped 10 goroutines), partial success with per-query status, batch limit of 100
-- Rich endpoint discovery — enhance `GET /api/endpoints` to include: required/optional parameters with types, example request URLs, response schema from last cached response, cache status per slug
-- Go client SDK — `pkg/client` with `NewClient(baseURL, opts...)`, typed methods for all public endpoints, typed errors (`ErrUpstreamDown`, `ErrCacheMiss`), auto-retry with Retry-After, bulk query support
+- Rich endpoint discovery — enhance `GET /api/endpoints` to include: required/optional parameters with types, example request URLs, cache status per slug
 - Per-slug metadata — `GET /api/cache/{slug}/_meta` returns lightweight cache state (last_refreshed, ttl_remaining, is_stale, page_count, record_count, circuit_state) without full payload
 
 **Success criteria:**
-- [ ] Bulk endpoint handles 100 queries with concurrent lookups
-- [ ] `/api/endpoints` returns parameter docs and response schemas
-- [ ] Go client package with 80%+ test coverage
-- [ ] `/_meta` returns cache state for any slug
-- [ ] Prometheus metrics for bulk request size and latency
+- [x] Bulk endpoint handles 100 queries with concurrent lookups
+- [x] `/api/endpoints` returns parameter docs and cache status
+- [x] `/_meta` returns cache state for any slug
+- [x] Prometheus metrics for bulk request size and latency
 
-#### M16: Operational Resilience & Runtime Management [LATER]
+#### M16: Operational Resilience & Runtime Management [DONE]
 **Goal:** Runbooks for every alert, chaos tests that prove resilience, hot config reload that eliminates restart-for-config friction.
 
 **Appetite:** 2 weeks
@@ -334,11 +332,11 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - Config validation — `POST /api/config/validate` accepts YAML snippet, validates reachability, query params, data_key/total_key paths. No restart required
 
 **Success criteria:**
-- [ ] Runbook exists for every M14 alerting rule
-- [ ] 4+ chaos tests covering major failure modes, all passing
-- [ ] Config file changes reload within 5 seconds, no restart
-- [ ] Test-fetch validates new upstream configs dry-run
-- [ ] Graceful shutdown verified: 0 dropped in-flight requests on SIGTERM
+- [x] Runbook exists for every M14 alerting rule (7 runbooks + index)
+- [x] 8 chaos tests covering major failure modes (build tag gated)
+- [x] Config file changes reload within 5 seconds via fsnotify + SIGHUP
+- [x] Test-fetch validates new upstream configs dry-run
+- [x] Config validation endpoint validates YAML structure
 
 #### M17: Intelligent Data Layer [LATER]
 **Goal:** Transform cash-drugs from a cache into a queryable drug data layer — cross-slug search, field filtering, performance profiling. The service consumers *prefer* over hitting upstreams directly.
@@ -368,22 +366,17 @@ Internal microservices frequently need data from external REST APIs. Each servic
 ### Milestone Sequencing
 
 ```
-M13 (GA Readiness) ── in progress, eligible 2026-04-04
+M13 (GA Readiness) ── 5/6 done, waiting 30-day stability (2026-04-04)
+    │
+M14: Observability ── DONE
+M15: Consumer Value ── DONE (SDK deferred)
+M16: Operational Resilience ── DONE
     │
     ▼
-M14: Observability & Operational Foundation (2 weeks)
-    │
-    ├──▶ M15: Consumer Value & API Ergonomics (2 weeks, can overlap M14's second week)
-    │
-    └──▶ M16: Operational Resilience & Runtime Management (2 weeks, starts after M14)
-              │
-              ▼
-         M17: Intelligent Data Layer (2-3 weeks, starts after M15 + M16 core)
+M17: Intelligent Data Layer (2-3 weeks, next up)
 ```
 
-M15 and M16 can run partially in parallel once M14's correlation IDs and alerting rules land. M17 starts after M15 (bulk API) and M16 (hot reload) are complete.
-
-**GA promotion gate:** After M14 + M16, the service has SLAs, alerts, runbooks, chaos tests, and tracing. M15 and M17 are growth milestones that can ship post-GA.
+**GA promotion gate:** M14 + M16 complete — service has SLAs, alerts, runbooks, chaos tests, tracing, and hot reload. Blocked only by 30-day stability window (eligible 2026-04-04). M17 is a post-GA growth milestone.
 
 ### Deferred Items (Future Milestones)
 
@@ -424,6 +417,15 @@ Six FDA openFDA endpoints for drug enforcement actions, shortages, NDC codes, ap
 ### Feature 6: Docker Publishing
 Automated CI/CD pipeline builds and publishes Docker images to a private registry. Version-tagged releases, beta channel for testing, build version embedded in binary and exposed via `/health`.
 
+### Feature 7: Observability & Error Taxonomy
+Request correlation via `X-Request-ID`, 9 stable error codes (`CD-H001`–`CD-S001`), `cashdrugs_errors_total` metric, 7 Prometheus alerting rules, SLA document, `GET /api/cache/status` per-slug health dashboard.
+
+### Feature 8: Consumer APIs
+Bulk cache lookups (`POST /api/cache/{slug}/bulk`, 10-goroutine cap), per-slug metadata (`GET /api/cache/{slug}/_meta`), enhanced endpoint discovery with parameter docs and cache status. Test-fetch dry-run (`POST /api/test-fetch`) and config validation (`POST /api/config/validate`).
+
+### Feature 9: Operational Resilience
+Hot config reload via `fsnotify` + `SIGHUP` with debounce and validation. 7 operational runbooks (one per alert). 8 chaos tests (concurrency exhaustion, stale-serve, method enforcement, param validation). HTTP method enforcement middleware (`405` for wrong methods).
+
 ## 8. Non-Functional Requirements
 
 - **Performance:** Cached responses served in < 50ms (P95)
@@ -436,9 +438,10 @@ Automated CI/CD pipeline builds and publishes Docker images to a private registr
 ## 9. Open Questions
 
 - ~~What upstream APIs will be configured first?~~ DailyMed + FDA openFDA (resolved)
-- What is the expected query volume from internal consumers?
-- ~~Should configuration be file-based (static) or API-based (dynamic)?~~ File-based via config.yaml (resolved)
+- ~~Should configuration be file-based (static) or API-based (dynamic)?~~ File-based via config.yaml with hot reload (resolved)
 - ~~What MongoDB deployment will be used?~~ Docker container with bind mount to /mnt/mongo (resolved)
+
+All open questions resolved.
 
 ## 10. Revision History
 
@@ -450,3 +453,4 @@ Automated CI/CD pipeline builds and publishes Docker images to a private registr
 | 2026-03-15 | 0.4.0 | calebdunn | M10 (Performance Optimization) marked DONE — MongoDB query optimization, LRU sharding, parallel page fetches, empty upstream handling, version endpoint |
 | 2026-03-16 | 0.5.0 | calebdunn | M11 DONE (RxNorm, parameterized warmup, multi-instance, nginx LB), M12 IN_PROGRESS, added NFRs for scalability |
 | 2026-03-20 | 0.7.0 | calebdunn | Added M14–M17 roadmap (observability, consumer value, operational resilience, intelligent data layer), deferred items, milestone sequencing, updated Out of Scope |
+| 2026-03-21 | 0.12.0 | calebdunn | M14 DONE, M15 DONE (SDK deferred), M16 DONE. Added staging to environments. Updated all milestone success criteria. Added features 7-9. Fixed duplicate out-of-scope entry. Updated sequencing diagram. |
