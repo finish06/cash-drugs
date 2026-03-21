@@ -111,8 +111,8 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M12: Client Enhancements | Readiness endpoint, response normalization, API doc fixes, upstream 404 handling | beta | DONE | /ready, /api/warmup, flatten config, upstream-404-handling |
 | M13: GA Readiness | LICENSE, PR template, SLA doc, CI hardening, coverage, docs audit | ga | IN_PROGRESS | 30-day stability (eligible 2026-04-04), SLA targets, 85%+ coverage |
 | M14: Observability & Operational Foundation | SLAs, alerting rules, request tracing, error taxonomy, cache status API | ga | DONE | SLA doc, X-Request-ID tracing, error codes, 7+ alert rules, /api/cache/status |
-| M15: Consumer Value & API Ergonomics | Bulk queries, rich discovery, Go SDK, per-slug metadata | ga | NEXT | Bulk endpoint, parameter docs, Go client pkg, /_meta endpoint |
-| M16: Operational Resilience & Runtime Management | Runbooks, chaos tests, hot config reload, test-fetch dry-run | ga | LATER | Runbook per alert, 4+ chaos tests, fsnotify reload, test-fetch endpoint |
+| M15: Consumer Value & API Ergonomics | Bulk queries, rich discovery, per-slug metadata | ga | DONE | Bulk endpoint, parameter docs, /_meta endpoint |
+| M16: Operational Resilience & Runtime Management | Runbooks, chaos tests, hot config reload, test-fetch, config validate | ga | DONE | Runbook per alert, 8 chaos tests, fsnotify reload, test-fetch, config validate |
 | M17: Intelligent Data Layer | Cross-slug search, autocomplete, field filtering, pprof, TTL indexes | ga | LATER | Cross-slug search <100ms, autocomplete <20ms, field filtering, pprof, TTL expiry |
 
 ### Milestone Detail
@@ -395,6 +395,7 @@ M15 and M16 can run partially in parallel once M14's correlation IDs and alertin
 | Consistent hash routing | Only matters at 4+ instances |
 | Dynamic config API (MongoDB-backed) | Hot reload (file-based) covers 90% of the pain |
 | Built-in HTML dashboard | Grafana exists. Spike only if operator feedback demands it |
+| Go client SDK (`pkg/client/`) | Build after API surface stabilizes and consumer demand warrants it |
 
 ### Maturity Promotion Path
 

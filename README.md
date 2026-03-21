@@ -1,5 +1,9 @@
 # cash-drugs
 
+<p align="center">
+  <img src="docs/infographic.svg" alt="cash-drugs infographic" width="100%">
+</p>
+
 **Configure once, cache forever, use everywhere.**
 
 Point cash-drugs at any REST API — it fetches the data, stores it in MongoDB, and serves it back instantly. Your microservices hit cash-drugs instead of upstream APIs. One cache, zero redundant calls.
