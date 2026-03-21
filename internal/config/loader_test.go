@@ -963,6 +963,96 @@ endpoints:
 	}
 }
 
+// Load: Invalid YAML content returns parse error
+func TestLoad_InvalidYAML(t *testing.T) {
+	cfgPath := writeTestConfig(t, `{{{invalid yaml`)
+	_, err := config.Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+// Load: Empty endpoints list returns error
+func TestLoad_EmptyEndpoints(t *testing.T) {
+	cfgPath := writeTestConfig(t, `endpoints: []`)
+	_, err := config.Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for empty endpoints list")
+	}
+}
+
+// Load: Missing slug returns error
+func TestLoad_MissingSlug(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - base_url: http://example.com
+    path: /api
+    format: json
+`)
+	_, err := config.Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for missing slug")
+	}
+}
+
+// Load: Missing path returns error
+func TestLoad_MissingPath(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    format: json
+`)
+	_, err := config.Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for missing path")
+	}
+}
+
+// Load: Missing format returns error
+func TestLoad_MissingFormat(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+`)
+	_, err := config.Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for missing format")
+	}
+}
+
+// Load: Invalid cron expression returns error
+func TestLoad_InvalidCronExpression(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test
+    base_url: http://example.com
+    path: /api
+    format: json
+    refresh: "not-a-cron"
+`)
+	_, err := config.Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid cron expression")
+	}
+}
+
+// ParsePagination: non-"all" string defaults to 1 page
+func TestParsePagination_NonAllString(t *testing.T) {
+	ep := config.Endpoint{
+		Pagination: "some-random-string",
+	}
+	maxPages, fetchAll := config.ParsePagination(ep)
+	if fetchAll {
+		t.Error("expected fetchAll=false for non-all string")
+	}
+	if maxPages != 1 {
+		t.Errorf("expected maxPages=1 (default), got %d", maxPages)
+	}
+}
+
 // Helper functions
 
 const validConfig = `

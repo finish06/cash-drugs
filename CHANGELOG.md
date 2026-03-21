@@ -7,7 +7,29 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-03-20 — M13: GA Readiness + M14: Observability
+
+### Added
+- **Request correlation IDs:** `X-Request-ID` middleware generates UUID v4 on ingress (or preserves caller-provided ID), sets response header, stores in request context
+- **Error taxonomy:** 6 stable error codes (`CD-H001`, `CD-H002`, `CD-U001`–`CD-U003`, `CD-S001`) in all error responses. JSON error envelope with `error_code`, `request_id`, `retry_after` fields
+- **`cashdrugs_errors_total`** Prometheus counter with `code` and `slug` labels
+- **Cache status endpoint:** `GET /api/cache/status` returns per-slug health scores (0=uncached, 50=stale, 75=no TTL, 100=fresh), staleness, TTL remaining, schedule info
+- **SLA document** (`docs/sla.md`): availability 99.5%, P95 latency <50ms, upstream success >95%, stale-serve guarantee, incident response tiers
+- **Prometheus alerting rules** (`docs/grafana/alerts.yml`): 7 rules — MongoDB down, circuit breaker open, high latency, upstream errors, high memory, concurrency exhaustion, scheduler stalled
+- **Alertmanager routing template** (`docs/grafana/alertmanager-template.yml`)
+- **k6 test suite:** smoke test (20 endpoint checks) and load test (2-min ramping 1→30 VUs)
+- LICENSE file (MIT)
+- PR template at `.github/pull_request_template.md`
+- PRD updated with M14–M17 roadmap (observability, consumer value, operational resilience, intelligent data layer)
+
 ### Changed
+- Project renamed from "drugs" to "cash-drugs" throughout README
+- Coverage raised from 83% to 93.8% (cache 87.3%, metrics 88.6%)
+- Makefile `test-coverage` excludes untestable `cmd/server` and generated `docs` from coverage calculation
+- Concurrency limiter 503 response now uses `model.ErrorResponse` with `CD-S001` error code (was inline struct)
+- PRD milestone formatting fixed (blank lines between metadata fields for proper markdown rendering)
+
+### Fixed
 - CI: exclude E2E tests (live API calls) — run locally only to avoid IPv6 flakiness on GitHub Actions runners
 
 ## [0.10.0] — 2026-03-18 — M12: Upstream 404 Handling + Quality Fixes

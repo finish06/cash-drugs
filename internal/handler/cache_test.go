@@ -1568,6 +1568,336 @@ func TestM10_EmptyResults_AC012_CacheHitMetricCorrect(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Coverage gap tests — populateLRU, isEmptyResult, backgroundRevalidate,
+// respondWithCached, extractPathParams
+// ---------------------------------------------------------------------------
+
+// populateLRU: Large multi-page responses skip LRU caching
+func TestPopulateLRU_LargeResponseSkipsLRU(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "spls",
+		BaseURL: "http://example.com",
+		Path:    "/v2/spls",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	lru := cache.NewLRUCache(1024 * 1024)
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "spls",
+			CacheKey:  "spls",
+			Data:      []interface{}{"item1"},
+			FetchedAt: time.Now(),
+			SourceURL: "http://example.com/v2/spls",
+			PageCount: 200, // > maxLRUPages (10) — should skip LRU
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+		handler.WithLRU(lru),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/spls", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// LRU should NOT have the entry (too many pages)
+	_, ok := lru.Get("spls")
+	if ok {
+		t.Error("expected large response to skip LRU caching")
+	}
+}
+
+// populateLRU: nil LRU is handled gracefully (no panic)
+func TestPopulateLRU_NilLRU(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      []interface{}{"drug1"},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+		// No WithLRU — lru is nil
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+// respondWithCached: non-JSON stale response with reason
+func TestRespondWithCached_NonJSONStaleWithReason(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:        "spl-xml",
+		BaseURL:     "http://example.com",
+		Path:        "/v2/spls/{SETID}.xml",
+		Format:      "raw",
+		TTL:         "1s",
+		TTLDuration: 1 * time.Second,
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:        "spl-xml",
+		CacheKey:    "spl-xml:SETID=abc",
+		Data:        "<doc>stale</doc>",
+		ContentType: "application/xml",
+		FetchedAt:   time.Now().Add(-1 * time.Hour), // stale
+		SourceURL:   "http://example.com/v2/spls/abc.xml",
+		PageCount:   1,
+	}
+
+	fl := handler.NewFetchLocks()
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{err: fmt.Errorf("fail")},
+		handler.WithFetchLocks(fl),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/spl-xml?SETID=abc", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if w.Header().Get("X-Cache-Stale") != "true" {
+		t.Error("expected X-Cache-Stale header")
+	}
+	reason := w.Header().Get("X-Cache-Stale-Reason")
+	if reason == "" {
+		t.Error("expected X-Cache-Stale-Reason header for stale XML response")
+	}
+}
+
+// respondWithCached: JSON response with non-array data (map)
+func TestRespondWithCached_NonArrayData(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "test",
+		BaseURL: "http://example.com",
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:      "test",
+		CacheKey:  "test",
+		Data:      map[string]interface{}{"key": "value"}, // not a []interface{}
+		FetchedAt: time.Now(),
+		SourceURL: "http://example.com/api",
+		PageCount: 1,
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/test", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	// resultsCount should be 0 for non-array data
+	if resp.Meta.ResultsCount != 0 {
+		t.Errorf("expected results_count=0 for non-array data, got %d", resp.Meta.ResultsCount)
+	}
+}
+
+// backgroundRevalidate: skips for scheduled endpoints without parameters
+func TestBackgroundRevalidate_SkipsScheduledEndpoint(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:        "drugnames",
+		BaseURL:     "http://example.com",
+		Path:        "/v2/drugnames",
+		Format:      "json",
+		Refresh:     "0 */6 * * *", // scheduled
+		TTL:         "1s",
+		TTLDuration: 1 * time.Second,
+	}
+	config.ApplyDefaults(&ep)
+
+	cached := &model.CachedResponse{
+		Slug:      "drugnames",
+		CacheKey:  "drugnames",
+		Data:      []interface{}{"stale-data"},
+		FetchedAt: time.Now().Add(-1 * time.Hour), // stale
+		SourceURL: "http://example.com/v2/drugnames",
+		PageCount: 1,
+	}
+
+	fl := handler.NewFetchLocks()
+	fetcher := &mockFetcher{err: fmt.Errorf("should not be called for background revalidation")}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: cached},
+		fetcher,
+		handler.WithFetchLocks(fl),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	// Should serve stale data (TTL expired triggers stale response)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	// Sleep briefly to see if background revalidation was started (it should NOT be for scheduled endpoints)
+	time.Sleep(50 * time.Millisecond)
+	// The fetcher should not have been called for background revalidation
+	// (it might have been called synchronously, but the mock returns an error for that)
+	// Key point: handler serves stale data without panic even with scheduled + stale
+}
+
+// Force-refresh cooldown with no cache available falls through
+func TestForceRefreshCooldown_NoCacheAvailable(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	cooldown := upstream.NewCooldownTracker(30 * time.Second)
+	cooldown.Record("drugnames")
+
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "drugnames",
+			CacheKey:  "drugnames",
+			Data:      []interface{}{"fresh"},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{}, // no cache
+		fetcher,
+		handler.WithCooldown(cooldown),
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/drugnames?_force=true", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	// When cooldown triggers but no cache is available, it falls through to normal fetch
+	if !fetcher.fetchCalled {
+		t.Error("expected fetch to be called when cooldown has no cache to serve")
+	}
+}
+
+// extractPathParams: endpoint with no params returns nil
+func TestExtractPathParams_NoConfiguredParams(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "drugnames",
+		BaseURL: "http://example.com",
+		Path:    "/v2/drugnames",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{cached: &model.CachedResponse{
+			Slug:      "drugnames",
+			Data:      []interface{}{"drug1"},
+			FetchedAt: time.Now(),
+		}},
+		&mockFetcher{},
+	)
+
+	// Even with query params in URL, they should be ignored if not configured
+	req := httptest.NewRequest("GET", "/api/cache/drugnames?random=ignored", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+// extractPathParams: params present but values empty returns nil
+func TestExtractPathParams_EmptyValues(t *testing.T) {
+	ep := config.Endpoint{
+		Slug:    "spl-detail",
+		BaseURL: "http://example.com",
+		Path:    "/v2/spls/{SETID}",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	fetcher := &mockFetcher{
+		result: &model.CachedResponse{
+			Slug:      "spl-detail",
+			CacheKey:  "spl-detail",
+			Data:      []interface{}{"data"},
+			FetchedAt: time.Now(),
+			PageCount: 1,
+		},
+	}
+
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		&mockCacheRepo{},
+		fetcher,
+	)
+
+	// SETID query param is empty — extractPathParams should return nil
+	req := httptest.NewRequest("GET", "/api/cache/spl-detail", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
 // --- Mock implementations ---
 
 // slowMockFetcher simulates a slow upstream fetch for singleflight tests

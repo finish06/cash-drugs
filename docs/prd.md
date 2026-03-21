@@ -110,7 +110,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M11: RxNorm + Warmup | RxNorm API integration, parameterized warmup, multi-instance support | beta | DONE | 6 RxNorm endpoints, warmup-queries.yaml (top 100 drugs), ENABLE_SCHEDULER leader/replica, nginx LB |
 | M12: Client Enhancements | Readiness endpoint, response normalization, API doc fixes, upstream 404 handling | beta | DONE | /ready, /api/warmup, flatten config, upstream-404-handling |
 | M13: GA Readiness | LICENSE, PR template, SLA doc, CI hardening, coverage, docs audit | ga | IN_PROGRESS | 30-day stability (eligible 2026-04-04), SLA targets, 85%+ coverage |
-| M14: Observability & Operational Foundation | SLAs, alerting rules, request tracing, error taxonomy, cache status API | ga | NEXT | SLA doc, X-Request-ID tracing, error codes, 7+ alert rules, /api/cache/status |
+| M14: Observability & Operational Foundation | SLAs, alerting rules, request tracing, error taxonomy, cache status API | ga | DONE | SLA doc, X-Request-ID tracing, error codes, 7+ alert rules, /api/cache/status |
 | M15: Consumer Value & API Ergonomics | Bulk queries, rich discovery, Go SDK, per-slug metadata | ga | NEXT | Bulk endpoint, parameter docs, Go client pkg, /_meta endpoint |
 | M16: Operational Resilience & Runtime Management | Runbooks, chaos tests, hot config reload, test-fetch dry-run | ga | LATER | Runbook per alert, 4+ chaos tests, fsnotify reload, test-fetch endpoint |
 | M17: Intelligent Data Layer | Cross-slug search, autocomplete, field filtering, pprof, TTL indexes | ga | LATER | Cross-slug search <100ms, autocomplete <20ms, field filtering, pprof, TTL expiry |

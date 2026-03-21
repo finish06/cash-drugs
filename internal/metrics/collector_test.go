@@ -22,6 +22,9 @@ type mockSource struct {
 }
 
 func (m *mockSource) Ping(ctx context.Context) error {
+	if m.pingErr == nil {
+		time.Sleep(1 * time.Millisecond) // simulate non-zero latency
+	}
 	return m.pingErr
 }
 

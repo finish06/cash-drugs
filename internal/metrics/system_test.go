@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -320,6 +321,61 @@ func TestParseKBLine_InvalidNumber(t *testing.T) {
 	_, err := parseKBLine("VmRSS:    notanumber kB")
 	if err == nil {
 		t.Error("expected error for non-numeric value")
+	}
+}
+
+// --- parseCgroupMemoryLimit edge cases ---
+
+// parseCgroupMemoryLimit: v2 file with invalid content returns error
+func TestParseCgroupMemoryLimit_V2InvalidContent(t *testing.T) {
+	dir := t.TempDir()
+	v2Path := filepath.Join(dir, "memory.max")
+	if err := os.WriteFile(v2Path, []byte("not-a-number\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := parseCgroupMemoryLimit(v2Path, filepath.Join(dir, "nonexistent"))
+	if err == nil {
+		t.Error("expected error for invalid cgroup v2 content")
+	}
+}
+
+// parseCgroupMemoryLimit: v1 file with invalid content returns error
+func TestParseCgroupMemoryLimit_V1InvalidContent(t *testing.T) {
+	dir := t.TempDir()
+	v1Path := filepath.Join(dir, "memory.limit_in_bytes")
+	if err := os.WriteFile(v1Path, []byte("invalid\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := parseCgroupMemoryLimit(filepath.Join(dir, "nonexistent"), v1Path)
+	if err == nil {
+		t.Error("expected error for invalid cgroup v1 content")
+	}
+}
+
+// --- parseNetDevLine: invalid rx/tx packet values ---
+
+func TestParseNetDevLine_InvalidRxPackets(t *testing.T) {
+	line := "  eth0: 98765432  notanum    5    2    0     0          0         0 45678901  321098    3    1    0     0       0          0"
+	_, err := parseNetDevLine(line)
+	if err == nil {
+		t.Error("expected error for invalid rx packets")
+	}
+}
+
+func TestParseNetDevLine_InvalidTxPackets(t *testing.T) {
+	line := "  eth0: 98765432  654321    5    2    0     0          0         0 45678901  notanum    3    1    0     0       0          0"
+	_, err := parseNetDevLine(line)
+	if err == nil {
+		t.Error("expected error for invalid tx packets")
+	}
+}
+
+// --- NumCPU ---
+
+func TestNumCPU_ReturnsPositive(t *testing.T) {
+	n := NumCPU()
+	if n <= 0 {
+		t.Errorf("expected NumCPU > 0, got %d", n)
 	}
 }
 

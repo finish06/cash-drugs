@@ -1155,6 +1155,374 @@ func TestSearchParams_NoneResolved(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Coverage gap tests — flattenConceptGroups, fetchJSONPage, determineTotalPages
+// ---------------------------------------------------------------------------
+
+// flattenConceptGroups: non-map items pass through
+func TestFlattenConceptGroups_NonMapItems(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"allRelatedGroup": map[string]interface{}{
+				"conceptGroup": []interface{}{
+					// A conceptGroup with tty and conceptProperties
+					map[string]interface{}{
+						"tty": "BN",
+						"conceptProperties": []interface{}{
+							map[string]interface{}{"name": "aspirin", "rxcui": "1191"},
+						},
+					},
+					// A conceptGroup with tty but nil conceptProperties (empty group — skipped)
+					map[string]interface{}{
+						"tty": "SBD",
+					},
+					// A conceptGroup with tty and empty conceptProperties array (skipped)
+					map[string]interface{}{
+						"tty":                "SCD",
+						"conceptProperties": []interface{}{},
+					},
+					// A non-map item (pass through)
+					"string-item",
+				},
+			},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "rxnorm",
+		BaseURL: server.URL,
+		Path:    "/REST/rxcui/1191/allrelated.json",
+		Format:  "json",
+		DataKey: "allRelatedGroup.conceptGroup",
+		Flatten: true,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+
+	// Should have: aspirin (flattened from BN group) + "string-item" (pass through)
+	// SBD (empty, no conceptProperties) and SCD (empty conceptProperties) should be skipped
+	if len(allData) != 2 {
+		t.Errorf("expected 2 items (1 flattened + 1 pass-through), got %d: %v", len(allData), allData)
+	}
+}
+
+// flattenConceptGroups: conceptProperty that is not a map passes through
+func TestFlattenConceptGroups_NonMapConceptProperty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"allRelatedGroup": map[string]interface{}{
+				"conceptGroup": []interface{}{
+					map[string]interface{}{
+						"tty": "BN",
+						"conceptProperties": []interface{}{
+							"not-a-map-cp", // non-map conceptProperty
+							map[string]interface{}{"name": "aspirin"},
+						},
+					},
+				},
+			},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "rxnorm",
+		BaseURL: server.URL,
+		Path:    "/REST/rxcui/1191/allrelated.json",
+		Format:  "json",
+		DataKey: "allRelatedGroup.conceptGroup",
+		Flatten: true,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+
+	// Should have 2 items: "not-a-map-cp" (pass through) + aspirin map (with tty copied)
+	if len(allData) != 2 {
+		t.Errorf("expected 2 items, got %d", len(allData))
+	}
+}
+
+// flattenConceptGroups: no conceptGroups detected returns data unchanged
+func TestFlattenConceptGroups_NoConceptGroups(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []interface{}{
+				map[string]interface{}{"name": "plain-item-1"},
+				map[string]interface{}{"name": "plain-item-2"},
+			},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-flat",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+		Flatten: true,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	if len(allData) != 2 {
+		t.Errorf("expected 2 items, got %d", len(allData))
+	}
+}
+
+// flattenConceptGroups: tty is nil — no tty copied to children
+func TestFlattenConceptGroups_NilTTY(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"allRelatedGroup": map[string]interface{}{
+				"conceptGroup": []interface{}{
+					map[string]interface{}{
+						// No "tty" field
+						"conceptProperties": []interface{}{
+							map[string]interface{}{"name": "aspirin"},
+						},
+					},
+				},
+			},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "rxnorm",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+		DataKey: "allRelatedGroup.conceptGroup",
+		Flatten: true,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected Data to be []interface{}, got %T", result.Data)
+	}
+	if len(allData) != 1 {
+		t.Errorf("expected 1 item, got %d", len(allData))
+	}
+	// aspirin should NOT have tty field since parent had none
+	item, ok := allData[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map, got %T", allData[0])
+	}
+	if _, hasTTY := item["tty"]; hasTTY {
+		t.Error("expected no tty field when parent has no tty")
+	}
+}
+
+// fetchJSONPage: data key value is not an array — wraps as single item
+func TestFetchJSONPage_DataKeyNotArray(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":     map[string]interface{}{"single": "object"},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	allData, ok := result.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected []interface{}, got %T", result.Data)
+	}
+	if len(allData) != 1 {
+		t.Errorf("expected 1 item (wrapped non-array), got %d", len(allData))
+	}
+}
+
+// fetchJSONPage: invalid JSON response
+func TestFetchJSONPage_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("not valid json"))
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, nil)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON response")
+	}
+}
+
+// fetchJSONPage: HTTP 404 from upstream on first page
+func TestFetchJSONPage_404OnFirstPage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, nil)
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+	var notFoundErr *upstream.ErrUpstreamNotFound
+	if !errors.As(err, &notFoundErr) {
+		t.Errorf("expected ErrUpstreamNotFound, got %T: %v", err, err)
+	}
+}
+
+// determineTotalPages: total_key value is not float64 — returns 1
+func TestDetermineTotalPages_NonFloat64Total(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": []interface{}{"item1"},
+			"metadata": map[string]interface{}{
+				"total_pages": "not-a-number", // string instead of number
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:       "test",
+		BaseURL:    server.URL,
+		Path:       "/api",
+		Format:     "json",
+		Pagination: "all",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	// Should fall back to 1 page when total is not a number
+	if result.PageCount != 1 {
+		t.Errorf("expected 1 page when total is non-numeric, got %d", result.PageCount)
+	}
+}
+
+// hasMorePages: offset pagination correctly stops
+func TestHasMorePages_OffsetStopsCorrectly(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"results": []interface{}{map[string]interface{}{"id": requestCount}},
+			"meta": map[string]interface{}{
+				"results": map[string]interface{}{
+					"total": 5, // 5 total items with pagesize 5 = 1 page
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:            "test",
+		BaseURL:         server.URL,
+		Path:            "/api",
+		Format:          "json",
+		PaginationStyle: "offset",
+		DataKey:         "results",
+		TotalKey:        "meta.results.total",
+		Pagination:      "all",
+		Pagesize:        5,
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.PageCount != 1 {
+		t.Errorf("expected 1 page (5 items / 5 pagesize), got %d", result.PageCount)
+	}
+}
+
+// fetchRaw: upstream returns 404 — returns ErrUpstreamNotFound
+func TestFetchRaw_404ReturnsNotFoundError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-raw",
+		BaseURL: server.URL,
+		Path:    "/data",
+		Format:  "raw",
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, nil)
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+	var notFoundErr *upstream.ErrUpstreamNotFound
+	if !errors.As(err, &notFoundErr) {
+		t.Errorf("expected ErrUpstreamNotFound, got %T: %v", err, err)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // M10: Parallel Page Fetches — RED phase tests
 // Spec: specs/parallel-page-fetches.md
 // ---------------------------------------------------------------------------

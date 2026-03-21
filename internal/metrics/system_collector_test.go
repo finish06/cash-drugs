@@ -1,6 +1,7 @@
 package metrics_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -266,6 +267,134 @@ func TestAC_CSM010_ContainerMetricPrefix(t *testing.T) {
 	// We expect 13 container metrics (9 gauges + 4 gauge vecs)
 	if containerMetrics < 13 {
 		t.Errorf("expected at least 13 container metrics with cashdrugs_container_ prefix, found %d", containerMetrics)
+	}
+}
+
+// AC-CSM: collect handles CPU error gracefully
+func TestCollect_CPUError(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	src := &mockSystemSource{
+		cpuErr:   fmt.Errorf("cpu error"),
+		memInfo:  &metrics.MemInfo{RSS: 1000, VMS: 2000, Limit: -1},
+		diskInfo: &metrics.DiskInfo{Total: 100, Free: 50, Used: 50},
+	}
+
+	collector := metrics.NewSystemCollector(src, m, 1*time.Hour, "/")
+	collector.Start()
+	time.Sleep(100 * time.Millisecond)
+	collector.Stop()
+
+	// CPU value should remain at 0 (error path)
+	cpuVal := testutil.ToFloat64(m.ContainerCPUUsage)
+	if cpuVal != 0 {
+		t.Errorf("expected CPU usage=0 on error, got %f", cpuVal)
+	}
+	// Memory should still be collected
+	rssVal := testutil.ToFloat64(m.ContainerMemoryRSS)
+	if rssVal != 1000 {
+		t.Errorf("expected RSS=1000, got %f", rssVal)
+	}
+}
+
+// AC-CSM: collect handles disk error gracefully
+func TestCollect_DiskError(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	src := &mockSystemSource{
+		memInfo: &metrics.MemInfo{RSS: 1000, VMS: 2000, Limit: -1},
+		diskErr: fmt.Errorf("disk error"),
+	}
+
+	collector := metrics.NewSystemCollector(src, m, 1*time.Hour, "/")
+	collector.Start()
+	time.Sleep(100 * time.Millisecond)
+	collector.Stop()
+
+	// Disk values should remain at 0
+	diskTotal := testutil.ToFloat64(m.ContainerDiskTotal)
+	if diskTotal != 0 {
+		t.Errorf("expected DiskTotal=0 on error, got %f", diskTotal)
+	}
+}
+
+// AC-CSM: collect handles network error gracefully
+func TestCollect_NetworkError(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	src := &mockSystemSource{
+		memInfo:  &metrics.MemInfo{RSS: 1000, VMS: 2000, Limit: -1},
+		diskInfo: &metrics.DiskInfo{Total: 100, Free: 50, Used: 50},
+		netErr:   fmt.Errorf("network error"),
+	}
+
+	collector := metrics.NewSystemCollector(src, m, 1*time.Hour, "/")
+	collector.Start()
+	time.Sleep(100 * time.Millisecond)
+	collector.Stop()
+
+	// Should not panic, memory and disk should still be collected
+	rssVal := testutil.ToFloat64(m.ContainerMemoryRSS)
+	if rssVal != 1000 {
+		t.Errorf("expected RSS=1000, got %f", rssVal)
+	}
+}
+
+// AC-CSM: collect handles memory error gracefully
+func TestCollect_MemoryError(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	src := &mockSystemSource{
+		cpuUserSec: 1.0,
+		cpuSysSec:  0.5,
+		memErr:     fmt.Errorf("memory error"),
+		diskInfo:   &metrics.DiskInfo{Total: 100, Free: 50, Used: 50},
+	}
+
+	collector := metrics.NewSystemCollector(src, m, 1*time.Hour, "/")
+	collector.Start()
+	time.Sleep(100 * time.Millisecond)
+	collector.Stop()
+
+	// CPU should still be collected
+	cpuVal := testutil.ToFloat64(m.ContainerCPUUsage)
+	if cpuVal != 1.5 {
+		t.Errorf("expected CPU=1.5, got %f", cpuVal)
+	}
+	// Memory should remain at 0
+	rssVal := testutil.ToFloat64(m.ContainerMemoryRSS)
+	if rssVal != 0 {
+		t.Errorf("expected RSS=0 on memory error, got %f", rssVal)
+	}
+}
+
+// AC-CSM: collect handles memory limit=0 (no usage ratio set)
+func TestCollect_MemoryLimitZero(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+
+	src := &mockSystemSource{
+		memInfo: &metrics.MemInfo{
+			RSS:            33554432,
+			VMS:            268435456,
+			Limit:          0, // no limit
+			LimitAvailable: false,
+		},
+		diskInfo: &metrics.DiskInfo{Total: 100, Free: 50, Used: 50},
+	}
+
+	collector := metrics.NewSystemCollector(src, m, 1*time.Hour, "/")
+	collector.Start()
+	time.Sleep(100 * time.Millisecond)
+	collector.Stop()
+
+	ratioVal := testutil.ToFloat64(m.ContainerMemoryUsageRatio)
+	if ratioVal != 0 {
+		t.Errorf("expected MemoryUsageRatio=0 when limit=0, got %f", ratioVal)
 	}
 }
 

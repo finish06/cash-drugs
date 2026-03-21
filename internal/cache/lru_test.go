@@ -359,6 +359,36 @@ func TestAC008_NoopLRUPreserved(t *testing.T) {
 	lru2.Invalidate("key")
 }
 
+// AC: NewShardedLRUCache with shardCount reduced due to minShardBytes
+func TestNewShardedLRUCache_MinShardBytesReduction(t *testing.T) {
+	// 64KB total with 16 shards = 4KB/shard, below minShardBytes (32KB).
+	// Should reduce shard count to 64KB / 32KB = 2 shards.
+	lru := cache.NewShardedLRUCache(64*1024, 16)
+	resp := &model.CachedResponse{Slug: "test", CacheKey: "k", Data: "data"}
+	lru.Set("key", resp, time.Minute)
+	got, ok := lru.Get("key")
+	if !ok {
+		t.Fatal("expected cache hit with reduced shard count")
+	}
+	if got.Slug != "test" {
+		t.Errorf("expected 'test', got %q", got.Slug)
+	}
+}
+
+// AC: NewShardedLRUCache with negative shard count clamped to 1
+func TestNewShardedLRUCache_NegativeShardCount(t *testing.T) {
+	lru := cache.NewShardedLRUCache(1024*1024, -5)
+	resp := &model.CachedResponse{Slug: "test", CacheKey: "k", Data: "data"}
+	lru.Set("key", resp, time.Minute)
+	got, ok := lru.Get("key")
+	if !ok {
+		t.Fatal("expected cache hit")
+	}
+	if got.Slug != "test" {
+		t.Errorf("expected 'test', got %q", got.Slug)
+	}
+}
+
 // AC-009: Shard count clamping
 func TestAC009_ShardCountClamping(t *testing.T) {
 	// shardCount <= 0 should be clamped to 1
