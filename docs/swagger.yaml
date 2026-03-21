@@ -237,6 +237,58 @@ definitions:
           $ref: '#/definitions/internal_handler.bulkQueryItem'
         type: array
     type: object
+  internal_handler.configValidateEndpoint:
+    properties:
+      base_url:
+        type: string
+      format:
+        type: string
+      has_pagination:
+        type: boolean
+      has_schedule:
+        type: boolean
+      params:
+        items:
+          type: string
+        type: array
+      path:
+        type: string
+      slug:
+        type: string
+    type: object
+  internal_handler.configValidateErrorResponse:
+    properties:
+      error:
+        type: string
+      error_code:
+        type: string
+      request_id:
+        type: string
+      valid:
+        type: boolean
+    type: object
+  internal_handler.configValidateRequest:
+    properties:
+      yaml:
+        type: string
+    type: object
+  internal_handler.configValidateResponse:
+    properties:
+      endpoint_count:
+        type: integer
+      endpoints:
+        items:
+          $ref: '#/definitions/internal_handler.configValidateEndpoint'
+        type: array
+      request_id:
+        type: string
+      valid:
+        type: boolean
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
   internal_handler.testFetchErrorResponse:
     properties:
       error:
@@ -295,7 +347,6 @@ definitions:
       total_results:
         type: integer
     type: object
-host: localhost:8080
 info:
   contact: {}
   description: API cache/proxy — fetches from upstream REST APIs, stores in MongoDB,
@@ -423,6 +474,33 @@ paths:
       summary: Cache status overview
       tags:
       - system
+  /api/config/validate:
+    post:
+      consumes:
+      - application/json
+      description: Validates a YAML config snippet for structure and required fields
+        without fetching from upstream.
+      parameters:
+      - description: YAML config to validate
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.configValidateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.configValidateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_handler.configValidateErrorResponse'
+      summary: Validate config YAML
+      tags:
+      - config
   /api/endpoints:
     get:
       description: Returns all configured upstream API endpoints with their metadata.

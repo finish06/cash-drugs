@@ -182,6 +182,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/config/validate": {
+            "post": {
+                "description": "Validates a YAML config snippet for structure and required fields without fetching from upstream.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "config"
+                ],
+                "summary": "Validate config YAML",
+                "parameters": [
+                    {
+                        "description": "YAML config to validate",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.configValidateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.configValidateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.configValidateErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/endpoints": {
             "get": {
                 "description": "Returns all configured upstream API endpoints with their metadata.",
@@ -759,6 +799,86 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.configValidateEndpoint": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "has_pagination": {
+                    "type": "boolean"
+                },
+                "has_schedule": {
+                    "type": "boolean"
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "path": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.configValidateErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "error_code": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_handler.configValidateRequest": {
+            "type": "object",
+            "properties": {
+                "yaml": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.configValidateResponse": {
+            "type": "object",
+            "properties": {
+                "endpoint_count": {
+                    "type": "integer"
+                },
+                "endpoints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handler.configValidateEndpoint"
+                    }
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "internal_handler.testFetchErrorResponse": {
             "type": "object",
             "properties": {
@@ -853,7 +973,7 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "0.10.1",
-	Host:             "localhost:8080",
+	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "cash-drugs API",
