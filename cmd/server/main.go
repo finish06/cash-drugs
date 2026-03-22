@@ -252,6 +252,9 @@ func main() {
 
 	limiter := middleware.NewConcurrencyLimiter(maxConcurrent, m)
 
+	searchHandler := handler.NewSearchHandler(endpoints, repo)
+	autocompleteHandler := handler.NewAutocompleteHandler(repo, []string{"drugnames", "fda-ndc"})
+
 	testFetchHandler := handler.NewTestFetchHandler()
 	configValidateHandler := handler.NewConfigValidateHandler()
 
@@ -269,6 +272,8 @@ func main() {
 			cacheHandler.ServeHTTP(w, r)
 		}
 	}))
+	appMux.Handle("/api/search", searchHandler)
+	appMux.Handle("/api/autocomplete", autocompleteHandler)
 	appMux.Handle("/api/endpoints", endpointsHandler)
 	appMux.Handle("/api/warmup", warmupHandler)
 	appMux.Handle("/swagger/", httpSwagger.WrapHandler)

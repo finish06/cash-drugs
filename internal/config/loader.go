@@ -207,6 +207,11 @@ func ExtractAllParams(ep Endpoint) []string {
 	return params
 }
 
+// HasRequiredParams returns true if the endpoint requires parameters to fetch data.
+func HasRequiredParams(ep Endpoint) bool {
+	return len(ExtractAllParams(ep)) > 0
+}
+
 // SubstitutePathParams replaces {param} placeholders in a path with values.
 func SubstitutePathParams(path string, params map[string]string) string {
 	result := path

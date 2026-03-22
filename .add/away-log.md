@@ -1,19 +1,19 @@
 # Away Mode Log
 
-**Started:** 2026-03-21 17:00 CDT
-**Expected Return:** 2026-03-21 21:00 CDT
+**Started:** 2026-03-22 08:00 CDT
+**Expected Return:** 2026-03-22 12:00 CDT
 **Duration:** ~4 hours
 
 ## Work Plan
-1. Hot config reload (fsnotify + SIGHUP)
-2. Chaos test suite (4+ Docker-based failure tests)
-3. Config validation endpoint (POST /api/config/validate)
-4. Commit, push, verify CI
+1. Field filtering (GET /api/cache/{slug}?fields=a,b)
+2. Cross-slug search (GET /api/search?q=term)
+3. Autocomplete (GET /api/autocomplete?q=prefix)
+4. Update k6 tests, commit, push, verify CI
 
 ## Progress Log
 | Time | Task | Status | Notes |
 |------|------|--------|-------|
 
 ## Queued for Return
-1. Production deployment of v0.11.0
-2. GA promotion assessment (2026-04-04)
+1. Production deployment of v0.11.1
+2. GA promotion (2026-04-04)

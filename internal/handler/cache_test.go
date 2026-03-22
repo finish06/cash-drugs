@@ -3036,3 +3036,268 @@ func TestUpstream404MetricIncremented(t *testing.T) {
 		t.Errorf("expected upstream_404_total=1, got %f", val)
 	}
 }
+
+// TestFieldFiltering_ReducesPayload verifies that ?fields=x,y only returns those fields.
+func TestFieldFiltering_ReducesPayload(t *testing.T) {
+	cached := &model.CachedResponse{
+		Slug:      "fda-ndc",
+		CacheKey:  "fda-ndc",
+		FetchedAt: time.Now(),
+		Data: []interface{}{
+			map[string]interface{}{
+				"product_ndc": "12345",
+				"brand_name":  "Aspirin",
+				"dosage_form": "TABLET",
+				"route":       "ORAL",
+			},
+			map[string]interface{}{
+				"product_ndc": "67890",
+				"brand_name":  "Tylenol",
+				"dosage_form": "CAPSULE",
+				"route":       "ORAL",
+			},
+		},
+	}
+
+	repo := &mockCacheRepo{cached: cached}
+	ep := config.Endpoint{Slug: "fda-ndc", BaseURL: "http://example.com", Path: "/ndc/{BRAND_NAME}"}
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		repo,
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?BRAND_NAME=test&fields=product_ndc,brand_name", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	dataArr, ok := resp.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be array, got %T", resp.Data)
+	}
+	if len(dataArr) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(dataArr))
+	}
+
+	for i, item := range dataArr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			t.Fatalf("item %d: expected map, got %T", i, item)
+		}
+		if _, ok := m["product_ndc"]; !ok {
+			t.Errorf("item %d: expected product_ndc field", i)
+		}
+		if _, ok := m["brand_name"]; !ok {
+			t.Errorf("item %d: expected brand_name field", i)
+		}
+		if _, ok := m["dosage_form"]; ok {
+			t.Errorf("item %d: dosage_form should be filtered out", i)
+		}
+		if _, ok := m["route"]; ok {
+			t.Errorf("item %d: route should be filtered out", i)
+		}
+	}
+}
+
+// TestFieldFiltering_NoFieldsParam verifies that omitting ?fields returns all fields.
+func TestFieldFiltering_NoFieldsParam(t *testing.T) {
+	cached := &model.CachedResponse{
+		Slug:      "fda-ndc",
+		CacheKey:  "fda-ndc",
+		FetchedAt: time.Now(),
+		Data: []interface{}{
+			map[string]interface{}{
+				"product_ndc": "12345",
+				"brand_name":  "Aspirin",
+				"dosage_form": "TABLET",
+			},
+		},
+	}
+
+	repo := &mockCacheRepo{cached: cached}
+	ep := config.Endpoint{Slug: "fda-ndc", BaseURL: "http://example.com", Path: "/ndc/{BRAND_NAME}"}
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		repo,
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?BRAND_NAME=test", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	dataArr, ok := resp.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be array, got %T", resp.Data)
+	}
+	if len(dataArr) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(dataArr))
+	}
+
+	m := dataArr[0].(map[string]interface{})
+	if len(m) != 3 {
+		t.Errorf("expected 3 fields, got %d", len(m))
+	}
+}
+
+// TestFieldFiltering_NonMapData verifies that fields param is gracefully ignored for non-map data.
+func TestFieldFiltering_NonMapData(t *testing.T) {
+	cached := &model.CachedResponse{
+		Slug:      "fda-ndc",
+		CacheKey:  "fda-ndc",
+		FetchedAt: time.Now(),
+		Data:      "raw string data",
+	}
+
+	repo := &mockCacheRepo{cached: cached}
+	ep := config.Endpoint{Slug: "fda-ndc", BaseURL: "http://example.com", Path: "/ndc/{BRAND_NAME}"}
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		repo,
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?BRAND_NAME=test&fields=product_ndc", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Non-map data should pass through unchanged
+	if resp.Data != "raw string data" {
+		t.Errorf("expected raw string data unchanged, got %v", resp.Data)
+	}
+}
+
+// TestFieldFiltering_BsonMData verifies field filtering works with bson.M data items.
+func TestFieldFiltering_BsonMData(t *testing.T) {
+	cached := &model.CachedResponse{
+		Slug:      "fda-ndc",
+		CacheKey:  "fda-ndc",
+		FetchedAt: time.Now(),
+		Data: bson.A{
+			bson.M{
+				"product_ndc": "12345",
+				"brand_name":  "Aspirin",
+				"dosage_form": "TABLET",
+			},
+		},
+	}
+
+	repo := &mockCacheRepo{cached: cached}
+	ep := config.Endpoint{Slug: "fda-ndc", BaseURL: "http://example.com", Path: "/ndc/{BRAND_NAME}"}
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		repo,
+		&mockFetcher{},
+	)
+
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?BRAND_NAME=test&fields=product_ndc", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp model.APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	dataArr, ok := resp.Data.([]interface{})
+	if !ok {
+		t.Fatalf("expected data to be array, got %T", resp.Data)
+	}
+
+	m, ok := dataArr[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map, got %T", dataArr[0])
+	}
+	if _, ok := m["product_ndc"]; !ok {
+		t.Error("expected product_ndc field")
+	}
+	if _, ok := m["brand_name"]; ok {
+		t.Error("brand_name should be filtered out")
+	}
+	if _, ok := m["dosage_form"]; ok {
+		t.Error("dosage_form should be filtered out")
+	}
+}
+
+// TestFieldFiltering_DoesNotMutateLRU verifies that filtering creates a clone, not mutating cached data.
+func TestFieldFiltering_DoesNotMutateLRU(t *testing.T) {
+	originalData := []interface{}{
+		map[string]interface{}{
+			"product_ndc": "12345",
+			"brand_name":  "Aspirin",
+			"dosage_form": "TABLET",
+		},
+	}
+
+	lru := newMockLRU()
+	cached := &model.CachedResponse{
+		Slug:      "fda-ndc",
+		CacheKey:  "fda-ndc",
+		FetchedAt: time.Now(),
+		Data:      originalData,
+	}
+	lru.Set("fda-ndc", cached, 5*time.Minute)
+
+	repo := &mockCacheRepo{cached: cached}
+	ep := config.Endpoint{Slug: "fda-ndc", BaseURL: "http://example.com", Path: "/ndc/{BRAND_NAME}"}
+	h := handler.NewCacheHandler(
+		[]config.Endpoint{ep},
+		repo,
+		&mockFetcher{},
+		handler.WithLRU(lru),
+	)
+
+	// Request with field filtering
+	req := httptest.NewRequest("GET", "/api/cache/fda-ndc?BRAND_NAME=test&fields=product_ndc", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Verify LRU data is unchanged
+	lruEntry, ok := lru.Get("fda-ndc")
+	if !ok {
+		t.Fatal("expected LRU entry to still exist")
+	}
+	lruData := lruEntry.Data.([]interface{})
+	lruItem := lruData[0].(map[string]interface{})
+	if _, ok := lruItem["dosage_form"]; !ok {
+		t.Error("LRU entry was mutated — dosage_form should still be present")
+	}
+	if _, ok := lruItem["brand_name"]; !ok {
+		t.Error("LRU entry was mutated — brand_name should still be present")
+	}
+}

@@ -155,6 +155,37 @@ export default function () {
     'GET missing params: CD-H003': (r) => JSON.parse(r.body).error_code === 'CD-H003',
   });
 
+  // --- M17: Search, Autocomplete, Field Filtering ---
+
+  // Cross-slug search
+  const search = http.get(`${BASE_URL}/api/search?q=aspirin&limit=5`);
+  check(search, {
+    'GET /api/search: 200': (r) => r.status === 200,
+    'GET /api/search: has query': (r) => JSON.parse(r.body).query === 'aspirin',
+    'GET /api/search: has results': (r) => JSON.parse(r.body).results !== undefined,
+    'GET /api/search: has total_matches': (r) => JSON.parse(r.body).total_matches !== undefined,
+  });
+
+  // Search — no query returns 400
+  const searchNoQ = http.get(`${BASE_URL}/api/search`);
+  check(searchNoQ, {
+    'GET /api/search no q: 400': (r) => r.status === 400,
+  });
+
+  // Autocomplete
+  const autocomplete = http.get(`${BASE_URL}/api/autocomplete?q=asp&limit=5`);
+  check(autocomplete, {
+    'GET /api/autocomplete: 200': (r) => r.status === 200,
+    'GET /api/autocomplete: has suggestions': (r) => Array.isArray(JSON.parse(r.body).suggestions),
+  });
+
+  // Field filtering
+  const filtered = http.get(`${BASE_URL}/api/cache/drugnames?fields=drug_name`);
+  check(filtered, {
+    'GET with fields: 200': (r) => r.status === 200,
+    'GET with fields: has data': (r) => JSON.parse(r.body).data !== undefined,
+  });
+
   // Metrics endpoint
   const metrics = http.get(`${BASE_URL}/metrics`);
   check(metrics, {

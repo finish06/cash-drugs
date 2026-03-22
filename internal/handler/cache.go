@@ -186,7 +186,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cached, err := h.repo.Get(cacheKey)
 		if err == nil && cached != nil {
 			w.Header().Set("X-Force-Cooldown", "true")
-			respondWithCached(w, cached, true, "force_refresh_cooldown")
+			h.respondFiltered(w, r, cached, true, "force_refresh_cooldown")
 			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 			return
 		}
@@ -216,7 +216,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			slog.Debug("LRU cache hit", "component", "handler", "slug", slug)
 			h.recordLRUHit(slug)
 			h.recordCacheOutcome(slug, "hit")
-			respondWithCached(w, lruResult, false, "")
+			h.respondFiltered(w, r, lruResult, false, "")
 			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "lru_hit", "duration", time.Since(start))
 			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 			return
@@ -244,7 +244,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if config.IsStale(ep, cached.FetchedAt) {
 					slog.Debug("cache hit (stale)", "component", "handler", "slug", slug, "reason", "ttl_expired")
 					h.recordCacheOutcome(slug, "stale")
-					respondWithCached(w, cached, true, "ttl_expired")
+					h.respondFiltered(w, r, cached, true, "ttl_expired")
 					h.backgroundRevalidate(ep, pathParams)
 					slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "stale", "duration", time.Since(start))
 					h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
@@ -254,7 +254,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.recordCacheOutcome(slug, "hit")
 				// Populate LRU from MongoDB hit
 				h.populateLRU(cacheKey, cached, ep)
-				respondWithCached(w, cached, false, "")
+				h.respondFiltered(w, r, cached, false, "")
 				slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "hit", "duration", time.Since(start))
 				h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 				return
@@ -279,7 +279,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cached, cacheErr := h.repo.Get(cacheKey)
 		if cacheErr == nil && cached != nil {
 			h.recordCacheOutcome(slug, "stale")
-			respondWithCached(w, cached, true, "circuit_open")
+			h.respondFiltered(w, r, cached, true, "circuit_open")
 			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 			return
 		}
@@ -377,7 +377,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if fallback != nil {
 			slog.Warn("serving stale cache — upstream unavailable", "component", "handler", "slug", slug)
 			h.recordCacheOutcome(slug, "stale")
-			respondWithCached(w, fallback, true, "upstream unavailable")
+			h.respondFiltered(w, r, fallback, true, "upstream unavailable")
 			slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "stale", "duration", time.Since(start))
 			h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 			return
@@ -404,7 +404,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return fresh result
-	respondWithCached(w, sr.resp, false, "")
+	h.respondFiltered(w, r, sr.resp, false, "")
 	slog.Debug("request", "component", "handler", "method", r.Method, "path", r.URL.Path, "slug", slug, "status", 200, "cache", "miss", "duration", time.Since(start))
 	h.recordHTTPMetrics(slug, r.Method, http.StatusOK, start)
 }
@@ -566,6 +566,84 @@ func (h *CacheHandler) respondNotFound(w http.ResponseWriter, slug string, param
 		Params:    params,
 		RequestID: requestID,
 	})
+}
+
+// filterFields filters data items to only include the requested fields.
+// If fields is empty, returns data unchanged.
+func filterFields(data interface{}, fields []string) interface{} {
+	if len(fields) == 0 {
+		return data
+	}
+
+	fieldSet := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		fieldSet[strings.TrimSpace(f)] = true
+	}
+
+	filterItem := func(item interface{}) interface{} {
+		switch m := item.(type) {
+		case map[string]interface{}:
+			filtered := make(map[string]interface{}, len(fields))
+			for f := range fieldSet {
+				if v, ok := m[f]; ok {
+					filtered[f] = v
+				}
+			}
+			return filtered
+		case bson.M:
+			filtered := make(bson.M, len(fields))
+			for f := range fieldSet {
+				if v, ok := m[f]; ok {
+					filtered[f] = v
+				}
+			}
+			return filtered
+		default:
+			return item // can't filter non-map items
+		}
+	}
+
+	switch d := data.(type) {
+	case []interface{}:
+		result := make([]interface{}, len(d))
+		for i, item := range d {
+			result[i] = filterItem(item)
+		}
+		return result
+	case bson.A:
+		result := make([]interface{}, len(d))
+		for i, item := range d {
+			result[i] = filterItem(item)
+		}
+		return result
+	default:
+		return filterItem(data)
+	}
+}
+
+// respondFiltered applies field filtering (if requested) and delegates to respondWithCached.
+// It clones the CachedResponse to avoid mutating shared LRU/cache entries.
+func (h *CacheHandler) respondFiltered(w http.ResponseWriter, r *http.Request, cached *model.CachedResponse, stale bool, staleReason string) {
+	if fieldsParam := r.URL.Query().Get("fields"); fieldsParam != "" {
+		fields := strings.Split(fieldsParam, ",")
+		cached = &model.CachedResponse{
+			Slug:        cached.Slug,
+			Params:      cached.Params,
+			CacheKey:    cached.CacheKey,
+			BaseKey:     cached.BaseKey,
+			Page:        cached.Page,
+			PageCount:   cached.PageCount,
+			Data:        filterFields(cached.Data, fields),
+			ContentType: cached.ContentType,
+			FetchedAt:   cached.FetchedAt,
+			SourceURL:   cached.SourceURL,
+			HTTPStatus:  cached.HTTPStatus,
+			CreatedAt:   cached.CreatedAt,
+			UpdatedAt:   cached.UpdatedAt,
+			NotFound:    cached.NotFound,
+		}
+	}
+	respondWithCached(w, cached, stale, staleReason)
 }
 
 func respondWithCached(w http.ResponseWriter, cached *model.CachedResponse, stale bool, staleReason string) {
