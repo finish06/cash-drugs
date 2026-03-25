@@ -285,7 +285,9 @@ func main() {
 	mux.Handle("/ready", readyHandler)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.Handle("/version", versionHandler)
-	mux.Handle("/", limiter.Wrap(middleware.AllowMethods(appMux)))
+	// Wrap catch-all with optional landing page redirect (LANDING_URL env var)
+	appHandler := limiter.Wrap(middleware.AllowMethods(appMux))
+	mux.Handle("/", handler.NewLandingRedirectHandler(os.Getenv("LANDING_URL"), appHandler))
 
 	addr := os.Getenv("LISTEN_ADDR")
 	if addr == "" {

@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>drug-cash — Upstream Drug Data, Cached & Ready</title>
+<meta name="description" content="A config-driven Go microservice that caches upstream REST APIs in MongoDB. Ships with DailyMed, FDA, and RxNorm endpoints — add more with a few lines of YAML. Serves consumers in under 50ms.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root {
+  --bg-primary: #060a10;
+  --bg-secondary: #0a0f18;
+  --bg-card: #0f1520;
+  --bg-card-hover: #141c2a;
+  --border: rgba(255,255,255,0.06);
+  --border-hover: rgba(255,255,255,0.12);
+  --text-primary: #e8eaed;
+  --text-secondary: rgba(232,234,237,0.6);
+  --text-muted: rgba(232,234,237,0.35);
+  --accent: #0891b2;
+  --accent-light: #22d3ee;
+  --accent-dim: rgba(8,145,178,0.15);
+  --accent-glow: rgba(8,145,178,0.08);
+  --secondary: #6366f1;
+  --secondary-dim: rgba(99,102,241,0.12);
+  --warning: #f0b957;
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-body: 'DM Sans', -apple-system, sans-serif;
+  --font-mono: 'DM Mono', 'SF Mono', monospace;
+}
+
+html { scroll-behavior: smooth }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Grid Background ── */
+.grid-bg {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.grid-bg svg { width: 100%; height: 100% }
+
+/* ── Grain ── */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Layout ── */
+.wrapper {
+  position: relative;
+  z-index: 2;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ── Nav ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 16px 24px;
+  background: rgba(6,10,16,0.75);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+}
+
+nav .nav-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.nav-brand .pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--secondary));
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.nav-brand span:last-child {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-links a {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 7px 14px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.nav-links a:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.05);
+}
+
+.nav-links .btn-nav {
+  color: var(--bg-primary);
+  background: var(--accent-light);
+  font-weight: 600;
+}
+
+.nav-links .btn-nav:hover {
+  background: #67e8f9;
+  color: var(--bg-primary);
+}
+
+/* ── Hero ── */
+.hero {
+  padding: 180px 0 100px;
+  text-align: center;
+  position: relative;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 6px 8px;
+  border-radius: 100px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(8,145,178,0.25);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-light);
+  margin-bottom: 32px;
+  animation: fadeInUp 0.8s ease both;
+}
+
+.hero-badge .dot {
+  width: 8px; height: 8px;
+  background: var(--accent-light);
+  border-radius: 50%;
+  animation: pulse 2s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1) }
+  50% { opacity: 0.5; transform: scale(0.85) }
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(44px, 7vw, 78px);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 24px;
+  animation: fadeInUp 0.8s ease 0.1s both;
+}
+
+.hero h1 em {
+  font-style: italic;
+  color: var(--accent-light);
+}
+
+.hero .subtitle {
+  font-size: clamp(16px, 2vw, 19px);
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto 44px;
+  line-height: 1.65;
+  font-weight: 300;
+  animation: fadeInUp 0.8s ease 0.2s both;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  animation: fadeInUp 0.8s ease 0.3s both;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 26px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  text-decoration: none;
+  transition: all 0.25s;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #0e7490);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #0ea5e9, var(--accent));
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(8,145,178,0.3);
+}
+
+.btn-secondary {
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary);
+  border: 1px solid var(--border-hover);
+}
+
+.btn-secondary:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-1px);
+}
+
+/* ── Install Bar ── */
+.install-bar {
+  margin: 48px auto 0;
+  max-width: 480px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  animation: fadeInUp 0.8s ease 0.4s both;
+}
+
+.install-bar code {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+
+.install-bar code span { color: var(--accent-light) }
+
+.install-bar button {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.install-bar button:hover {
+  background: rgba(255,255,255,0.1);
+  color: var(--text-primary);
+}
+
+/* ── Metrics Strip ── */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  margin: 80px 0 0;
+  animation: fadeInUp 0.8s ease 0.5s both;
+}
+
+.metric {
+  background: var(--bg-secondary);
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.metric .value {
+  font-family: var(--font-display);
+  font-size: 36px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.metric .label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── Sections ── */
+section { padding: 100px 0 }
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-light);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+  line-height: 1.15;
+}
+
+.section-subtitle {
+  font-size: 17px;
+  color: var(--text-secondary);
+  max-width: 560px;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+/* ── Endpoint Cards ── */
+.endpoints {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 56px;
+}
+
+.endpoint-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.endpoint-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-light), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.endpoint-card:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+}
+
+.endpoint-card:hover::before { opacity: 1 }
+
+.endpoint-method {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.method-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.method-badge.get {
+  background: rgba(34,211,238,0.12);
+  color: var(--accent-light);
+}
+
+.method-badge.post {
+  background: var(--secondary-dim);
+  color: #818cf8;
+}
+
+.endpoint-path {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.endpoint-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.endpoint-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 18px;
+  font-weight: 300;
+}
+
+.endpoint-response {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+}
+
+.endpoint-response code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre;
+}
+
+.endpoint-response code .key { color: var(--accent-light) }
+.endpoint-response code .str { color: var(--warning) }
+.endpoint-response code .num { color: #818cf8 }
+
+/* ── Feature Cards ── */
+.features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 56px;
+}
+
+.feature-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  transition: all 0.3s;
+}
+
+.feature-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+}
+
+.feature-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  font-size: 18px;
+}
+
+.feature-icon.cyan { background: var(--accent-dim) }
+.feature-icon.indigo { background: var(--secondary-dim) }
+.feature-icon.amber { background: rgba(240,185,87,0.12) }
+
+.feature-card h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.feature-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  font-weight: 300;
+}
+
+/* ── CTA ── */
+.cta-section {
+  text-align: center;
+  padding: 80px 0 120px;
+}
+
+.cta-box {
+  background: linear-gradient(135deg, rgba(8,145,178,0.06), rgba(99,102,241,0.06));
+  border: 1px solid rgba(8,145,178,0.15);
+  border-radius: 20px;
+  padding: 64px 40px;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-box::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: 20%; right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-light), transparent);
+}
+
+.cta-box h2 {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 400;
+  margin-bottom: 14px;
+  letter-spacing: -0.02em;
+}
+
+.cta-box p {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+  font-weight: 300;
+}
+
+.cta-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Footer ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 32px 0;
+  text-align: center;
+}
+
+footer p {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+footer a:hover { color: var(--accent-light) }
+
+/* ── Animations ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px) }
+  to { opacity: 1; transform: translateY(0) }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: all 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .hero { padding: 140px 0 80px }
+  .metrics { grid-template-columns: repeat(2, 1fr); margin-top: 56px }
+  .endpoints { grid-template-columns: 1fr }
+  .features { grid-template-columns: 1fr }
+  .nav-links a.hide-mobile { display: none }
+  .install-bar { flex-direction: column; text-align: center }
+}
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 36px }
+  .metrics { grid-template-columns: 1fr }
+  .hero-actions { flex-direction: column; width: 100% }
+  .hero-actions .btn { width: 100%; justify-content: center }
+  .cta-actions { flex-direction: column }
+  .cta-actions .btn { width: 100%; justify-content: center }
+}
+</style>
+</head>
+<body>
+
+<!-- Grid Background -->
+<div class="grid-bg">
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+  <defs>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(8,145,178,0.04)" stroke-width="0.5"/>
+    </pattern>
+    <radialGradient id="fade" cx="50%" cy="30%" r="55%">
+      <stop offset="0%" stop-color="white" stop-opacity="1"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="gridMask"><rect width="100%" height="100%" fill="url(#fade)"/></mask>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#grid)" mask="url(#gridMask)"/>
+</svg>
+</div>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">
+      <span class="pill">dc</span>
+      <span>drug-cash</span>
+    </a>
+    <div class="nav-links">
+      <a href="#api" class="hide-mobile">API</a>
+      <a href="#features" class="hide-mobile">Features</a>
+      <a href="https://github.com/finish06/cash-drugs" target="_blank" rel="noopener" class="btn-nav">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrapper">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Open Source &middot; Self-Hostable
+    </div>
+
+    <h1>Drug data, <em>always cached</em><br>and ready</h1>
+
+    <p class="subtitle">
+      A config-driven Go microservice that caches upstream REST APIs in MongoDB. Ships with DailyMed, FDA openFDA, and RxNorm endpoints &mdash; add more with a few lines of YAML. Serves consumers in under 50ms. When upstreams go down, cached data keeps you running.
+    </p>
+
+    <div class="hero-actions">
+      <a href="https://github.com/finish06/cash-drugs" target="_blank" rel="noopener" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+      <a href="#api" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Explore the API
+      </a>
+    </div>
+
+    <div class="install-bar">
+      <code><span>$</span> docker compose up</code>
+      <button onclick="navigator.clipboard.writeText('docker compose up').then(()=>{this.textContent='Copied!';setTimeout(()=>{this.textContent='Copy'},1500)})">Copy</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="value">19</div>
+        <div class="label">API Endpoints</div>
+      </div>
+      <div class="metric">
+        <div class="value">&lt;50ms</div>
+        <div class="label">Cache Response</div>
+      </div>
+      <div class="metric">
+        <div class="value">3</div>
+        <div class="label">Data Sources</div>
+      </div>
+      <div class="metric">
+        <div class="value">Go</div>
+        <div class="label">Single Binary</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- API Section -->
+  <section id="api" class="reveal">
+    <div class="section-label">API Overview</div>
+    <div class="section-title">Cached drug data,<br>one request away</div>
+    <p class="section-subtitle">
+      Query cached DailyMed, FDA, and RxNorm data. Cross-slug search, autocomplete, bulk lookups, and per-slug metadata. All responses are JSON with freshness info.
+    </p>
+
+    <div class="endpoints">
+      <div class="endpoint-card reveal">
+        <div class="endpoint-method">
+          <span class="method-badge get">GET</span>
+          <span class="endpoint-path">/api/cache/{slug}</span>
+        </div>
+        <h3 class="endpoint-title">Cached Data Retrieval</h3>
+        <p class="endpoint-desc">Fetch cached upstream data by slug. Returns paginated results with freshness metadata and staleness indicators.</p>
+        <div class="endpoint-response">
+          <code>{
+  <span class="key">"data"</span>: [{
+    <span class="key">"product_ndc"</span>: <span class="str">"0002-1433"</span>,
+    <span class="key">"brand_name"</span>: <span class="str">"Metformin Hydrochloride"</span>,
+    <span class="key">"dosage_form"</span>: <span class="str">"TABLET"</span>
+  }],
+  <span class="key">"meta"</span>: {
+    <span class="key">"slug"</span>: <span class="str">"fda-ndc"</span>,
+    <span class="key">"results_count"</span>: <span class="num">1187</span>,
+    <span class="key">"stale"</span>: <span class="num">false</span>
+  }
+}</code>
+        </div>
+      </div>
+
+      <div class="endpoint-card reveal">
+        <div class="endpoint-method">
+          <span class="method-badge get">GET</span>
+          <span class="endpoint-path">/api/search?q=metformin</span>
+        </div>
+        <h3 class="endpoint-title">Cross-Slug Search</h3>
+        <p class="endpoint-desc">Full-text search across all cached data sources. Results grouped by slug with match counts and duration.</p>
+        <div class="endpoint-response">
+          <code>{
+  <span class="key">"query"</span>: <span class="str">"metformin"</span>,
+  <span class="key">"total_matches"</span>: <span class="num">42</span>,
+  <span class="key">"results"</span>: [{
+    <span class="key">"slug"</span>: <span class="str">"fda-ndc"</span>,
+    <span class="key">"matches"</span>: <span class="num">28</span>,
+    <span class="key">"items"</span>: [{ <span class="key">"brand_name"</span>: <span class="str">"Metformin HCl"</span> }]
+  }],
+  <span class="key">"duration_ms"</span>: <span class="num">23.4</span>
+}</code>
+        </div>
+      </div>
+
+      <div class="endpoint-card reveal">
+        <div class="endpoint-method">
+          <span class="method-badge get">GET</span>
+          <span class="endpoint-path">/api/autocomplete?q=met</span>
+        </div>
+        <h3 class="endpoint-title">Typeahead Autocomplete</h3>
+        <p class="endpoint-desc">Fast prefix-match search for typeahead UIs. Returns ranked drug name suggestions from cached data.</p>
+        <div class="endpoint-response">
+          <code>{
+  <span class="key">"query"</span>: <span class="str">"met"</span>,
+  <span class="key">"suggestions"</span>: [
+    <span class="str">"Metformin Hydrochloride"</span>,
+    <span class="str">"Metoprolol Succinate"</span>,
+    <span class="str">"Methotrexate"</span>,
+    <span class="str">"Methylphenidate"</span>
+  ]
+}</code>
+        </div>
+      </div>
+
+      <div class="endpoint-card reveal">
+        <div class="endpoint-method">
+          <span class="method-badge post">POST</span>
+          <span class="endpoint-path">/api/cache/{slug}/bulk</span>
+        </div>
+        <h3 class="endpoint-title">Bulk Cache Lookup</h3>
+        <p class="endpoint-desc">Submit multiple parameter sets in a single request. Returns results for each query with timing info.</p>
+        <div class="endpoint-response">
+          <code>{
+  <span class="key">"results"</span>: [
+    { <span class="key">"params"</span>: { <span class="key">"search"</span>: <span class="str">"metformin"</span> }, <span class="key">"count"</span>: <span class="num">28</span> },
+    { <span class="key">"params"</span>: { <span class="key">"search"</span>: <span class="str">"lisinopril"</span> }, <span class="key">"count"</span>: <span class="num">15</span> }
+  ],
+  <span class="key">"total_queries"</span>: <span class="num">2</span>,
+  <span class="key">"duration_ms"</span>: <span class="num">45.2</span>
+}</code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="reveal">
+    <div class="section-label">Built for Production</div>
+    <div class="section-title">Batteries included</div>
+    <p class="section-subtitle">
+      Everything you need to run a reliable drug data cache. No assembly required.
+    </p>
+
+    <div class="features">
+      <div class="feature-card reveal">
+        <div class="feature-icon cyan">&#x26a1;</div>
+        <h3>Circuit Breakers</h3>
+        <p>Automatic circuit breakers on every upstream API. Force-refresh cooldowns and stale-serve fallback keep consumers healthy.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon indigo">&#x1f4ca;</div>
+        <h3>Prometheus Metrics</h3>
+        <p>Cache hit rates, upstream latency, MongoDB health, scheduler stats, system metrics. Grafana dashboards and alerting rules included.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon amber">&#x1f4dd;</div>
+        <h3>Config-Driven</h3>
+        <p>Add any REST API with a few lines of YAML &mdash; URL, pagination style, TTL, schedule. Hot-reloads on save via fsnotify. No code changes needed.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section reveal">
+    <div class="cta-box">
+      <h2>Stop hitting upstream APIs directly</h2>
+      <p>Self-host in minutes. One binary, one config file, one Docker Compose command.</p>
+      <div class="cta-actions">
+        <a href="https://github.com/finish06/cash-drugs" target="_blank" rel="noopener" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          Star on GitHub
+        </a>
+        <a href="#api" class="btn btn-secondary">
+          See the API
+        </a>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="wrapper">
+    <p>
+      <a href="https://github.com/finish06/cash-drugs" target="_blank" rel="noopener">drug-cash</a>
+      &nbsp;&middot;&nbsp; Open source under <a href="https://github.com/finish06/cash-drugs/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+      &nbsp;&middot;&nbsp; Built with Go + MongoDB + Prometheus
+    </p>
+  </div>
+</footer>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+
+</body>
+</html>
