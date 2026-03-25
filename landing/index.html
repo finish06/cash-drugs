@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>drug-cash — Upstream Drug Data, Cached & Ready</title>
-<meta name="description" content="A Go microservice that fetches from DailyMed, FDA, and RxNorm APIs, caches responses in MongoDB, and serves internal consumers in under 50ms. Stale-serve keeps you running when upstreams go down.">
+<meta name="description" content="A config-driven Go microservice that caches upstream REST APIs in MongoDB. Ships with DailyMed, FDA, and RxNorm endpoints — add more with a few lines of YAML. Serves consumers in under 50ms.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -669,7 +669,7 @@ footer a:hover { color: var(--accent-light) }
     <h1>Drug data, <em>always cached</em><br>and ready</h1>
 
     <p class="subtitle">
-      A Go microservice that fetches from DailyMed, FDA openFDA, and RxNorm APIs, caches everything in MongoDB, and serves internal consumers in under 50ms. When upstreams go down, cached data keeps you running.
+      A config-driven Go microservice that caches upstream REST APIs in MongoDB. Ships with DailyMed, FDA openFDA, and RxNorm endpoints &mdash; add more with a few lines of YAML. Serves consumers in under 50ms. When upstreams go down, cached data keeps you running.
     </p>
 
     <div class="hero-actions">
@@ -822,9 +822,9 @@ footer a:hover { color: var(--accent-light) }
         <p>Cache hit rates, upstream latency, MongoDB health, scheduler stats, system metrics. Grafana dashboards and alerting rules included.</p>
       </div>
       <div class="feature-card reveal">
-        <div class="feature-icon amber">&#x1f504;</div>
-        <h3>Hot Config Reload</h3>
-        <p>Edit config.yaml and changes apply instantly via fsnotify. Add endpoints, adjust TTLs, tune scheduling &mdash; no restart needed.</p>
+        <div class="feature-icon amber">&#x1f4dd;</div>
+        <h3>Config-Driven</h3>
+        <p>Add any REST API with a few lines of YAML &mdash; URL, pagination style, TTL, schedule. Hot-reloads on save via fsnotify. No code changes needed.</p>
       </div>
     </div>
   </section>
