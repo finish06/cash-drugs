@@ -434,6 +434,32 @@
       "date": "2026-03-21",
       "classified_by": "human",
       "checkpoint_type": "verification-catch"
+    },
+    {
+      "id": "L-030",
+      "title": "Cycle 13 complete: M18 landing page shipped in ~3 hours",
+      "body": "4 work items (HTML, GitHub Pages, redirect handler, tests) all reached DONE. Initial design was too minimal — needed a second iteration matching the drug-gate quality bar (nav, metrics strip, syntax-highlighted JSON, scroll animations). GitHub Pages custom domain requires API config after first deploy; first deploy 404s until CNAME is set and workflow re-triggered. Added workflow_dispatch trigger for manual re-deploys.",
+      "scope": "project",
+      "stack": ["go"],
+      "category": "process",
+      "severity": "medium",
+      "source": "cash-drugs",
+      "date": "2026-03-25",
+      "classified_by": "agent",
+      "checkpoint_type": "retro"
+    },
+    {
+      "id": "L-031",
+      "title": "GitHub Pages custom domain requires post-deploy API call — CNAME file alone is not enough",
+      "body": "The CNAME file in the deployed artifact tells GitHub Pages the domain, but the repo's Pages settings must also have the custom domain configured via `gh api repos/{owner}/{repo}/pages -X PUT -f cname={domain}`. Without this, the first deploy returns 404 on the custom domain. Always add workflow_dispatch trigger to Pages workflows for manual re-deploys after config changes.",
+      "scope": "workstation",
+      "stack": [],
+      "category": "technical",
+      "severity": "high",
+      "source": "cash-drugs",
+      "date": "2026-03-25",
+      "classified_by": "agent",
+      "checkpoint_type": "post-deploy"
     }
   ]
 }

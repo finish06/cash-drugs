@@ -114,7 +114,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M15: Consumer Value & API Ergonomics | Bulk queries, rich discovery, per-slug metadata | ga | DONE | Bulk endpoint, parameter docs, /_meta endpoint |
 | M16: Operational Resilience & Runtime Management | Runbooks, chaos tests, hot config reload, test-fetch, config validate | ga | DONE | Runbook per alert, 8 chaos tests, fsnotify reload, test-fetch, config validate |
 | M17: Intelligent Data Layer | Cross-slug search, autocomplete, field filtering, pprof, TTL indexes | ga | DONE | Cross-slug search <100ms, autocomplete <20ms, field filtering, pprof, TTL expiry |
-| M18: Landing Page | Public landing page on GitHub Pages (`drug-cash.calebdunn.tech`), optional `LANDING_URL` redirect | ga | LATER | GitHub Pages at custom domain, hero + API examples + quick-start, responsive, env-var redirect |
+| M18: Landing Page | Public landing page on GitHub Pages (`drug-cash.calebdunn.tech`), optional `LANDING_URL` redirect | ga | DONE | GitHub Pages at custom domain, hero + API examples + quick-start, responsive, env-var redirect |
 
 ### Milestone Detail
 
@@ -364,7 +364,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [x] Benchmark suite with committed P50/P95/P99 baselines
 - [x] Stale documents automatically expire via TTL index
 
-#### M18: Landing Page [LATER]
+#### M18: Landing Page [DONE]
 **Goal:** Give drug-cash a public front door — a static landing page on GitHub Pages at `drug-cash.calebdunn.tech`. Shows what the service does, key API endpoints with example JSON responses, and how to self-host. The Go service optionally redirects `GET /` to the landing page via `LANDING_URL` env var.
 
 **Appetite:** 2–3 hours
@@ -383,11 +383,11 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - GitHub Pages deployment — auto-deploys from `landing/` on push to main
 
 **Success criteria:**
-- [ ] Landing page live at `drug-cash.calebdunn.tech` via GitHub Pages
-- [ ] Page is responsive (mobile + desktop)
-- [ ] `LANDING_URL` env var controls optional 302 redirect from `GET /`
-- [ ] No conflicts with existing API routes when redirect is active
-- [ ] Single `index.html` with inline CSS, < 50KB, ocean palette branding
+- [x] Landing page live at `drug-cash.calebdunn.tech` via GitHub Pages
+- [x] Page is responsive (mobile + desktop)
+- [x] `LANDING_URL` env var controls optional 302 redirect from `GET /`
+- [x] No conflicts with existing API routes when redirect is active
+- [x] Single `index.html` with inline CSS, < 50KB, ocean palette branding
 
 ### Milestone Sequencing
 
@@ -398,9 +398,7 @@ M14: Observability ── DONE
 M15: Consumer Value ── DONE (SDK deferred)
 M16: Operational Resilience ── DONE
 M17: Intelligent Data Layer ── DONE
-    │
-    ▼
-M18: Landing Page (2-3 days, next up)
+M18: Landing Page ── DONE
 ```
 
 **GA promotion gate:** M14 + M16 complete — service has SLAs, alerts, runbooks, chaos tests, tracing, and hot reload. Blocked only by 30-day stability window (eligible 2026-04-04). M18 is a post-GA polish milestone.
