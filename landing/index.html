@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>drug-cash | Drug Data API Cache</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #0c1220 0%, #0f1a2e 50%, #0a0f1a 100%);
+      color: #fff;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Hero */
+    .hero {
+      padding: 80px 0 60px;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 3.2rem;
+      font-weight: 700;
+      letter-spacing: -2px;
+      background: linear-gradient(135deg, #0891b2, #22d3ee, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+
+    .hero .tagline {
+      font-size: 1.25rem;
+      color: rgba(255,255,255,0.7);
+      font-weight: 400;
+      margin-bottom: 24px;
+    }
+
+    .hero .description {
+      font-size: 1rem;
+      color: rgba(255,255,255,0.5);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Section */
+    section {
+      padding: 48px 0;
+    }
+
+    section h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 24px;
+      color: #22d3ee;
+    }
+
+    /* Cards */
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    .card h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #0891b2;
+      font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
+      margin-bottom: 8px;
+    }
+
+    .card p {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 12px;
+    }
+
+    .card pre {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* Quick start */
+    .quickstart pre {
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 24px;
+      font-size: 0.875rem;
+      line-height: 1.8;
+      font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
+      color: rgba(255,255,255,0.85);
+      overflow-x: auto;
+    }
+
+    .quickstart .comment { color: rgba(255,255,255,0.35); }
+    .quickstart .cmd { color: #22d3ee; }
+
+    /* Tech stack */
+    .stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .stack span {
+      background: rgba(8,145,178,0.15);
+      border: 1px solid rgba(8,145,178,0.3);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #22d3ee;
+    }
+
+    /* Links */
+    .links {
+      text-align: center;
+      padding: 48px 0 80px;
+    }
+
+    .links a {
+      display: inline-block;
+      background: linear-gradient(135deg, #0891b2, #0e7490);
+      color: #fff;
+      text-decoration: none;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: opacity 0.2s;
+    }
+
+    .links a:hover { opacity: 0.85; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 24px 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.3);
+      font-size: 0.8rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero { padding: 48px 0 32px; }
+      .hero h1 { font-size: 2.2rem; }
+      .hero .tagline { font-size: 1.05rem; }
+      section { padding: 32px 0; }
+      .card pre { font-size: 0.75rem; padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Hero -->
+    <header class="hero">
+      <h1>drug-cash</h1>
+      <p class="tagline">Drug data API cache &mdash; fast, reliable, always available</p>
+      <p class="description">
+        Fetches from DailyMed, FDA openFDA, and RxNorm APIs. Caches responses in MongoDB.
+        Serves internal consumers in &lt; 50ms. When upstreams go down, stale data keeps you running.
+      </p>
+    </header>
+
+    <!-- API Overview -->
+    <section>
+      <h2>API Endpoints</h2>
+
+      <div class="card">
+        <h3>GET /api/cache/{slug}</h3>
+        <p>Retrieve cached data by endpoint slug. Returns paginated results with freshness metadata.</p>
+        <pre>{
+  "data": [
+    {
+      "product_ndc": "0002-1433",
+      "brand_name": "Metformin Hydrochloride",
+      "dosage_form": "TABLET",
+      "route": "ORAL"
+    }
+  ],
+  "meta": {
+    "slug": "fda-ndc",
+    "source_url": "https://api.fda.gov/drug/ndc.json",
+    "fetched_at": "2026-03-24T08:15:00Z",
+    "page_count": 12,
+    "results_count": 1187,
+    "stale": false
+  }
+}</pre>
+      </div>
+
+      <div class="card">
+        <h3>GET /api/search?q=metformin</h3>
+        <p>Cross-slug full-text search. Returns results grouped by source with match counts.</p>
+        <pre>{
+  "query": "metformin",
+  "total_matches": 42,
+  "results": [
+    {
+      "slug": "fda-ndc",
+      "matches": 28,
+      "items": [{"brand_name": "Metformin HCl", "product_ndc": "0002-1433"}]
+    },
+    {
+      "slug": "drugnames",
+      "matches": 14,
+      "items": [{"name": "Metformin Hydrochloride 500mg Tablet"}]
+    }
+  ],
+  "duration_ms": 23.4
+}</pre>
+      </div>
+
+      <div class="card">
+        <h3>GET /api/autocomplete?q=met&amp;limit=5</h3>
+        <p>Fast prefix-match autocomplete for typeahead UIs. Returns matching drug names.</p>
+        <pre>{
+  "query": "met",
+  "suggestions": [
+    "Metformin Hydrochloride",
+    "Metoprolol Succinate",
+    "Methotrexate",
+    "Methylphenidate",
+    "Metronidazole"
+  ]
+}</pre>
+      </div>
+
+      <div class="card">
+        <h3>GET /api/endpoints</h3>
+        <p>Discover all configured upstream endpoints with slug names, URLs, and cache status.</p>
+        <pre>{
+  "endpoints": [
+    {"slug": "fda-ndc", "url": "https://api.fda.gov/drug/ndc.json", "cached": true},
+    {"slug": "drugnames", "url": "https://dailymed.nlm.nih.gov/...", "cached": true},
+    {"slug": "fda-enforcement", "url": "https://api.fda.gov/drug/enforcement.json", "cached": true}
+  ]
+}</pre>
+      </div>
+
+      <div class="card">
+        <h3>GET /api/cache/{slug}/_meta</h3>
+        <p>Per-slug metadata: freshness, document count, last fetch time, staleness info.</p>
+        <pre>{
+  "slug": "fda-ndc",
+  "document_count": 1187,
+  "last_fetched": "2026-03-24T08:15:00Z",
+  "ttl_seconds": 86400,
+  "stale": false,
+  "cache_age_seconds": 3420
+}</pre>
+      </div>
+
+      <div class="card">
+        <h3>POST /api/cache/{slug}/bulk</h3>
+        <p>Bulk cache lookups. Send multiple parameter sets, get results in one request.</p>
+        <pre>// Request
+{"queries": [{"search": "metformin"}, {"search": "lisinopril"}]}
+
+// Response
+{
+  "results": [
+    {"params": {"search": "metformin"}, "count": 28, "data": [...]},
+    {"params": {"search": "lisinopril"}, "count": 15, "data": [...]}
+  ],
+  "total_queries": 2,
+  "duration_ms": 45.2
+}</pre>
+      </div>
+    </section>
+
+    <!-- Quick Start -->
+    <section class="quickstart">
+      <h2>Quick Start</h2>
+      <pre><span class="comment"># Clone and run</span>
+<span class="cmd">git clone</span> https://github.com/finish06/cash-drugs.git
+<span class="cmd">cd</span> cash-drugs
+<span class="cmd">docker compose up</span>
+
+<span class="comment"># API available at http://localhost:8080</span>
+<span class="comment"># Fetch cached drug data</span>
+<span class="cmd">curl</span> http://localhost:8080/api/endpoints
+<span class="cmd">curl</span> http://localhost:8080/api/cache/fda-ndc
+<span class="cmd">curl</span> "http://localhost:8080/api/search?q=metformin"</pre>
+    </section>
+
+    <!-- Tech Stack -->
+    <section>
+      <h2>Tech Stack</h2>
+      <div class="stack">
+        <span>Go</span>
+        <span>net/http</span>
+        <span>MongoDB</span>
+        <span>Prometheus</span>
+        <span>Docker</span>
+      </div>
+    </section>
+
+    <!-- GitHub Link -->
+    <div class="links">
+      <a href="https://github.com/finish06/cash-drugs">View on GitHub</a>
+    </div>
+
+  </div>
+
+  <footer>
+    <div class="container">drug-cash &mdash; API cache for drug data</div>
+  </footer>
+
+</body>
+</html>

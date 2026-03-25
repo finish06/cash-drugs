@@ -113,7 +113,8 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M14: Observability & Operational Foundation | SLAs, alerting rules, request tracing, error taxonomy, cache status API | ga | DONE | SLA doc, X-Request-ID tracing, error codes, 7+ alert rules, /api/cache/status |
 | M15: Consumer Value & API Ergonomics | Bulk queries, rich discovery, per-slug metadata | ga | DONE | Bulk endpoint, parameter docs, /_meta endpoint |
 | M16: Operational Resilience & Runtime Management | Runbooks, chaos tests, hot config reload, test-fetch, config validate | ga | DONE | Runbook per alert, 8 chaos tests, fsnotify reload, test-fetch, config validate |
-| M17: Intelligent Data Layer | Cross-slug search, autocomplete, field filtering, pprof, TTL indexes | ga | LATER | Cross-slug search <100ms, autocomplete <20ms, field filtering, pprof, TTL expiry |
+| M17: Intelligent Data Layer | Cross-slug search, autocomplete, field filtering, pprof, TTL indexes | ga | DONE | Cross-slug search <100ms, autocomplete <20ms, field filtering, pprof, TTL expiry |
+| M18: Landing Page | Public landing page on GitHub Pages (`drug-cash.calebdunn.tech`), optional `LANDING_URL` redirect | ga | LATER | GitHub Pages at custom domain, hero + API examples + quick-start, responsive, env-var redirect |
 
 ### Milestone Detail
 
@@ -338,7 +339,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [x] Test-fetch validates new upstream configs dry-run
 - [x] Config validation endpoint validates YAML structure
 
-#### M17: Intelligent Data Layer [LATER]
+#### M17: Intelligent Data Layer [DONE]
 **Goal:** Transform cash-drugs from a cache into a queryable drug data layer — cross-slug search, field filtering, performance profiling. The service consumers *prefer* over hitting upstreams directly.
 
 **Appetite:** 2–3 weeks
@@ -356,12 +357,37 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - MongoDB TTL indexes — TTL index on `updated_at` (2x endpoint TTL) for automatic stale document cleanup. Prevents unbounded collection growth
 
 **Success criteria:**
-- [ ] Cross-slug search returns grouped results in < 100ms
-- [ ] Autocomplete returns in < 20ms
-- [ ] Field filtering reduces response payload to requested fields
-- [ ] pprof accessible on internal port
-- [ ] Benchmark suite with committed P50/P95/P99 baselines
-- [ ] Stale documents automatically expire via TTL index
+- [x] Cross-slug search returns grouped results in < 100ms
+- [x] Autocomplete returns in < 20ms
+- [x] Field filtering reduces response payload to requested fields
+- [x] pprof accessible on internal port
+- [x] Benchmark suite with committed P50/P95/P99 baselines
+- [x] Stale documents automatically expire via TTL index
+
+#### M18: Landing Page [LATER]
+**Goal:** Give drug-cash a public front door — a static landing page on GitHub Pages at `drug-cash.calebdunn.tech`. Shows what the service does, key API endpoints with example JSON responses, and how to self-host. The Go service optionally redirects `GET /` to the landing page via `LANDING_URL` env var.
+
+**Appetite:** 2–3 hours
+
+**Target maturity:** ga
+
+**Priority:** P3 — polish and discoverability
+
+**Features:**
+- Hero section — "drug-cash" branding, tagline, value proposition
+- API overview — key endpoints with inline example JSON responses
+- Self-host guide — `git clone` + `docker compose up` quick-start
+- GitHub link — source code and self-hosting
+- Tech stack — Go, net/http, MongoDB, Prometheus, Docker
+- `LANDING_URL` env var — optional 302 redirect from `GET /` (unset by default for self-hosters)
+- GitHub Pages deployment — auto-deploys from `landing/` on push to main
+
+**Success criteria:**
+- [ ] Landing page live at `drug-cash.calebdunn.tech` via GitHub Pages
+- [ ] Page is responsive (mobile + desktop)
+- [ ] `LANDING_URL` env var controls optional 302 redirect from `GET /`
+- [ ] No conflicts with existing API routes when redirect is active
+- [ ] Single `index.html` with inline CSS, < 50KB, ocean palette branding
 
 ### Milestone Sequencing
 
@@ -371,12 +397,13 @@ M13 (GA Readiness) ── 5/6 done, waiting 30-day stability (2026-04-04)
 M14: Observability ── DONE
 M15: Consumer Value ── DONE (SDK deferred)
 M16: Operational Resilience ── DONE
+M17: Intelligent Data Layer ── DONE
     │
     ▼
-M17: Intelligent Data Layer (2-3 weeks, next up)
+M18: Landing Page (2-3 days, next up)
 ```
 
-**GA promotion gate:** M14 + M16 complete — service has SLAs, alerts, runbooks, chaos tests, tracing, and hot reload. Blocked only by 30-day stability window (eligible 2026-04-04). M17 is a post-GA growth milestone.
+**GA promotion gate:** M14 + M16 complete — service has SLAs, alerts, runbooks, chaos tests, tracing, and hot reload. Blocked only by 30-day stability window (eligible 2026-04-04). M18 is a post-GA polish milestone.
 
 ### Deferred Items (Future Milestones)
 
