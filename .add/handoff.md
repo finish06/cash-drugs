@@ -1,35 +1,28 @@
 # Session Handoff
-**Written:** 2026-03-21
+**Written:** 2026-03-25
 
 ## In Progress
 - Nothing actively in progress — all cycles complete, working tree clean
 
 ## Completed This Session
-- **Cycle 7 (M14):** Request IDs, error taxonomy, cache status, alerting rules (commit 394a667)
-- **Cycle 8 (M15):** Per-slug metadata, bulk query, rich discovery (commit eebd736)
-- **Cycle 9 (M16):** Operational runbooks, test-fetch endpoint (commit 32fe38d)
-- **Bug fixes:** 6 critical bugs from swarm audit + cooldown arming (commits bcd1409, 05e6f91)
-- **Coverage:** 83% → 95.4% (~1000 test lines added)
-- **k6 suite:** 41 smoke checks + load test, validated on staging
-- **Dashboard:** reports/dashboard.html generated
-- **Retro:** Scores 8.5/7.2/8.5 (collab/ADD/swarm)
-- **Tagged:** v0.11.0 (commit 60068c0), CI published :v0.11.0 + :latest
-- **Staging:** validated at beta-60068c0, all k6 checks pass
+- **Cycle 12 (M17):** Cross-slug search, autocomplete, field filtering, pprof, TTL indexes, benchmarks (commit 7eb19af)
+- **Cycle 13 (M18):** Landing page at drug-cash.calebdunn.tech, LANDING_URL redirect handler, GitHub Pages workflow (PR #22, commit 0a13f5d)
+- **Landing page iteration:** Redesigned to match drug-gate quality bar (commit 00ac053)
+- **Retro:** Scores 7.0/6.5/5.0 (collab/ADD/swarm)
 
 ## Decisions Made
-- Go SDK (M15) deferred — API surface should stabilize first
-- M16 split: runbooks + test-fetch now, hot reload + chaos + config validate later
-- Error codes: CD-H001-H005, CD-U001-U003, CD-S001 (9 total)
-- Retro action items: stricter TDD, auto-checkpoints after deploy/bugfix
-- v0.10.2 tagged for bugfixes, v0.11.0 for full feature release
+- Landing page branded as "drug-cash" (not "cash-drugs")
+- No Swagger links on landing page — service is internal
+- Config-driven YAML highlighted as key differentiator
+- GitHub Pages with custom domain (drug-cash.calebdunn.tech)
+- LANDING_URL env var for optional redirect (unset by default)
 
 ## Blockers
-- **GA promotion:** 30-day stability window, eligible 2026-04-04 (14 days)
-- **Production deploy:** v0.11.0 ready, awaiting human approval
+- **GA promotion:** 30-day stability window, eligible 2026-04-04 (10 days)
+- **M13 remaining:** Production monitoring verification (1/6 criteria)
 
 ## Next Steps
-1. Deploy v0.11.0 to production (requires approval)
-2. Cycle 10 — remaining M16: hot config reload, chaos tests, config validate
-3. Tier 2 bug fixes from swarm report (5 items)
-4. GA promotion retro on 2026-04-04
-5. M17 planning (cross-slug search, autocomplete, pprof, TTL indexes)
+1. Wait for 2026-04-04 stability gate
+2. Verify production monitoring (M13 final criterion)
+3. GA promotion retro
+4. Pick from deferred items for next milestone
