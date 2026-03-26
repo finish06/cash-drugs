@@ -44,6 +44,17 @@ definitions:
       stale_reason:
         type: string
     type: object
+  internal_handler.AutocompleteResponse:
+    properties:
+      query:
+        type: string
+      request_id:
+        type: string
+      suggestions:
+        items:
+          type: string
+        type: array
+    type: object
   internal_handler.BulkQueryResponse:
     properties:
       duration_ms:
@@ -141,6 +152,31 @@ definitions:
         type: boolean
       type:
         description: '"path", "query", or "search"'
+        type: string
+    type: object
+  internal_handler.SearchResponse:
+    properties:
+      duration_ms:
+        type: number
+      query:
+        type: string
+      request_id:
+        type: string
+      results:
+        items:
+          $ref: '#/definitions/internal_handler.SearchResult'
+        type: array
+      total_matches:
+        type: integer
+    type: object
+  internal_handler.SearchResult:
+    properties:
+      items:
+        items: {}
+        type: array
+      matches:
+        type: integer
+      slug:
         type: string
     type: object
   internal_handler.SlugMeta:
@@ -354,6 +390,33 @@ info:
   title: cash-drugs API
   version: 0.10.1
 paths:
+  /api/autocomplete:
+    get:
+      description: Returns prefix-matched drug name suggestions from cached data.
+      parameters:
+      - description: Search prefix (min 1 character)
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: Max suggestions (default 10, max 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.AutocompleteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse'
+      summary: Autocomplete drug names
+      tags:
+      - search
   /api/cache/{slug}:
     get:
       description: |-
@@ -516,6 +579,34 @@ paths:
       summary: List configured endpoints
       tags:
       - system
+  /api/search:
+    get:
+      description: Searches cached data across all slugs using case-insensitive string
+        matching.
+      parameters:
+      - description: Search query (min 2 characters)
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: Max results per slug (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse'
+      summary: Search across all cached data
+      tags:
+      - search
   /api/test-fetch:
     post:
       consumes:

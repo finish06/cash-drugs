@@ -995,6 +995,117 @@ sequenceDiagram
     Note over AM: POST-only paths: /api/warmup, */bulk, /api/test-fetch<br/>GET-only: all other application routes
 ```
 
+## Cross-Slug Search Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant RID as RequestID Middleware
+    participant GZ as Gzip Middleware
+    participant LIM as Concurrency Limiter
+    participant SH as SearchHandler
+    participant DB as MongoDB<br/>(cached_responses)
+
+    Client->>RID: GET /api/search?q=metformin&limit=50
+    RID->>GZ: pass through (ID in context)
+    GZ->>LIM: pass through
+    LIM->>SH: ServeHTTP(w, r)
+
+    SH->>SH: Parse query params<br/>(q required, min 2 chars)
+    alt Missing or short query
+        SH-->>GZ: 400 {"error_code": "CD-H003", "error": "query too short"}
+        GZ-->>Client: 400
+    end
+
+    SH->>SH: Build case-insensitive regex<br/>for each configured endpoint
+    loop For each endpoint slug
+        SH->>DB: Find documents matching<br/>regex on string fields
+        DB-->>SH: Matching documents
+        SH->>SH: Count matches, build SearchResult
+    end
+
+    SH->>SH: Sort results by match count desc<br/>Apply per-slug limit
+    SH-->>GZ: 200 {"query": "metformin", "total_matches": 42, "results": [...], "duration_ms": 23.4}
+    GZ-->>RID: 200 (gzip compressed)
+    RID-->>Client: 200 + X-Request-ID
+```
+
+## Autocomplete Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Internal Service
+    participant RID as RequestID Middleware
+    participant GZ as Gzip Middleware
+    participant LIM as Concurrency Limiter
+    participant AC as AutocompleteHandler
+    participant DB as MongoDB<br/>(cached_responses)
+
+    Client->>RID: GET /api/autocomplete?q=met&limit=10
+    RID->>GZ: pass through (ID in context)
+    GZ->>LIM: pass through
+    LIM->>AC: ServeHTTP(w, r)
+
+    AC->>AC: Parse query params<br/>(q required, min 1 char)
+    alt Missing query
+        AC-->>GZ: 400 {"error_code": "CD-H003", "error": "query required"}
+        GZ-->>Client: 400
+    end
+
+    AC->>AC: Build case-insensitive prefix regex
+    loop For each configured autocomplete slug
+        AC->>DB: Find documents matching<br/>prefix on name fields
+        DB-->>AC: Matching documents
+        AC->>AC: Extract drug names from results
+    end
+
+    AC->>AC: Deduplicate, sort alphabetically<br/>Apply limit cap
+    AC-->>GZ: 200 {"query": "met", "suggestions": ["Metformin...", "Metoprolol...", ...]}
+    GZ-->>RID: 200 (gzip compressed)
+    RID-->>Client: 200 + X-Request-ID
+```
+
+## LANDING_URL Redirect Flow
+
+```mermaid
+sequenceDiagram
+    actor Client as Browser / Service
+    participant MUX as Outer Mux
+    participant LR as LandingRedirectHandler
+    participant APP as AppMux (limiter + routes)
+
+    alt LANDING_URL env var is set
+        Client->>MUX: GET /
+        MUX->>LR: ServeHTTP
+        LR->>LR: Check: path == "/" AND method == GET
+        LR-->>Client: 302 Found<br/>Location: https://drug-cash.calebdunn.tech
+    end
+
+    alt LANDING_URL env var is unset or empty
+        Client->>MUX: GET /
+        MUX->>LR: ServeHTTP
+        LR->>LR: Check: LANDING_URL empty → fall through
+        LR->>APP: ServeHTTP (delegate)
+        APP-->>Client: Normal app response
+    end
+
+    alt Non-root path (any LANDING_URL state)
+        Client->>MUX: GET /api/endpoints
+        MUX->>LR: ServeHTTP
+        LR->>LR: Check: path != "/" → fall through
+        LR->>APP: ServeHTTP (delegate)
+        APP-->>Client: Normal app response (JSON)
+    end
+
+    alt POST to root (LANDING_URL set)
+        Client->>MUX: POST /
+        MUX->>LR: ServeHTTP
+        LR->>LR: Check: method != GET → fall through
+        LR->>APP: ServeHTTP (delegate)
+        APP-->>Client: Normal app response
+    end
+```
+
 ## System Overview
 
 ```mermaid

@@ -15,6 +15,47 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/autocomplete": {
+            "get": {
+                "description": "Returns prefix-matched drug name suggestions from cached data.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Autocomplete drug names",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search prefix (min 1 character)",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max suggestions (default 10, max 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.AutocompleteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/cache/status": {
             "get": {
                 "description": "Returns per-slug cache health including staleness, TTL remaining, and health score.",
@@ -240,6 +281,47 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/internal_handler.EndpointInfo"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/search": {
+            "get": {
+                "description": "Searches cached data across all slugs using case-insensitive string matching.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Search across all cached data",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query (min 2 characters)",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max results per slug (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_finish06_cash-drugs_internal_model.ErrorResponse"
                         }
                     }
                 }
@@ -510,6 +592,23 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.AutocompleteResponse": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "suggestions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "internal_handler.BulkQueryResponse": {
             "type": "object",
             "properties": {
@@ -656,6 +755,44 @@ const docTemplate = `{
                 },
                 "type": {
                     "description": "\"path\", \"query\", or \"search\"",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.SearchResponse": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "type": "number"
+                },
+                "query": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handler.SearchResult"
+                    }
+                },
+                "total_matches": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handler.SearchResult": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {}
+                },
+                "matches": {
+                    "type": "integer"
+                },
+                "slug": {
                     "type": "string"
                 }
             }

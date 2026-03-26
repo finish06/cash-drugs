@@ -1,7 +1,7 @@
 {
   "$schema": "https://github.com/MountainUnicorn/add/docs-manifest.schema.json",
   "version": "1.1.0",
-  "generated": "2026-03-21T14:33:00Z",
+  "generated": "2026-03-25T18:00:00Z",
   "stack": {
     "language": "go",
     "framework": "net/http",
@@ -81,6 +81,33 @@
       "handler_function": "WarmupHandler.ServeHTTP",
       "middleware": ["RequestIDMiddleware", "GzipMiddleware", "ConcurrencyLimiter"],
       "tags": ["ops"],
+      "response_model": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/search",
+      "handler_file": "internal/handler/search.go",
+      "handler_function": "SearchHandler.ServeHTTP",
+      "middleware": ["RequestIDMiddleware", "GzipMiddleware", "ConcurrencyLimiter"],
+      "tags": ["search"],
+      "response_model": "SearchResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/autocomplete",
+      "handler_file": "internal/handler/autocomplete.go",
+      "handler_function": "AutocompleteHandler.ServeHTTP",
+      "middleware": ["RequestIDMiddleware", "GzipMiddleware", "ConcurrencyLimiter"],
+      "tags": ["search"],
+      "response_model": "AutocompleteResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/ (LANDING_URL redirect)",
+      "handler_file": "internal/handler/landing.go",
+      "handler_function": "NewLandingRedirectHandler",
+      "middleware": [],
+      "tags": ["landing"],
       "response_model": null
     },
     {
@@ -265,6 +292,24 @@
       "name": "testFetchResponse",
       "file": "internal/handler/testfetch.go",
       "field_count": 8,
+      "relationships": []
+    },
+    {
+      "name": "SearchResponse",
+      "file": "internal/handler/search.go",
+      "field_count": 5,
+      "relationships": ["SearchResult"]
+    },
+    {
+      "name": "SearchResult",
+      "file": "internal/handler/search.go",
+      "field_count": 3,
+      "relationships": []
+    },
+    {
+      "name": "AutocompleteResponse",
+      "file": "internal/handler/autocomplete.go",
+      "field_count": 3,
       "relationships": []
     },
     {
@@ -476,7 +521,10 @@
       "POST /api/cache/{slug}/bulk (bulk cache lookup)",
       "POST /api/test-fetch (dry-run upstream test)",
       "Parameter validation (400 — CD-H003)",
-      "Method enforcement (405 — CD-H004)"
+      "Method enforcement (405 — CD-H004)",
+      "GET /api/search (cross-slug search)",
+      "GET /api/autocomplete (prefix autocomplete)",
+      "GET / (LANDING_URL redirect)"
     ],
     "undocumented": [],
     "stale": []
@@ -514,6 +562,9 @@
     "internal/handler/testfetch.go": "noted",
     "internal/middleware/requestid.go": "noted",
     "internal/middleware/methods.go": "noted",
-    "internal/model/errors.go": "noted"
+    "internal/model/errors.go": "noted",
+    "internal/handler/search.go": "noted",
+    "internal/handler/autocomplete.go": "noted",
+    "internal/handler/landing.go": "noted"
   }
 }
