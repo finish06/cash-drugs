@@ -32,7 +32,7 @@ func TestAC007_RedirectWhenLandingURLSet(t *testing.T) {
 func TestAC007_NoRedirectWhenLandingURLUnset(t *testing.T) {
 	fallback := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("fallback"))
+		_, _ = w.Write([]byte("fallback"))
 	})
 	h := handler.NewLandingRedirectHandler("", fallback)
 
@@ -52,7 +52,7 @@ func TestAC007_NoRedirectWhenLandingURLUnset(t *testing.T) {
 func TestAC007_EmptyLandingURLNoRedirect(t *testing.T) {
 	fallback := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("fallback"))
+		_, _ = w.Write([]byte("fallback"))
 	})
 	h := handler.NewLandingRedirectHandler("   ", fallback)
 
@@ -70,7 +70,7 @@ func TestAC009_APIRoutesUnaffectedWithRedirect(t *testing.T) {
 	fallback := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"endpoints":[]}`))
+		_, _ = w.Write([]byte(`{"endpoints":[]}`))
 	})
 	h := handler.NewLandingRedirectHandler("https://drug-cash.calebdunn.tech", fallback)
 
@@ -109,7 +109,7 @@ func TestAC009_HealthUnaffectedWithRedirect(t *testing.T) {
 func TestAC007_PostMethodNoRedirect(t *testing.T) {
 	fallback := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("fallback"))
+		_, _ = w.Write([]byte("fallback"))
 	})
 	h := handler.NewLandingRedirectHandler("https://drug-cash.calebdunn.tech", fallback)
 
