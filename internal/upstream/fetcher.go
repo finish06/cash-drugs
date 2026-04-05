@@ -37,6 +37,18 @@ type HTTPFetcher struct {
 	FetchConcurrency int // max concurrent page fetches (default: 3)
 }
 
+// doRequest creates an HTTP request with the endpoint's resolved headers applied.
+func (f *HTTPFetcher) doRequest(method, url string, ep config.Endpoint) (*http.Response, error) {
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	for k, v := range ep.ResolvedHeaders {
+		req.Header.Set(k, v)
+	}
+	return f.Client.Do(req)
+}
+
 // NewHTTPFetcher creates a new HTTPFetcher with sensible defaults.
 func NewHTTPFetcher() *HTTPFetcher {
 	return &HTTPFetcher{
@@ -66,7 +78,7 @@ func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*
 
 	// Step 1: Fetch first page sequentially to discover total pages
 	firstURL := buildURL(ep, path, 1, params)
-	firstData, firstParsed, err := f.fetchJSONPage(firstURL, ep.DataKey)
+	firstData, firstParsed, err := f.fetchJSONPage(firstURL, ep)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +126,7 @@ func (f *HTTPFetcher) fetchJSON(ep config.Endpoint, params map[string]string) (*
 				defer func() { <-sem }() // release
 
 				reqURL := buildURL(ep, path, pNum, params)
-				data, _, fetchErr := f.fetchJSONPage(reqURL, ep.DataKey)
+				data, _, fetchErr := f.fetchJSONPage(reqURL, ep)
 				results[idx] = pageResult{page: pNum, data: data, err: fetchErr}
 			}(i, pageNum)
 		}
@@ -201,7 +213,7 @@ func (f *HTTPFetcher) fetchRaw(ep config.Endpoint, params map[string]string) (*m
 	path := config.SubstitutePathParams(ep.Path, params)
 	reqURL := buildURL(ep, path, 1, params)
 
-	resp, err := f.Client.Get(reqURL)
+	resp, err := f.doRequest("GET", reqURL, ep)
 	if err != nil {
 		return nil, fmt.Errorf("upstream request failed: %w", err)
 	}
@@ -244,8 +256,8 @@ func (f *HTTPFetcher) fetchRaw(ep config.Endpoint, params map[string]string) (*m
 	}, nil
 }
 
-func (f *HTTPFetcher) fetchJSONPage(reqURL string, dataKey string) ([]interface{}, map[string]interface{}, error) {
-	resp, err := f.Client.Get(reqURL)
+func (f *HTTPFetcher) fetchJSONPage(reqURL string, ep config.Endpoint) ([]interface{}, map[string]interface{}, error) {
+	resp, err := f.doRequest("GET", reqURL, ep)
 	if err != nil {
 		return nil, nil, fmt.Errorf("upstream request failed: %w", err)
 	}
@@ -270,13 +282,13 @@ func (f *HTTPFetcher) fetchJSONPage(reqURL string, dataKey string) ([]interface{
 
 	var items []interface{}
 	// Support dot-path data keys (e.g., "allRelatedGroup.conceptGroup")
-	if data, ok := resolveByDotPath(parsed, dataKey); ok {
+	if data, ok := resolveByDotPath(parsed, ep.DataKey); ok {
 		if arr, ok := data.([]interface{}); ok {
 			items = arr
 		} else {
 			items = []interface{}{data}
 		}
-	} else if data, ok := parsed[dataKey]; ok {
+	} else if data, ok := parsed[ep.DataKey]; ok {
 		// Fallback to simple top-level lookup
 		if arr, ok := data.([]interface{}); ok {
 			items = arr
