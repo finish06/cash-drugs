@@ -95,13 +95,15 @@ endpoints:
     ttl: "24h"
 
   - slug: fda-ndc
-    base_url: https://api.fda.gov
-    path: /drug/ndc.json
+    base_url: http://192.168.1.145:8081
+    path: /api/openfda/ndc.json
     format: json
     pagination_style: offset
     pagesize: 100
     data_key: results
     total_key: meta.results.total
+    headers:
+      X-API-Key: "${RXDAG_API_KEY}"
     search_params:
       - "brand_name:\"{BRAND_NAME}\""
       - "generic_name:\"{GENERIC_NAME}\""
@@ -120,6 +122,34 @@ endpoints:
       - "openfda.brand_name:\"{BRAND_NAME}\""
       - "openfda.generic_name:\"{GENERIC_NAME}\""
       - "openfda.product_ndc:\"{NDC}\""
+
+  # rx-dag NDC Loader Endpoints (internal)
+  # Requires RXDAG_API_KEY env var
+
+  - slug: rx-dag-ndc-search
+    base_url: http://192.168.1.145:8081
+    path: /api/ndc/search
+    format: json
+    headers:
+      X-API-Key: "${RXDAG_API_KEY}"
+    query_params:
+      q: "{Q}"
+      limit: "{LIMIT}"
+      offset: "{OFFSET}"
+
+  - slug: rx-dag-ndc-lookup
+    base_url: http://192.168.1.145:8081
+    path: /api/ndc/{NDC}
+    format: json
+    headers:
+      X-API-Key: "${RXDAG_API_KEY}"
+
+  - slug: rx-dag-ndc-packages
+    base_url: http://192.168.1.145:8081
+    path: /api/ndc/{NDC}/packages
+    format: json
+    headers:
+      X-API-Key: "${RXDAG_API_KEY}"
 
   # RxNorm API Endpoints (NLM)
   # No auth required, no pagination, monthly data updates

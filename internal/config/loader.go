@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v3"
 )
+
+var envVarRegex = regexp.MustCompile(`\$\{(\w+)\}`)
 
 // Endpoint represents a configured upstream API endpoint.
 type Endpoint struct {
@@ -29,7 +32,9 @@ type Endpoint struct {
 	TotalKey        string            `yaml:"total_key"`
 	Refresh         string            `yaml:"refresh"`
 	TTL             string            `yaml:"ttl"`
-	TTLDuration     time.Duration     `yaml:"-"` // computed from TTL at load time
+	TTLDuration     time.Duration     `yaml:"-"`              // computed from TTL at load time
+	Headers         map[string]string `yaml:"headers"`        // custom HTTP headers for upstream requests
+	ResolvedHeaders map[string]string `yaml:"-"`              // headers with ${ENV_VAR} interpolated
 }
 
 // AppConfig holds top-level application configuration beyond endpoints.
@@ -112,6 +117,29 @@ func Load(path string) ([]Endpoint, error) {
 	return cfg.Endpoints, nil
 }
 
+// ResolveHeaders interpolates ${ENV_VAR} references in header values
+// and returns a new map with resolved values. Logs a warning for any
+// environment variable that is empty or unset.
+func ResolveHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+	resolved := make(map[string]string, len(headers))
+	for k, v := range headers {
+		result := envVarRegex.ReplaceAllStringFunc(v, func(match string) string {
+			varName := envVarRegex.FindStringSubmatch(match)[1]
+			val := os.Getenv(varName)
+			if val == "" {
+				slog.Warn("header references empty or unset environment variable",
+					"header", k, "env_var", varName)
+			}
+			return val
+		})
+		resolved[k] = result
+	}
+	return resolved
+}
+
 // ApplyDefaults sets default values for optional fields.
 func ApplyDefaults(ep *Endpoint) {
 	if ep.PaginationStyle == "" {
@@ -132,6 +160,7 @@ func ApplyDefaults(ep *Endpoint) {
 	if ep.TotalKey == "" {
 		ep.TotalKey = "metadata.total_pages"
 	}
+	ep.ResolvedHeaders = ResolveHeaders(ep.Headers)
 }
 
 // ParsePagination interprets the pagination field and returns (maxPages, fetchAll).

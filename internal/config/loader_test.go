@@ -1053,6 +1053,154 @@ func TestParsePagination_NonAllString(t *testing.T) {
 	}
 }
 
+// rx-dag NDC Migration — Headers config (specs/rxdag-ndc-migration.md)
+
+// AC-002: Config supports a headers map field on any endpoint
+func TestRxDAG_AC002_HeadersFieldParsed(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test-with-headers
+    base_url: http://192.168.1.145:8081
+    path: /api/ndc/search
+    format: json
+    headers:
+      X-API-Key: "test-key-value"
+      X-Custom: "custom-value"
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(endpoints[0].Headers) != 2 {
+		t.Fatalf("expected 2 headers, got %d", len(endpoints[0].Headers))
+	}
+	if endpoints[0].Headers["X-API-Key"] != "test-key-value" {
+		t.Errorf("expected X-API-Key='test-key-value', got '%s'", endpoints[0].Headers["X-API-Key"])
+	}
+	if endpoints[0].Headers["X-Custom"] != "custom-value" {
+		t.Errorf("expected X-Custom='custom-value', got '%s'", endpoints[0].Headers["X-Custom"])
+	}
+}
+
+// AC-014: Headers field is optional — endpoints without it behave unchanged
+func TestRxDAG_AC014_HeadersFieldOptional(t *testing.T) {
+	cfgPath := writeTestConfig(t, `
+endpoints:
+  - slug: test-no-headers
+    base_url: http://example.com
+    path: /api
+    format: json
+`)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if endpoints[0].Headers != nil {
+		t.Errorf("expected nil headers when not specified, got %v", endpoints[0].Headers)
+	}
+	if endpoints[0].ResolvedHeaders != nil {
+		t.Errorf("expected nil resolved headers when not specified, got %v", endpoints[0].ResolvedHeaders)
+	}
+}
+
+// AC-003: Header values support ${ENV_VAR} interpolation
+func TestRxDAG_AC003_HeaderEnvVarInterpolation(t *testing.T) {
+	t.Setenv("TEST_API_KEY", "secret-key-123")
+
+	headers := map[string]string{
+		"X-API-Key":    "${TEST_API_KEY}",
+		"X-Static":     "no-interpolation",
+		"X-Mixed":      "prefix-${TEST_API_KEY}-suffix",
+	}
+
+	resolved := config.ResolveHeaders(headers)
+
+	if resolved["X-API-Key"] != "secret-key-123" {
+		t.Errorf("expected 'secret-key-123', got '%s'", resolved["X-API-Key"])
+	}
+	if resolved["X-Static"] != "no-interpolation" {
+		t.Errorf("expected 'no-interpolation', got '%s'", resolved["X-Static"])
+	}
+	if resolved["X-Mixed"] != "prefix-secret-key-123-suffix" {
+		t.Errorf("expected 'prefix-secret-key-123-suffix', got '%s'", resolved["X-Mixed"])
+	}
+}
+
+// AC-013: Missing env var resolves to empty string
+func TestRxDAG_AC013_MissingEnvVarResolvesToEmpty(t *testing.T) {
+	// Ensure the var is unset
+	t.Setenv("RXDAG_MISSING_VAR", "")
+
+	headers := map[string]string{
+		"X-API-Key": "${RXDAG_MISSING_VAR}",
+	}
+
+	resolved := config.ResolveHeaders(headers)
+
+	if resolved["X-API-Key"] != "" {
+		t.Errorf("expected empty string for missing env var, got '%s'", resolved["X-API-Key"])
+	}
+}
+
+// AC-014: ResolveHeaders with nil map returns nil
+func TestRxDAG_AC014_ResolveHeadersNilMap(t *testing.T) {
+	resolved := config.ResolveHeaders(nil)
+	if resolved != nil {
+		t.Errorf("expected nil for nil input, got %v", resolved)
+	}
+}
+
+// AC-014: ResolveHeaders with empty map returns nil
+func TestRxDAG_AC014_ResolveHeadersEmptyMap(t *testing.T) {
+	resolved := config.ResolveHeaders(map[string]string{})
+	if resolved != nil {
+		t.Errorf("expected nil for empty map, got %v", resolved)
+	}
+}
+
+// AC-002: Headers are resolved during ApplyDefaults
+func TestRxDAG_AC002_HeadersResolvedDuringApplyDefaults(t *testing.T) {
+	t.Setenv("TEST_HDR_KEY", "resolved-value")
+
+	ep := config.Endpoint{
+		Slug:    "test",
+		BaseURL: "http://example.com",
+		Path:    "/api",
+		Format:  "json",
+		Headers: map[string]string{
+			"X-Key": "${TEST_HDR_KEY}",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	if ep.ResolvedHeaders == nil {
+		t.Fatal("expected ResolvedHeaders to be populated after ApplyDefaults")
+	}
+	if ep.ResolvedHeaders["X-Key"] != "resolved-value" {
+		t.Errorf("expected 'resolved-value', got '%s'", ep.ResolvedHeaders["X-Key"])
+	}
+}
+
+// AC-012: Existing endpoints without headers still work after config extension
+func TestRxDAG_AC012_ExistingEndpointsUnchanged(t *testing.T) {
+	cfgPath := writeTestConfig(t, validConfig)
+
+	endpoints, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, ep := range endpoints {
+		if ep.Headers != nil {
+			t.Errorf("endpoint '%s': expected nil headers for existing endpoints, got %v", ep.Slug, ep.Headers)
+		}
+	}
+}
+
 // Helper functions
 
 const validConfig = `

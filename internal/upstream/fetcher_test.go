@@ -2377,3 +2377,181 @@ func TestFetchJSONPage_DotPathDataKey_NonArray(t *testing.T) {
 		t.Errorf("expected name=ibuprofen, got %v", item["name"])
 	}
 }
+
+// rx-dag NDC Migration — Headers on upstream requests (specs/rxdag-ndc-migration.md)
+
+// AC-002 + AC-008: Custom headers are sent on upstream JSON requests
+func TestRxDAG_AC002_AC008_HeadersSentOnJSONFetch(t *testing.T) {
+	var receivedHeaders http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header.Clone()
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":     []string{"result1"},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-headers",
+		BaseURL: server.URL,
+		Path:    "/api/ndc/search",
+		Format:  "json",
+		Headers: map[string]string{
+			"X-API-Key": "test-secret",
+			"X-Custom":  "custom-value",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if receivedHeaders.Get("X-API-Key") != "test-secret" {
+		t.Errorf("expected X-API-Key='test-secret', got '%s'", receivedHeaders.Get("X-API-Key"))
+	}
+	if receivedHeaders.Get("X-Custom") != "custom-value" {
+		t.Errorf("expected X-Custom='custom-value', got '%s'", receivedHeaders.Get("X-Custom"))
+	}
+}
+
+// AC-002: Custom headers are sent on upstream raw requests
+func TestRxDAG_AC002_HeadersSentOnRawFetch(t *testing.T) {
+	var receivedHeaders http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header.Clone()
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = w.Write([]byte("<root>data</root>"))
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-raw-headers",
+		BaseURL: server.URL,
+		Path:    "/api/data.xml",
+		Format:  "raw",
+		Headers: map[string]string{
+			"X-API-Key": "raw-secret",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if receivedHeaders.Get("X-API-Key") != "raw-secret" {
+		t.Errorf("expected X-API-Key='raw-secret', got '%s'", receivedHeaders.Get("X-API-Key"))
+	}
+}
+
+// AC-014: No headers configured — fetch works normally (backward compat)
+func TestRxDAG_AC014_NoHeadersBackwardCompat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify no custom headers are sent
+		if r.Header.Get("X-API-Key") != "" {
+			t.Errorf("unexpected X-API-Key header: '%s'", r.Header.Get("X-API-Key"))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":     []string{"drug1"},
+			"metadata": map[string]interface{}{"total_pages": 1},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-no-headers",
+		BaseURL: server.URL,
+		Path:    "/api",
+		Format:  "json",
+	}
+	config.ApplyDefaults(&ep)
+
+	result, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.PageCount != 1 {
+		t.Errorf("expected page_count=1, got %d", result.PageCount)
+	}
+}
+
+// AC-008: Headers sent on multi-page concurrent fetches
+func TestRxDAG_AC008_HeadersSentOnConcurrentPages(t *testing.T) {
+	var mu sync.Mutex
+	headersSeen := make(map[int]string)
+	pageNum := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		pageNum++
+		current := pageNum
+		headersSeen[current] = r.Header.Get("X-API-Key")
+		mu.Unlock()
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":     []string{fmt.Sprintf("item-%d", current)},
+			"metadata": map[string]interface{}{"total_pages": 3},
+		})
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:       "test-multi-page-headers",
+		BaseURL:    server.URL,
+		Path:       "/api",
+		Format:     "json",
+		Pagination: "all",
+		Headers: map[string]string{
+			"X-API-Key": "multi-page-secret",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	for page, key := range headersSeen {
+		if key != "multi-page-secret" {
+			t.Errorf("page %d: expected X-API-Key='multi-page-secret', got '%s'", page, key)
+		}
+	}
+	if len(headersSeen) < 2 {
+		t.Errorf("expected at least 2 pages fetched, got %d", len(headersSeen))
+	}
+}
+
+// AC-010: rx-dag returning 401 (bad API key) is treated as upstream error
+func TestRxDAG_AC010_Upstream401ReturnsFetchError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(401)
+		_, _ = w.Write([]byte(`{"error": "unauthorized"}`))
+	}))
+	defer server.Close()
+
+	ep := config.Endpoint{
+		Slug:    "test-401",
+		BaseURL: server.URL,
+		Path:    "/api/ndc/search",
+		Format:  "json",
+		Headers: map[string]string{
+			"X-API-Key": "",
+		},
+	}
+	config.ApplyDefaults(&ep)
+
+	_, err := upstream.Fetch(ep, map[string]string{"q": "test"})
+	if err == nil {
+		t.Fatal("expected error for 401 response")
+	}
+	if !strings.Contains(err.Error(), "401") {
+		t.Errorf("expected error to mention 401, got: %s", err.Error())
+	}
+}
