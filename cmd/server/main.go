@@ -200,7 +200,12 @@ func main() {
 	cacheHandler := handler.NewCacheHandler(endpoints, repo, fetcher, handler.WithFetchLocks(locks), handler.WithMetrics(m), handler.WithLRU(lruCache), handler.WithCircuit(circuitReg), handler.WithCooldown(cooldownTracker))
 	metaHandler := handler.NewMetaHandler(endpoints, repo, handler.WithMetaCircuit(circuitReg))
 	bulkHandler := handler.NewBulkHandler(endpoints, repo, handler.WithBulkMetrics(m), handler.WithBulkLRU(lruCache))
-	healthHandler := handler.NewHealthHandler(repo, handler.WithVersion(version))
+	healthHandler := handler.NewHealthHandler(repo,
+		handler.WithVersion(version),
+		handler.WithHealthStartTime(serverStartTime),
+		handler.WithCacheSlugCount(len(endpoints)),
+		handler.WithHealthLeader(enableScheduler),
+	)
 	endpointsHandler := handler.NewEndpointsHandler(endpoints, repo)
 
 	// Build endpoint map for status handler
@@ -209,8 +214,7 @@ func main() {
 		epMap[ep.Slug] = ep
 	}
 	statusHandler := handler.NewStatusHandler(epMap, repo)
-	versionHandler := handler.NewVersionHandler(version, gitCommit, gitBranch, buildDate, len(endpoints),
-		handler.WithLeader(enableScheduler))
+	versionHandler := handler.NewVersionHandler(version, gitCommit, gitBranch, buildDate)
 
 	// Load parameterized warmup queries
 	warmupQueriesPath := os.Getenv("WARMUP_QUERIES_PATH")

@@ -14,11 +14,21 @@ export const options = {
 };
 
 export default function () {
-  // Health
+  // Health — stack-wide contract
   const health = http.get(`${BASE_URL}/health`);
   check(health, {
     'GET /health: 200': (r) => r.status === 200,
-    'GET /health: db connected': (r) => JSON.parse(r.body).db === 'connected',
+    'GET /health: status ok': (r) => JSON.parse(r.body).status === 'ok',
+    'GET /health: has version': (r) => typeof JSON.parse(r.body).version === 'string',
+    'GET /health: has uptime': (r) => typeof JSON.parse(r.body).uptime === 'string',
+    'GET /health: has start_time': (r) => typeof JSON.parse(r.body).start_time === 'string',
+    'GET /health: dependencies array': (r) => Array.isArray(JSON.parse(r.body).dependencies),
+    'GET /health: mongodb dependency': (r) => {
+      const body = JSON.parse(r.body);
+      const mongo = (body.dependencies || []).find((d) => d.name === 'mongodb');
+      return mongo && mongo.status === 'connected' && typeof mongo.latency_ms === 'number';
+    },
+    'GET /health: no legacy db field': (r) => JSON.parse(r.body).db === undefined,
   });
 
   // Readiness
@@ -27,11 +37,29 @@ export default function () {
     'GET /ready: 200': (r) => r.status === 200,
   });
 
-  // Version
+  // Version — stack-wide contract
   const version = http.get(`${BASE_URL}/version`);
   check(version, {
     'GET /version: 200': (r) => r.status === 200,
     'GET /version: has version field': (r) => JSON.parse(r.body).version !== undefined,
+    'GET /version: has build_time (not build_date)': (r) => {
+      const body = JSON.parse(r.body);
+      return body.build_time !== undefined && body.build_date === undefined;
+    },
+    'GET /version: has git_commit': (r) => JSON.parse(r.body).git_commit !== undefined,
+    'GET /version: has git_branch': (r) => JSON.parse(r.body).git_branch !== undefined,
+    'GET /version: has go_version': (r) => JSON.parse(r.body).go_version !== undefined,
+    'GET /version: has os': (r) => JSON.parse(r.body).os !== undefined,
+    'GET /version: has arch': (r) => JSON.parse(r.body).arch !== undefined,
+    'GET /version: no runtime fields': (r) => {
+      const body = JSON.parse(r.body);
+      return body.uptime_seconds === undefined
+        && body.start_time === undefined
+        && body.endpoint_count === undefined
+        && body.leader === undefined
+        && body.hostname === undefined
+        && body.gomaxprocs === undefined;
+    },
     'GET /version: has X-Request-ID': (r) => r.headers['X-Request-Id'] !== undefined,
   });
 

@@ -7,6 +7,15 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ## [Unreleased]
 
+### Changed (breaking)
+- **`/health` response shape** — restructured to match the stack-wide health contract shared by rx-dag, cash-drugs, drug-gate, and drugs-quiz BFF. The flat `db` field is removed; MongoDB status is now reported via a structured `dependencies` array. New fields: `uptime`, `start_time`, `dependencies` (array of `{name, status, latency_ms, error}`), `cache_slug_count`, `leader`. Status values are now `ok` | `degraded` | `error`.
+- **`/version` field rename** — `build_date` → `build_time` to align with the stack spec.
+- **`/version` runtime fields removed** — `uptime_seconds`, `start_time`, `endpoint_count`, `leader`, `hostname`, `gomaxprocs` are no longer returned by `/version`. Consumers should read these from `/health` (or from their appropriate home).
+
+### Added
+- **M19: rx-dag NDC migration** — transparently swapped `fda-ndc` upstream from `api.fda.gov` to the internal rx-dag ndc-loader (`192.168.1.145:8081`). Added 3 new slugs: `rx-dag-ndc-search`, `rx-dag-ndc-lookup`, `rx-dag-ndc-packages`. New generic `headers` endpoint config field with `${ENV_VAR}` interpolation for upstream auth.
+
+
 ## [0.11.0] — 2026-03-20 — M13: GA Readiness + M14: Observability
 
 ### Added
