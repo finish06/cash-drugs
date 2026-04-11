@@ -21,6 +21,9 @@ const (
 // Pinger is the interface for health check pings.
 type Pinger interface {
 	Ping() error
+	// PingWithLatency checks connectivity and returns the measured ping latency.
+	// Returns a non-nil error if the ping failed; latency should be treated as zero on error.
+	PingWithLatency() (time.Duration, error)
 }
 
 // MongoRepository implements cache.Repository using MongoDB.
@@ -280,6 +283,15 @@ func (r *MongoRepository) Ping() error {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 	return r.client.Ping(ctx, nil)
+}
+
+// PingWithLatency checks MongoDB connectivity and returns the measured ping duration.
+func (r *MongoRepository) PingWithLatency() (time.Duration, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+	start := time.Now()
+	err := r.client.Ping(ctx, nil)
+	return time.Since(start), err
 }
 
 // Close disconnects from MongoDB.
