@@ -1,6 +1,6 @@
 # cash-drugs — Product Requirements Document
 
-**Version:** 0.13.0
+**Version:** 0.14.0
 **Created:** 2026-03-05
 **Author:** calebdunn
 **Status:** Active
@@ -109,7 +109,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M10: Performance Optimization | MongoDB query restructure, LRU sharding, parallel page fetches, empty upstream handling, version endpoint | beta | DONE | Indexed exact-match queries, sharded LRU mutex, concurrent upstream page fetches, empty result 200s, /version endpoint with build info |
 | M11: RxNorm + Warmup | RxNorm API integration, parameterized warmup, multi-instance support | beta | DONE | 6 RxNorm endpoints, warmup-queries.yaml (top 100 drugs), ENABLE_SCHEDULER leader/replica, nginx LB |
 | M12: Client Enhancements | Readiness endpoint, response normalization, API doc fixes, upstream 404 handling | beta | DONE | /ready, /api/warmup, flatten config, upstream-404-handling |
-| M13: GA Readiness | LICENSE, PR template, SLA doc, CI hardening, coverage, docs audit | ga | IN_PROGRESS | 30-day stability (eligible 2026-04-04), SLA targets, 85%+ coverage |
+| M13: GA Readiness | LICENSE, PR template, SLA doc, CI hardening, coverage, docs audit | ga | DONE | 30-day Beta stability window elapsed 2026-04-04; LICENSE, PR template, SLA doc, prod Prometheus scrape, coverage ≥ 85%, docs audit — all green. Alertmanager wiring descoped (deferred). |
 | M14: Observability & Operational Foundation | SLAs, alerting rules, request tracing, error taxonomy, cache status API | ga | DONE | SLA doc, X-Request-ID tracing, error codes, 7+ alert rules, /api/cache/status |
 | M15: Consumer Value & API Ergonomics | Bulk queries, rich discovery, per-slug metadata | ga | DONE | Bulk endpoint, parameter docs, /_meta endpoint |
 | M16: Operational Resilience & Runtime Management | Runbooks, chaos tests, hot config reload, test-fetch, config validate | ga | DONE | Runbook per alert, 8 chaos tests, fsnotify reload, test-fetch, config validate |
@@ -437,7 +437,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 ### Milestone Sequencing
 
 ```
-M13 (GA Readiness) ── 5/6 done, waiting 30-day stability (eligible 2026-04-04)
+M13 (GA Readiness) ── DONE 2026-04-18 (Alertmanager wiring descoped to Deferred Items)
     │
 M14: Observability ── DONE
 M15: Consumer Value ── DONE (SDK deferred)
@@ -448,7 +448,7 @@ M19: rx-dag NDC Integration ── DONE
 M20: Stack-Wide Health & Version ── IN_PROGRESS (current branch: feature/stack-health-version-spec)
 ```
 
-**GA promotion gate:** M14 + M16 complete — service has SLAs, alerts, runbooks, chaos tests, tracing, and hot reload. Blocked only by 30-day stability window (eligible 2026-04-04). M18 is a post-GA polish milestone. M19 migrates `fda-ndc` to the internal rx-dag service; M20 aligns the health/version contract with the rest of the stack.
+**GA promotion gate:** M13 + M14 + M16 complete as of 2026-04-18 — service has SLAs, runbooks, chaos tests, tracing, hot reload, and verified prod Prometheus scrape. 30-day Beta stability window elapsed 2026-04-04. Alertmanager routing moved to Deferred Items (rules file exists; delivery channel not yet wired). M18 is a post-GA polish milestone. M19 migrates `fda-ndc` to the internal rx-dag service; M20 aligns the health/version contract with the rest of the stack. Promotion to GA is unblocked — run `/add:promote` when ready.
 
 ### Deferred Items (Future Milestones)
 
@@ -461,6 +461,7 @@ M20: Stack-Wide Health & Version ── IN_PROGRESS (current branch: feature/sta
 | Dynamic config API (MongoDB-backed) | Hot reload (file-based) covers 90% of the pain |
 | Built-in HTML dashboard | Grafana exists. Spike only if operator feedback demands it |
 | Go client SDK (`pkg/client/`) | Build after API surface stabilizes and consumer demand warrants it |
+| Alertmanager wiring | 7 Prometheus alert rules live in `docs/grafana/alerts.yml`; delivery channel (email/Slack/PagerDuty) + Alertmanager config not yet wired. Promote to its own milestone once an on-call destination is chosen. |
 
 ### Maturity Promotion Path
 
@@ -527,3 +528,4 @@ All open questions resolved.
 | 2026-03-20 | 0.7.0 | calebdunn | Added M14–M17 roadmap (observability, consumer value, operational resilience, intelligent data layer), deferred items, milestone sequencing, updated Out of Scope |
 | 2026-03-21 | 0.12.0 | calebdunn | M14 DONE, M15 DONE (SDK deferred), M16 DONE. Added staging to environments. Updated all milestone success criteria. Added features 7-9. Fixed duplicate out-of-scope entry. Updated sequencing diagram. |
 | 2026-04-18 | 0.13.0 | calebdunn | Added M19 (rx-dag NDC Integration) as DONE and M20 (Stack-Wide Health & Version) as IN_PROGRESS to roadmap. Added detail blocks and updated milestone sequencing. |
+| 2026-04-18 | 0.14.0 | calebdunn | M13 (GA Readiness) marked DONE — prod Prometheus scrape verified via grafana.calebdunn.tech. Alertmanager wiring descoped and moved to Deferred Items. GA promotion gate unblocked. |
