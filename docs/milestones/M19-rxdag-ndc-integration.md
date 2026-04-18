@@ -4,28 +4,28 @@
 
 Migrate NDC queries from the public openFDA API to the internal rx-dag ndc-loader service. Add richer query endpoints (full-text search, direct NDC lookup, package listing). Introduce generic upstream auth headers.
 
-## Status: IN_PROGRESS
+## Status: COMPLETE
 
 ## Appetite: 2 days
 
 ## Success Criteria
 
-- [ ] `fda-ndc` slug transparently swapped to rx-dag (no consumer-facing changes)
-- [ ] 3 new rx-dag slugs operational (search, lookup, packages)
-- [ ] Generic `headers` config with `${ENV_VAR}` interpolation working
-- [ ] All existing slugs unaffected (backward compatible)
-- [ ] Test coverage >= 85%
-- [ ] PR created and reviewed
+- [x] `fda-ndc` slug transparently swapped to rx-dag (no consumer-facing changes)
+- [x] 3 new rx-dag slugs operational (search, lookup, packages)
+- [x] Generic `headers` config with `${ENV_VAR}` interpolation working
+- [x] All existing slugs unaffected (backward compatible)
+- [x] Test coverage >= 85%
+- [x] PR created and reviewed
 
 ## Hill Chart
 
 | Feature | Position | PR |
 |---------|----------|----|
-| Generic headers config | PLANNED | — |
-| fda-ndc upstream swap | PLANNED | — |
-| rx-dag-ndc-search slug | PLANNED | — |
-| rx-dag-ndc-lookup slug | PLANNED | — |
-| rx-dag-ndc-packages slug | PLANNED | — |
+| Generic headers config | DONE | #23 |
+| fda-ndc upstream swap | DONE | #23 |
+| rx-dag-ndc-search slug | DONE | #23 |
+| rx-dag-ndc-lookup slug | DONE | #23 |
+| rx-dag-ndc-packages slug | DONE | #23 |
 
 ## Dependencies
 
