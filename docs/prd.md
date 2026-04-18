@@ -1,6 +1,6 @@
 # cash-drugs — Product Requirements Document
 
-**Version:** 0.14.0
+**Version:** 0.14.1
 **Created:** 2026-03-05
 **Author:** calebdunn
 **Status:** Active
@@ -448,7 +448,7 @@ M19: rx-dag NDC Integration ── DONE
 M20: Stack-Wide Health & Version ── IN_PROGRESS (current branch: feature/stack-health-version-spec)
 ```
 
-**GA promotion gate:** M13 + M14 + M16 complete as of 2026-04-18 — service has SLAs, runbooks, chaos tests, tracing, hot reload, and verified prod Prometheus scrape. 30-day Beta stability window elapsed 2026-04-04. Alertmanager routing moved to Deferred Items (rules file exists; delivery channel not yet wired). M18 is a post-GA polish milestone. M19 migrates `fda-ndc` to the internal rx-dag service; M20 aligns the health/version contract with the rest of the stack. Promotion to GA is unblocked — run `/add:promote` when ready.
+**GA readiness (not currently pursued):** M13 + M14 + M16 complete as of 2026-04-18 — service has SLAs, runbooks, chaos tests, tracing, hot reload, and verified prod Prometheus scrape. 30-day Beta stability window elapsed 2026-04-04. Alertmanager routing moved to Deferred Items (rules file exists; delivery channel not yet wired). M18 is a polish milestone; M19 migrates `fda-ndc` to the internal rx-dag service; M20 aligns the health/version contract with the rest of the stack. On paper the GA criteria are satisfied, but the project is intentionally staying at Beta — the current release cadence (push to main → `:beta` on staging; git tag `v*` → `:latest` in prod) meets business needs. Revisit GA promotion only if a new driver for GA-level rigor emerges.
 
 ### Deferred Items (Future Milestones)
 
@@ -529,3 +529,4 @@ All open questions resolved.
 | 2026-03-21 | 0.12.0 | calebdunn | M14 DONE, M15 DONE (SDK deferred), M16 DONE. Added staging to environments. Updated all milestone success criteria. Added features 7-9. Fixed duplicate out-of-scope entry. Updated sequencing diagram. |
 | 2026-04-18 | 0.13.0 | calebdunn | Added M19 (rx-dag NDC Integration) as DONE and M20 (Stack-Wide Health & Version) as IN_PROGRESS to roadmap. Added detail blocks and updated milestone sequencing. |
 | 2026-04-18 | 0.14.0 | calebdunn | M13 (GA Readiness) marked DONE — prod Prometheus scrape verified via grafana.calebdunn.tech. Alertmanager wiring descoped and moved to Deferred Items. GA promotion gate unblocked. |
+| 2026-04-18 | 0.14.1 | calebdunn | Softened GA promotion language in Section 6 and M13 retrospective — project intentionally staying at Beta; current release cadence meets business needs. |
