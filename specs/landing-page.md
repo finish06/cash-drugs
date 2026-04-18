@@ -1,5 +1,10 @@
 # Landing Page
 
+**Version:** 1.0.0
+**Created:** 2026-03-25
+**PRD Reference:** docs/prd.md (M18)
+**Status:** Complete
+
 ## Feature Description
 
 A public landing page for drug-cash hosted on GitHub Pages at `drug-cash.calebdunn.tech`. Explains what the service does, shows key API endpoints with example JSON responses, and links to the GitHub repository for self-hosting. The Go service optionally redirects `GET /` to the landing page via a `LANDING_URL` env var.
