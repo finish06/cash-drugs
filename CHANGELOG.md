@@ -14,6 +14,19 @@ and this project adheres to [Conventional Commits](https://www.conventionalcommi
 
 ### Added
 - **M19: rx-dag NDC migration** — transparently swapped `fda-ndc` upstream from `api.fda.gov` to the internal rx-dag ndc-loader (`192.168.1.145:8081`). Added 3 new slugs: `rx-dag-ndc-search`, `rx-dag-ndc-lookup`, `rx-dag-ndc-packages`. New generic `headers` endpoint config field with `${ENV_VAR}` interpolation for upstream auth.
+- **`BenchmarkHealthHandler` / `BenchmarkHealthHandler_Unhealthy`** — regression canaries for the M20 stack-compliant `/health` contract (`internal/handler/benchmark_test.go`).
+- **`docs/performance.md`** — SLA targets, profiling tools, baseline drift analysis, optimization history.
+
+### Documentation (2026-04-18 — tracking-state hygiene, no code change)
+- M13 (GA Readiness) marked DONE — production Prometheus scrape verified via `grafana.calebdunn.tech/d/cashdrugs-api-v2`. Alertmanager routing descoped and moved to PRD Deferred Items (delivery channel TBD).
+- M19 milestone file reconciled — Status → COMPLETE, all 5 hill-chart features → DONE against PR #23.
+- M20 milestone file closed — Status → COMPLETE, all 7 criteria checked. k6 smoke passing on staging (`beta-7ac3a98`, 2026-04-18); internal-package coverage 91.4%.
+- M8 milestone file refreshed — header flipped from the stale `Status: NOW` to `DONE`; 8 criteria checked; hill-chart positions advanced to DONE.
+- PRD roadmap (Section 6) — added M19 + M20 rows, detail blocks, and revision entries (v0.12.0 → v0.14.2).
+- PRD GA promotion language softened — project intentionally staying at Beta; current release cadence meets business needs.
+- Benchmark baselines refreshed (`tests/benchmarks/baseline-*.txt`) post-M17 + M20 to remove the phantom +1-alloc drift left by the pre-M17 snapshot.
+- Spec frontmatter sync — `specs/landing-page.md` gains a frontmatter block; `specs/rxdag-ndc-migration.md` and `specs/stack-health-version-spec.md` flipped Draft → Complete.
+- Planning pointers cleared — `.add/config.json` `planning.current_milestone` and `planning.current_cycle` set to `null` (no work in flight).
 
 
 ## [0.11.0] — 2026-03-20 — M13: GA Readiness + M14: Observability
