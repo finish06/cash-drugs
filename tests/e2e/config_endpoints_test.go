@@ -5,12 +5,34 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/finish06/cash-drugs/internal/config"
 )
+
+// envVarRefRegex matches ${VAR_NAME} references in header values.
+var envVarRefRegex = regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)\}`)
+
+// missingHeaderEnvVars returns the names of env vars referenced by ep.Headers
+// that are currently unset or empty. Lets the E2E test skip endpoints whose
+// upstream auth can't be satisfied in the current environment (e.g. the rx-dag
+// slugs when RXDAG_API_KEY isn't exported).
+func missingHeaderEnvVars(ep config.Endpoint) []string {
+	var missing []string
+	for _, value := range ep.Headers {
+		for _, match := range envVarRefRegex.FindAllStringSubmatch(value, -1) {
+			name := match[1]
+			if os.Getenv(name) == "" {
+				missing = append(missing, name)
+			}
+		}
+	}
+	return missing
+}
 
 // TestAC013_AllConfigEndpointsAgainstRealAPIs validates every endpoint in
 // config.yaml against the real upstream API with minimal data (limit=1 or pagesize=1).
@@ -29,6 +51,15 @@ func TestAC013_AllConfigEndpointsAgainstRealAPIs(t *testing.T) {
 
 	for _, ep := range endpoints {
 		t.Run(ep.Slug, func(t *testing.T) {
+			// Skip endpoints whose upstream auth env vars aren't exported.
+			// e.g. rx-dag slugs need RXDAG_API_KEY; without it the upstream
+			// returns 401 and the test fails in a way that tells us nothing
+			// about the code under test.
+			if missing := missingHeaderEnvVars(ep); len(missing) > 0 {
+				t.Skipf("skipping %s — missing env vars %v for upstream auth headers", ep.Slug, missing)
+				return
+			}
+
 			// Skip endpoints that require path/query params we can't provide generically
 			requiredParams := config.ExtractAllParams(ep)
 			if len(requiredParams) > 0 {
