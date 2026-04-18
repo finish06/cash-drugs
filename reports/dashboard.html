@@ -3,731 +3,690 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>cash-drugs -- Project Dashboard</title>
+<title>cash-drugs — ADD Dashboard</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #0f0f23;
-    --bg2: #141428;
-    --card: rgba(255,255,255,0.05);
-    --card-border: rgba(255,255,255,0.08);
-    --text: #e4e4e4;
-    --text-muted: rgba(255,255,255,0.45);
-    --accent: #0891b2;
-    --accent-light: #22d3ee;
-    --accent-dark: #0e7490;
-    --gradient-start: #0891b2;
-    --gradient-mid: #0ea5e9;
-    --gradient-end: #6366f1;
+    --bg-primary: #0f0f23;
+    --bg-secondary: #1a1a2e;
+    --bg-tertiary: #16213e;
+    --bg-card: rgba(255,255,255,0.05);
+    --bg-card-hover: rgba(255,255,255,0.08);
+    --accent: #b00149;
+    --accent-light: #d4326d;
+    --accent-mid: #ff6b9d;
     --success: #22c55e;
-    --warning: #eab308;
-    --danger: #ef4444;
-    --radius: 16px;
-    --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
+    --warning: #f59e0b;
+    --info: #0ea5e9;
+    --purple: #a855f7;
+    --text-primary: #e4e4e4;
+    --text-secondary: #a0a0a0;
+    --text-muted: #6b7280;
+    --border: rgba(255,255,255,0.08);
+    --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
   }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font);
-    line-height: 1.6;
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-primary) 100%);
     min-height: 100vh;
+    line-height: 1.6;
+    padding-top: 64px;
   }
-  /* STICKY HEADER */
-  .header {
-    position: sticky; top: 0; z-index: 100;
+  .site-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
     background: rgba(15,15,35,0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--card-border);
-    padding: 14px 32px;
-    display: flex; align-items: center; justify-content: space-between;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   }
-  .header-left { display: flex; align-items: center; gap: 16px; }
-  .header h1 {
-    font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
-    background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    background-clip: text;
+  .brand { font-family: var(--font-mono); font-weight: 700; font-size: 18px; color: var(--accent); }
+  .project-name { font-weight: 600; font-size: 15px; }
+  .maturity-pill {
+    padding: 3px 12px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    background: rgba(212,50,109,0.15); color: var(--accent-mid);
   }
-  .badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 1.5px;
+  .maturity-pill.poc { background: rgba(234,179,8,0.15); color: #ca8a04; }
+  .maturity-pill.alpha { background: rgba(176,1,73,0.15); color: var(--accent-light); }
+  .maturity-pill.beta { background: rgba(212,50,109,0.15); color: var(--accent-mid); }
+  .maturity-pill.ga { background: rgba(34,197,94,0.15); color: var(--success); }
+  .nav-spacer { flex: 1; }
+  .nav-link {
+    color: var(--text-secondary); text-decoration: none; font-size: 13px;
+    padding: 4px 10px; border-radius: 6px; transition: all 0.2s;
   }
-  .badge-beta { background: rgba(8,145,178,0.2); color: var(--accent-light); border: 1px solid rgba(8,145,178,0.35); }
-  .badge-ga { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
-  .header-right { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--text-muted); }
-  .header-right span { font-family: var(--mono); }
+  .nav-link:hover { background: var(--bg-card); color: var(--text-primary); }
+  .nav-meta { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+  .regen-hint { font-size: 11px; color: var(--text-muted); font-style: italic; }
 
-  /* LAYOUT */
-  .container { max-width: 1400px; margin: 0 auto; padding: 32px; }
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
-  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 24px; }
-  .full-width { margin-bottom: 24px; }
+  main { max-width: 1400px; margin: 0 auto; padding: 40px 24px 80px; }
+  .panel { margin-bottom: 56px; scroll-margin-top: 80px; }
+  .panel-title {
+    font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--accent-light); margin-bottom: 12px; font-family: var(--font-mono);
+  }
+  .panel-headline { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 24px; }
 
-  /* CARDS */
   .card {
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    border-radius: var(--radius);
-    padding: 28px;
-    transition: border-color 0.2s;
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    transition: all 0.3s;
   }
-  .card:hover { border-color: rgba(255,255,255,0.14); }
-  .card-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 20px;
+  .card:hover { border-color: rgba(255,255,255,0.12); }
+
+  .health-grid { display: grid; grid-template-columns: 1fr 280px; gap: 20px; }
+  @media (max-width: 900px) { .health-grid { grid-template-columns: 1fr; } }
+  .flow-chain { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
+  .flow-node {
+    flex: 1; min-width: 140px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; text-align: center;
   }
-  .card-title {
-    font-size: 14px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 2px; color: var(--text-muted);
+  .flow-node.green { border-color: rgba(34,197,94,0.35); }
+  .flow-node.amber { border-color: rgba(245,158,11,0.35); }
+  .flow-label { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+  .flow-value { font-size: 32px; font-weight: 700; color: var(--text-primary); margin-top: 4px; font-family: var(--font-mono); }
+  .flow-sublabel { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+  .flow-arrow { display: flex; align-items: center; color: var(--text-muted); font-size: 20px; padding: 0 4px; }
+  .untraced-callout {
+    margin-top: 16px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 12px; padding: 14px 18px; font-size: 13px; color: #fde68a;
+  }
+  .untraced-callout strong { color: var(--warning); }
+  .donut-wrap { display: flex; align-items: center; justify-content: center; flex-direction: column; }
+  .donut-label { font-size: 12px; color: var(--text-muted); margin-top: 10px; text-align: center; }
+
+  .hill-labels {
+    display: flex; justify-content: space-between; color: var(--text-muted);
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
+  }
+  .hill-legend {
+    display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px;
+    font-size: 12px; color: var(--text-secondary);
+  }
+  .legend-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle;
+  }
+  .blocked-row {
+    margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--border);
+    color: var(--warning); font-size: 13px;
   }
 
-  /* METRIC CARDS ROW */
-  .metrics-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
-  .metric-card {
-    background: var(--card); border: 1px solid var(--card-border);
-    border-radius: var(--radius); padding: 24px; text-align: center;
+  .cycle-grid { display: grid; gap: 16px; }
+  .cycle-active { border-color: rgba(212,50,109,0.35) !important; }
+  .cycle-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+  .cycle-meta strong { color: var(--text-primary); font-weight: 600; }
+  .work-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px;
   }
+  .work-item:last-child { border-bottom: none; }
+  .work-item-name { flex: 1; }
+  .status-pill {
+    padding: 2px 10px; border-radius: 999px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
+  }
+  .pill-verified { background: rgba(34,197,94,0.15); color: var(--success); }
+  .pill-complete { background: rgba(34,197,94,0.2); color: var(--success); }
+
+  details.past-cycle {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 16px; margin-top: 8px;
+  }
+  details.past-cycle summary {
+    cursor: pointer; display: flex; align-items: center; gap: 12px;
+    font-size: 13px; list-style: none;
+  }
+  details.past-cycle summary::-webkit-details-marker { display: none; }
+  details.past-cycle summary::before { content: '▶'; color: var(--text-muted); font-size: 10px; transition: transform 0.2s; }
+  details.past-cycle[open] summary::before { transform: rotate(90deg); }
+
+  .decision-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .decision-card .action {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--accent-light); margin-bottom: 6px;
+  }
+  .decision-card h4 { font-size: 16px; margin-bottom: 6px; }
+  .decision-card p { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; }
+  .decision-card code {
+    font-family: var(--font-mono); font-size: 12px;
+    background: rgba(0,0,0,0.3); padding: 3px 8px; border-radius: 4px;
+    color: var(--accent-mid);
+  }
+
+  .intelligence-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;
+  }
+  .metric-card { text-align: center; padding: 28px 20px; }
   .metric-value {
-    font-size: 36px; font-weight: 700; letter-spacing: -1px;
-    background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid));
+    font-family: var(--font-mono); font-size: 42px; font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-light), var(--accent-mid));
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  .metric-value.success {
-    background: linear-gradient(135deg, #22c55e, #10b981);
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent;
+  .metric-label {
+    font-size: 11px; color: var(--text-muted); letter-spacing: 1px;
+    text-transform: uppercase; margin-top: 4px;
   }
-  .metric-label { font-size: 12px; color: var(--text-muted); margin-top: 6px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
-
-  /* DONUT */
-  .donut-container { display: flex; align-items: center; gap: 32px; }
-  .donut-legend { display: flex; flex-direction: column; gap: 10px; }
-  .legend-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .legend-count { font-family: var(--mono); color: var(--text-muted); font-size: 13px; }
-
-  /* TRACEABILITY */
-  .trace-flow { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px; }
-  .trace-node {
-    display: flex; flex-direction: column; align-items: center;
-    background: rgba(255,255,255,0.03); border: 1px solid var(--card-border);
-    border-radius: 12px; padding: 14px 20px; min-width: 110px;
-  }
-  .trace-node-value { font-size: 24px; font-weight: 700; color: var(--accent-light); }
-  .trace-node-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
-  .trace-arrow { color: var(--text-muted); font-size: 20px; }
-
-  /* HILL CHART */
-  .hill-svg { width: 100%; }
-  .hill-label { font-size: 11px; fill: rgba(255,255,255,0.35); font-family: system-ui, sans-serif; }
-
-  /* CYCLE LIST */
-  .cycle-list { display: flex; flex-direction: column; gap: 8px; }
-  .cycle-item {
+  .maturity-track {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px; border-radius: 10px;
-    background: rgba(255,255,255,0.02); border: 1px solid transparent;
-    transition: all 0.15s;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 24px; margin-bottom: 24px; flex-wrap: wrap;
   }
-  .cycle-item:hover { border-color: var(--card-border); }
-  .cycle-item.active { border-color: var(--accent); background: rgba(8,145,178,0.08); }
-  .cycle-name { font-weight: 600; font-size: 14px; }
-  .cycle-meta { font-size: 12px; color: var(--text-muted); }
-  .cycle-status {
-    font-size: 11px; font-weight: 700; padding: 3px 10px;
-    border-radius: 6px; text-transform: uppercase; letter-spacing: 1px;
-    white-space: nowrap;
+  .maturity-step {
+    font-size: 13px; font-weight: 600; color: var(--text-muted);
+    padding: 6px 16px; border-radius: 8px;
+    display: flex; align-items: center; gap: 8px;
   }
-  .status-complete { background: rgba(34,197,94,0.15); color: var(--success); }
-  .status-progress { background: rgba(8,145,178,0.15); color: var(--accent-light); }
+  .maturity-step.current { background: rgba(212,50,109,0.15); color: var(--accent-mid); }
+  .maturity-step.past { color: var(--success); }
+  .maturity-connector {
+    flex: 1; min-width: 24px; height: 2px; background: var(--border); margin: 0 8px;
+  }
+  .maturity-connector.done { background: var(--success); }
+  .pulse {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 0 rgba(176,1,73,0.7); animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(176,1,73,0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(176,1,73,0); }
+    100% { box-shadow: 0 0 0 0 rgba(176,1,73,0); }
+  }
 
-  /* DECISION QUEUE */
-  .decision-item {
-    padding: 14px 16px; border-radius: 10px;
-    background: rgba(255,255,255,0.02); margin-bottom: 8px;
-    border-left: 3px solid var(--accent);
-  }
-  .decision-item.warn { border-left-color: var(--warning); }
-  .decision-item.ready { border-left-color: var(--success); }
-  .decision-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
-  .decision-desc { font-size: 13px; color: var(--text-muted); }
-
-  /* MATURITY TIMELINE */
-  .maturity-timeline { display: flex; align-items: center; gap: 0; margin: 24px 0 12px; }
-  .mat-stage {
-    flex: 1; text-align: center; padding: 12px 0; position: relative;
-    font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;
-    color: var(--text-muted);
-  }
-  .mat-stage::after {
-    content: ''; position: absolute; bottom: 0; left: 0; right: 0;
-    height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px;
-  }
-  .mat-stage.done::after { background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid)); }
-  .mat-stage.done { color: var(--accent-light); }
-  .mat-stage.current { color: #fff; }
-  .mat-stage.current::after { background: linear-gradient(90deg, var(--gradient-mid), var(--gradient-end)); animation: pulse-bar 2s ease-in-out infinite; }
-  @keyframes pulse-bar { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-  /* TIMELINE */
-  .timeline { position: relative; padding-left: 28px; }
-  .timeline::before {
-    content: ''; position: absolute; left: 8px; top: 4px; bottom: 4px;
-    width: 2px; background: rgba(255,255,255,0.06);
-  }
-  .tl-event { position: relative; margin-bottom: 14px; }
-  .tl-dot {
-    position: absolute; left: -24px; top: 5px; width: 10px; height: 10px;
-    border-radius: 50%; border: 2px solid var(--accent); background: var(--bg);
-  }
-  .tl-dot.tag { background: var(--accent); }
-  .tl-dot.milestone { background: var(--success); border-color: var(--success); }
-  .tl-date { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
-  .tl-text { font-size: 13px; margin-top: 2px; }
-  .tl-tag { font-family: var(--mono); color: var(--accent-light); font-size: 12px; }
-
-  /* LEARNING BARS */
-  .learning-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-  .learning-bar-label { font-size: 13px; width: 120px; text-align: right; color: var(--text-muted); }
-  .learning-bar-track { flex: 1; height: 8px; background: rgba(255,255,255,0.04); border-radius: 4px; overflow: hidden; }
-  .learning-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
-  .learning-bar-count { font-size: 13px; font-family: var(--mono); width: 30px; color: var(--text-muted); }
-
-  /* FILTER BUTTONS */
-  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .timeline-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
   .filter-btn {
-    background: rgba(255,255,255,0.04); border: 1px solid var(--card-border);
-    border-radius: 8px; padding: 6px 14px; font-size: 12px; color: var(--text-muted);
-    cursor: pointer; font-family: var(--font); transition: all 0.15s;
+    padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-secondary); font-size: 12px;
+    cursor: pointer; font-family: var(--font-sans);
   }
-  .filter-btn:hover, .filter-btn.active { background: rgba(8,145,178,0.15); color: var(--accent-light); border-color: var(--accent); }
-
-  /* SCROLLABLE */
-  .scroll-y { max-height: 420px; overflow-y: auto; }
-  .scroll-y::-webkit-scrollbar { width: 4px; }
-  .scroll-y::-webkit-scrollbar-track { background: transparent; }
-  .scroll-y::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-
-  @media (max-width: 1024px) {
-    .grid-2, .grid-3 { grid-template-columns: 1fr; }
-    .metrics-row { grid-template-columns: repeat(3, 1fr); }
+  .filter-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .filter-btn:hover { border-color: var(--accent-light); }
+  .timeline-scroll {
+    overflow-x: auto; padding: 20px 0;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
   }
-  @media (max-width: 640px) {
-    .metrics-row { grid-template-columns: 1fr 1fr; }
-    .container { padding: 16px; }
+  .timeline-track {
+    position: relative; display: flex; gap: 32px; padding: 60px 20px;
+    min-width: max-content;
+  }
+  .timeline-track::before {
+    content: ''; position: absolute; top: 50%; left: 20px; right: 20px;
+    height: 2px; background: linear-gradient(90deg, var(--accent), var(--accent-mid));
+  }
+  .tl-event { position: relative; min-width: 220px; max-width: 260px; }
+  .tl-dot {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 3px solid var(--bg-primary); z-index: 2;
+  }
+  .tl-dot.milestone { background: var(--accent); }
+  .tl-dot.spec { background: var(--info); }
+  .tl-dot.release { background: var(--success); }
+  .tl-dot.retro { background: var(--purple); }
+  .tl-dot.decision { background: var(--warning); }
+  .tl-card {
+    background: var(--bg-secondary); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; font-size: 12px;
+  }
+  .tl-event:nth-child(odd) .tl-card { margin-bottom: 60px; }
+  .tl-event:nth-child(even) .tl-card { margin-top: 60px; }
+  .tl-date { color: var(--text-muted); font-family: var(--font-mono); font-size: 10px; }
+  .tl-title { font-weight: 600; margin-top: 4px; color: var(--text-primary); }
+  .tl-desc { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+  .tl-tag {
+    display: inline-block; font-size: 9px; padding: 2px 6px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;
+  }
+  .tl-tag.milestone { background: rgba(176,1,73,0.18); color: var(--accent-mid); }
+  .tl-tag.spec { background: rgba(14,165,233,0.18); color: var(--info); }
+  .tl-tag.release { background: rgba(34,197,94,0.18); color: var(--success); }
+  .tl-tag.retro { background: rgba(168,85,247,0.18); color: var(--purple); }
+  .tl-tag.decision { background: rgba(245,158,11,0.18); color: var(--warning); }
+
+  @media print {
+    body { background: white; color: black; padding-top: 0; }
+    .site-nav { display: none; }
+    main { max-width: none; padding: 20px; }
+    details[open] summary { display: none; }
+    .card, .decision-card, .tl-card, .flow-node {
+      background: white !important; color: black !important;
+      border: 1px solid #ccc; break-inside: avoid;
+    }
+    .panel { page-break-inside: avoid; }
   }
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
-<header class="header">
-  <div class="header-left">
-    <h1>cash-drugs</h1>
-    <span class="badge badge-beta">Beta</span>
-    <span class="badge badge-ga" style="opacity:0.5; font-size:11px;">GA eligible 2026-04-04</span>
-  </div>
-  <div class="header-right">
-    <span>M14 current</span>
-    <span>cycle-7</span>
-    <span>v0.10.1</span>
-  </div>
-</header>
+<nav class="site-nav">
+  <span class="brand">ADD</span>
+  <span class="project-name">cash-drugs</span>
+  <span class="maturity-pill beta">Beta</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="#health">Outcome Health</a>
+  <a class="nav-link" href="#hill">Hill Chart</a>
+  <a class="nav-link" href="#cycle">Cycle Progress</a>
+  <a class="nav-link" href="#queue">Decision Queue</a>
+  <a class="nav-link" href="#intel">Intelligence</a>
+  <a class="nav-link" href="#timeline">Timeline</a>
+  <span class="nav-meta" id="gen-timestamp">Generated: —</span>
+  <span class="regen-hint">Run /add:dashboard to regenerate</span>
+</nav>
 
-<div class="container">
+<main>
 
-<!-- METRICS ROW -->
-<div class="metrics-row">
-  <div class="metric-card">
-    <div class="metric-value">28</div>
-    <div class="metric-label">Specs</div>
-  </div>
-  <div class="metric-card">
-    <div class="metric-value">458</div>
-    <div class="metric-label">Acceptance Criteria</div>
-  </div>
-  <div class="metric-card">
-    <div class="metric-value success">93.8%</div>
-    <div class="metric-label">Test Coverage</div>
-  </div>
-  <div class="metric-card">
-    <div class="metric-value">28</div>
-    <div class="metric-label">Learnings</div>
-  </div>
-  <div class="metric-card">
-    <div class="metric-value">7</div>
-    <div class="metric-label">Cycles</div>
-  </div>
-</div>
-
-<!-- PANEL 1: OUTCOME HEALTH + PANEL 2: HILL CHART -->
-<div class="grid-2">
-<div class="card">
-  <div class="card-header">
-    <span class="card-title">Outcome Health</span>
-  </div>
-
-  <div class="trace-flow">
-    <div class="trace-node">
-      <div class="trace-node-value">17</div>
-      <div class="trace-node-label">Milestones</div>
+<section class="panel" id="health">
+  <div class="panel-title">Panel 1 / Outcome Health</div>
+  <div class="panel-headline">PRD → Specs → ACs → Shipped</div>
+  <div class="health-grid">
+    <div class="card">
+      <div class="flow-chain">
+        <div class="flow-node green">
+          <div class="flow-label">PRD Sections</div>
+          <div class="flow-value">10</div>
+          <div class="flow-sublabel">v0.14.1</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node green">
+          <div class="flow-label">Specs</div>
+          <div class="flow-value">31</div>
+          <div class="flow-sublabel">24 complete · 4 draft · 3 other</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node amber">
+          <div class="flow-label">Acceptance Criteria</div>
+          <div class="flow-value">397</div>
+          <div class="flow-sublabel">avg 12.8 / spec</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node green">
+          <div class="flow-label">Milestones Done</div>
+          <div class="flow-value">19 / 20</div>
+          <div class="flow-sublabel">M13, M19, M20 closed 2026-04-18</div>
+        </div>
+      </div>
+      <div class="untraced-callout">
+        <strong>Note:</strong> 3 specs have shipped but their frontmatter still reads
+        <em>Draft</em> — <code>rxdag-ndc-migration</code> (M19), <code>stack-health-version-spec</code> (M20), and <code>landing-page</code> (M18, unmarked). Update frontmatter to <em>Complete</em> for accurate tracking. 1 spec is intentionally deferred: <code>go-client-sdk</code>.
+      </div>
     </div>
-    <div class="trace-arrow">&#8594;</div>
-    <div class="trace-node">
-      <div class="trace-node-value">28</div>
-      <div class="trace-node-label">Specs</div>
-    </div>
-    <div class="trace-arrow">&#8594;</div>
-    <div class="trace-node">
-      <div class="trace-node-value">458</div>
-      <div class="trace-node-label">ACs</div>
-    </div>
-    <div class="trace-arrow">&#8594;</div>
-    <div class="trace-node" style="border-color: rgba(34,197,94,0.3);">
-      <div class="trace-node-value" style="color: #22c55e;">~85%</div>
-      <div class="trace-node-label">Verified</div>
+    <div class="card donut-wrap">
+      <svg width="180" height="180" viewBox="0 0 180 180">
+        <circle cx="90" cy="90" r="70" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="18"/>
+        <circle cx="90" cy="90" r="70" fill="none" stroke="#22c55e" stroke-width="18"
+                stroke-dasharray="417.83 439.82" stroke-dashoffset="0"
+                transform="rotate(-90 90 90)" stroke-linecap="round"/>
+        <text x="90" y="85" text-anchor="middle" fill="#e4e4e4"
+              font-family="SF Mono, monospace" font-size="30" font-weight="700">95%</text>
+        <text x="90" y="108" text-anchor="middle" fill="#a0a0a0" font-size="11">shipped milestones</text>
+      </svg>
+      <div class="donut-label">19 of 20 milestones done<br/>(M7 deferred LATER)</div>
     </div>
   </div>
+</section>
 
-  <div class="donut-container" style="justify-content: center; margin-top: 16px;">
-    <svg width="160" height="160" viewBox="0 0 160 160">
+<section class="panel" id="hill">
+  <div class="panel-title">Panel 2 / Hill Chart</div>
+  <div class="panel-headline">Where every milestone sits on the hill</div>
+  <div class="card">
+    <div class="hill-labels">
+      <span>◀ Figuring it out</span>
+      <span>Peak</span>
+      <span>Executing ▶</span>
+    </div>
+    <svg width="100%" viewBox="0 0 800 260" preserveAspectRatio="xMidYMid meet">
       <defs>
-        <linearGradient id="donutGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#0891b2"/>
-          <stop offset="100%" stop-color="#6366f1"/>
+        <linearGradient id="hillFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(176,1,73,0.12)"/>
+          <stop offset="100%" stop-color="rgba(176,1,73,0)"/>
         </linearGradient>
       </defs>
-      <circle cx="80" cy="80" r="60" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="16"/>
-      <!-- Done: 12/17 = 70.6% of circumference (377) = 266 -->
-      <circle cx="80" cy="80" r="60" fill="none" stroke="url(#donutGrad)" stroke-width="16"
-        stroke-dasharray="266 111" stroke-linecap="round"
-        transform="rotate(-90 80 80)"/>
-      <!-- In Progress: 2/17 = 11.8% = 44 -->
-      <circle cx="80" cy="80" r="60" fill="none" stroke="rgba(234,179,8,0.6)" stroke-width="16"
-        stroke-dasharray="44 333" stroke-dashoffset="-266" stroke-linecap="round"
-        transform="rotate(-90 80 80)"/>
-      <text x="80" y="74" text-anchor="middle" fill="#fff" font-size="28" font-weight="700" font-family="system-ui">12</text>
-      <text x="80" y="96" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="12" font-family="system-ui">of 17 done</text>
+      <path d="M 40 220 C 200 220, 280 40, 400 40 C 520 40, 600 220, 760 220"
+            fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+      <path d="M 40 220 C 200 220, 280 40, 400 40 C 520 40, 600 220, 760 220 L 760 240 L 40 240 Z"
+            fill="url(#hillFill)" opacity="0.4"/>
+      <line x1="400" y1="20" x2="400" y2="240" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4 4"/>
+
+      <g>
+        <circle cx="720" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M1 — Config + Fetch + Store | DONE</title></circle>
+        <circle cx="710" cy="218" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M2 — Scheduling + Staleness | DONE</title></circle>
+        <circle cx="700" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M3 — Documentation + Onboarding | DONE</title></circle>
+        <circle cx="690" cy="218" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M4 — Structured Logging | DONE</title></circle>
+        <circle cx="680" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M5 — FDA API Integration | DONE</title></circle>
+        <circle cx="670" cy="218" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M6 — Docker Build &amp; Publish | DONE</title></circle>
+        <circle cx="660" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M8 — Prometheus Metrics | DONE</title></circle>
+        <circle cx="650" cy="218" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M9 — Performance &amp; Resilience | DONE</title></circle>
+        <circle cx="640" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M10 — Performance Optimization | DONE</title></circle>
+        <circle cx="630" cy="218" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M11 — RxNorm + Warmup | DONE</title></circle>
+        <circle cx="620" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M12 — Client Enhancements | DONE</title></circle>
+        <circle cx="610" cy="218" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M13 — GA Readiness | COMPLETE (2026-04-18)</title></circle>
+        <circle cx="600" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M14 — Observability | DONE</title></circle>
+        <circle cx="590" cy="218" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M15 — Consumer Value | DONE</title></circle>
+        <circle cx="580" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M16 — Operational Resilience | DONE</title></circle>
+        <circle cx="570" cy="218" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M17 — Intelligent Data Layer | DONE</title></circle>
+        <circle cx="560" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M18 — Landing Page | DONE</title></circle>
+        <circle cx="550" cy="218" r="7" fill="#22c55e" stroke="white" stroke-width="2"><title>M19 — rx-dag NDC Integration | COMPLETE (2026-04-04)</title></circle>
+      </g>
+
+      <circle cx="540" cy="220" r="7" fill="#22c55e" stroke="white" stroke-width="2">
+        <title>M20 — Stack-Wide Health &amp; Version | DONE (2026-04-18, all 7 criteria, k6 smoke passing on staging)</title>
+      </circle>
+
+      <circle cx="90" cy="210" r="8" fill="#a855f7" stroke="white" stroke-width="2">
+        <title>M7 — Auth + Transforms | LATER (deferred, target: ga)</title>
+      </circle>
+      <text x="90" y="195" text-anchor="middle" fill="#c084fc" font-size="11" font-weight="600">M7</text>
+
+      <text x="225" y="20" fill="#a0a0a0" font-size="10" font-family="SF Mono, monospace">shaped</text>
+      <text x="395" y="20" fill="#a0a0a0" font-size="10" font-family="SF Mono, monospace">peak</text>
+      <text x="575" y="20" fill="#a0a0a0" font-size="10" font-family="SF Mono, monospace">executing</text>
     </svg>
-    <div class="donut-legend">
-      <div class="legend-item"><div class="legend-dot" style="background: var(--accent);"></div> Done <span class="legend-count">12</span></div>
-      <div class="legend-item"><div class="legend-dot" style="background: var(--warning);"></div> In Progress <span class="legend-count">2</span></div>
-      <div class="legend-item"><div class="legend-dot" style="background: rgba(255,255,255,0.15);"></div> Later / Next <span class="legend-count">3</span></div>
+    <div class="hill-legend">
+      <span><span class="legend-dot" style="background:#22c55e"></span>Done (19)</span>
+      <span><span class="legend-dot" style="background:#a855f7"></span>Later (1: M7)</span>
+    </div>
+    <div class="blocked-row" style="color: var(--success);">
+      ✓ No milestones in progress and none blocked. M7 (Auth + Transforms) is intentionally deferred. The project is at a quiet cadence on Beta.
     </div>
   </div>
-</div>
+</section>
 
-<!-- PANEL 2: HILL CHART -->
-<div class="card">
-  <div class="card-header">
-    <span class="card-title">Hill Chart</span>
-    <span style="font-size:12px; color:var(--text-muted);">Uphill = figuring out &middot; Downhill = executing</span>
-  </div>
-  <svg class="hill-svg" viewBox="0 0 700 260" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="hillGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stop-color="rgba(8,145,178,0.12)"/>
-        <stop offset="50%" stop-color="rgba(99,102,241,0.12)"/>
-        <stop offset="100%" stop-color="rgba(34,197,94,0.12)"/>
-      </linearGradient>
-    </defs>
-    <path d="M40,210 Q200,20 350,50 Q500,20 660,210" fill="url(#hillGrad)" stroke="none"/>
-    <path d="M40,210 Q200,20 350,50 Q500,20 660,210" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2"/>
-    <line x1="40" y1="210" x2="660" y2="210" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-    <line x1="350" y1="40" x2="350" y2="210" stroke="rgba(255,255,255,0.04)" stroke-width="1" stroke-dasharray="4,4"/>
-
-    <text x="120" y="235" class="hill-label" text-anchor="middle">Shaped</text>
-    <text x="260" y="235" class="hill-label" text-anchor="middle">Specced</text>
-    <text x="350" y="235" class="hill-label" text-anchor="middle">Planned</text>
-    <text x="470" y="235" class="hill-label" text-anchor="middle">In Progress</text>
-    <text x="610" y="235" class="hill-label" text-anchor="middle">Done</text>
-
-    <!-- M15 features: Shaped -->
-    <circle cx="105" cy="152" r="7" fill="#0ea5e9" opacity="0.85"><title>Bulk Query API</title></circle>
-    <text x="105" y="140" text-anchor="middle" fill="rgba(255,255,255,0.55)" font-size="9" font-family="system-ui, sans-serif">Bulk API</text>
-    <circle cx="130" cy="157" r="6" fill="#0ea5e9" opacity="0.75"><title>Go Client SDK</title></circle>
-    <text x="148" y="147" text-anchor="middle" fill="rgba(255,255,255,0.55)" font-size="9" font-family="system-ui, sans-serif">SDK</text>
-    <circle cx="98" cy="163" r="5" fill="#0ea5e9" opacity="0.65"><title>Rich Endpoint Discovery</title></circle>
-    <circle cx="140" cy="165" r="5" fill="#0ea5e9" opacity="0.65"><title>Per-Slug Metadata</title></circle>
-
-    <!-- M13: In Progress ~80% done -->
-    <circle cx="530" cy="108" r="9" fill="#eab308" opacity="0.9"><title>M13: GA Readiness</title></circle>
-    <text x="530" y="96" text-anchor="middle" fill="rgba(234,179,8,0.8)" font-size="10" font-weight="600" font-family="system-ui, sans-serif">M13</text>
-
-    <!-- Done milestones cluster -->
-    <circle cx="610" cy="172" r="9" fill="#22c55e" opacity="0.9"><title>M14: Observability</title></circle>
-    <text x="610" y="161" text-anchor="middle" fill="rgba(34,197,94,0.8)" font-size="9" font-weight="600" font-family="system-ui, sans-serif">M14</text>
-    <circle cx="632" cy="182" r="7" fill="#22c55e" opacity="0.7"><title>M12: Client Enhancements</title></circle>
-    <circle cx="642" cy="192" r="6" fill="#22c55e" opacity="0.6"><title>M11: RxNorm</title></circle>
-    <circle cx="618" cy="193" r="6" fill="#22c55e" opacity="0.6"><title>M10: Perf Opt</title></circle>
-    <circle cx="598" cy="188" r="6" fill="#22c55e" opacity="0.6"><title>M9: Resilience</title></circle>
-    <circle cx="648" cy="200" r="5" fill="#22c55e" opacity="0.5"><title>M8: Metrics</title></circle>
-    <circle cx="588" cy="196" r="5" fill="#22c55e" opacity="0.5"><title>M6: Docker</title></circle>
-    <circle cx="625" cy="200" r="5" fill="#22c55e" opacity="0.5"><title>M5: FDA</title></circle>
-    <circle cx="638" cy="204" r="5" fill="#22c55e" opacity="0.45"><title>M3: Docs</title></circle>
-    <circle cx="605" cy="204" r="5" fill="#22c55e" opacity="0.45"><title>M2: Scheduling</title></circle>
-    <circle cx="655" cy="206" r="5" fill="#22c55e" opacity="0.4"><title>M1: Core</title></circle>
-
-    <!-- Legend -->
-    <circle cx="60" cy="14" r="5" fill="#22c55e" opacity="0.8"/>
-    <text x="70" y="18" fill="rgba(255,255,255,0.45)" font-size="10" font-family="system-ui, sans-serif">Done</text>
-    <circle cx="120" cy="14" r="5" fill="#eab308" opacity="0.8"/>
-    <text x="130" y="18" fill="rgba(255,255,255,0.45)" font-size="10" font-family="system-ui, sans-serif">In Progress</text>
-    <circle cx="210" cy="14" r="5" fill="#0ea5e9" opacity="0.8"/>
-    <text x="220" y="18" fill="rgba(255,255,255,0.45)" font-size="10" font-family="system-ui, sans-serif">Shaped / Next</text>
-  </svg>
-</div>
-</div>
-
-<!-- PANEL 3 + 4: CYCLES & DECISIONS -->
-<div class="grid-2">
-<div class="card">
-  <div class="card-header">
-    <span class="card-title">Cycle Progress</span>
-    <span style="font-size: 12px; color: var(--text-muted);">7 cycles completed</span>
-  </div>
-  <div class="cycle-list">
-    <div class="cycle-item active">
+<section class="panel" id="cycle">
+  <div class="panel-title">Panel 3 / Cycle Progress</div>
+  <div class="panel-headline">Active cycle + recent history</div>
+  <div class="cycle-grid">
+    <div class="card cycle-active">
+      <div class="cycle-meta">
+        <span><strong>No active cycle</strong></span>
+        <span>· All milestones resolved as of 2026-04-18</span>
+        <span>· Last closed: <strong>cycle-15</strong> (M20 — 2026-04-11, ~1.5h)</span>
+      </div>
       <div>
-        <div class="cycle-name">Cycle 7 &mdash; M14: Observability</div>
-        <div class="cycle-meta">4 features &middot; Correlation IDs, Error Taxonomy, Alerting, Cache Status</div>
+        <div class="work-item"><span class="work-item-name">Pinger interface extension</span><span class="status-pill pill-verified">VERIFIED</span></div>
+        <div class="work-item"><span class="work-item-name">/health stack-compliant rewrite</span><span class="status-pill pill-verified">VERIFIED</span></div>
+        <div class="work-item"><span class="work-item-name">/version cleanup</span><span class="status-pill pill-verified">VERIFIED</span></div>
+        <div class="work-item"><span class="work-item-name">Test rewrite (11 AC-mapped tests)</span><span class="status-pill pill-verified">VERIFIED</span></div>
+        <div class="work-item"><span class="work-item-name">k6 smoke update</span><span class="status-pill pill-verified">VERIFIED</span></div>
       </div>
-      <span class="cycle-status status-complete">Complete</span>
     </div>
-    <div class="cycle-item">
-      <div>
-        <div class="cycle-name">Cycle 6 &mdash; M13: GA Readiness</div>
-        <div class="cycle-meta">5 items &middot; LICENSE, PR template, SLA, Coverage 85%+, Docs audit</div>
+
+    <details class="past-cycle" open>
+      <summary>
+        <strong>cycle-14</strong> · M19 rx-dag NDC Integration
+        <span class="status-pill pill-complete">COMPLETE</span>
+        <span style="color:var(--text-muted);">· 2026-04-04, ~6–8h</span>
+      </summary>
+      <div style="margin-top:10px; color:var(--text-secondary); font-size:13px;">
+        Away-mode session. Generic headers config, fda-ndc upstream swap, 3 new rx-dag slugs (search, lookup, packages), PR #23 merged.
       </div>
-      <span class="cycle-status status-complete">Complete</span>
+    </details>
+
+    <details class="past-cycle">
+      <summary>
+        <strong>cycle-13</strong> · M18 Landing Page
+        <span class="status-pill pill-complete">COMPLETE</span>
+        <span style="color:var(--text-muted);">· 2026-03-25, ~3h</span>
+      </summary>
+      <div style="margin-top:10px; color:var(--text-secondary); font-size:13px;">
+        4 work items DONE — HTML + GitHub Pages + LANDING_URL redirect + tests. PR #22 merged.
+      </div>
+    </details>
+
+    <details class="past-cycle">
+      <summary>
+        <strong>cycle-7</strong> · M14 Observability
+        <span class="status-pill pill-complete">COMPLETE</span>
+        <span style="color:var(--text-muted);">· 2026-03-21</span>
+      </summary>
+      <div style="margin-top:10px; color:var(--text-secondary); font-size:13px;">
+        4 agents in parallel, zero file conflicts. Request tracing, error taxonomy, 7 alert rules, /api/cache/status.
+      </div>
+    </details>
+
+    <details class="past-cycle">
+      <summary>
+        <strong>cycle-4</strong> · Upstream 404 handling
+        <span class="status-pill pill-complete">COMPLETE</span>
+        <span style="color:var(--text-muted);">· 2026-03-18</span>
+      </summary>
+      <div style="margin-top:10px; color:var(--text-secondary); font-size:13px;">
+        Single away-mode session, spec → implementation → verify. Negative cache for 404 responses.
+      </div>
+    </details>
+
+    <details class="past-cycle">
+      <summary>
+        <strong>cycle-1 through cycle-12</strong> — earlier history
+        <span style="color:var(--text-muted);">· 12 cycles (mixed states)</span>
+      </summary>
+      <div style="margin-top:10px; color:var(--text-secondary); font-size:13px;">
+        Cycles 1–2 and 5 are PLANNED stubs (no execution recorded). Cycles 3, 6, 8–12 predate the current convention; they cover M8–M17 work and were later formalized into cycle-13+ pattern. Historical record only.
+      </div>
+    </details>
+  </div>
+</section>
+
+<section class="panel" id="queue">
+  <div class="panel-title">Panel 4 / Decision Queue</div>
+  <div class="panel-headline">Human bottlenecks that unblock work</div>
+  <div class="decision-grid">
+    <div class="card decision-card">
+      <div class="action">Sync spec frontmatter</div>
+      <h4>Draft → Complete</h4>
+      <p>3 specs shipped but frontmatter still reads Draft: rxdag-ndc-migration, stack-health-version-spec, landing-page (missing Status field).</p>
+      <code>specs/*.md</code>
     </div>
-    <div class="cycle-item">
-      <div>
-        <div class="cycle-name">Cycle 5 &mdash; CI Hardening</div>
-        <div class="cycle-meta">1 item &middot; golangci-lint in CI pipeline</div>
-      </div>
-      <span class="cycle-status status-complete">Complete</span>
+
+    <div class="card decision-card">
+      <div class="action">Pick delivery channel</div>
+      <h4>Alertmanager wiring</h4>
+      <p>7 Prometheus alert rules exist in docs/grafana/alerts.yml. Routing not wired. Promote from Deferred → milestone once an on-call destination (email/Slack/PagerDuty) is chosen.</p>
+      <code>/add:milestone --create</code>
     </div>
-    <div class="cycle-item">
-      <div>
-        <div class="cycle-name">Cycle 4 &mdash; M12: Upstream 404</div>
-        <div class="cycle-meta">1 feature &middot; Negative cache, 404 propagation, 10 ACs</div>
-      </div>
-      <span class="cycle-status status-complete">Complete</span>
+
+    <div class="card decision-card">
+      <div class="action">Clean config drift</div>
+      <h4>planning cycle stale</h4>
+      <p>.add/config.json reads <code>current_cycle: "cycle-13"</code> but cycles 14 and 15 are since COMPLETE. current_milestone is M20, which is now DONE. Update both to null or next planned.</p>
+      <code>.add/config.json</code>
     </div>
-    <div class="cycle-item">
-      <div>
-        <div class="cycle-name">Cycle 3 &mdash; M11: RxNorm + Warmup</div>
-        <div class="cycle-meta">4 features &middot; 6 RxNorm endpoints, warmup orchestrator, multi-instance</div>
-      </div>
-      <span class="cycle-status status-complete">Complete</span>
+
+    <div class="card decision-card">
+      <div class="action">Pick next</div>
+      <h4>No active milestone</h4>
+      <p>All 19 non-deferred milestones are DONE. Next meaningful work is either promoting Alertmanager from Deferred → milestone, scoping M7 (Auth + Transforms), or staying in maintenance mode.</p>
+      <code>/add:roadmap --edit</code>
     </div>
-    <div class="cycle-item">
-      <div>
-        <div class="cycle-name">Cycle 2 &mdash; M10: Perf Optimization</div>
-        <div class="cycle-meta">5 features &middot; MongoDB indexes, LRU sharding, parallel fetches</div>
-      </div>
-      <span class="cycle-status status-complete">Complete</span>
-    </div>
-    <div class="cycle-item">
-      <div>
-        <div class="cycle-name">Cycle 1 &mdash; M9: Perf &amp; Resilience</div>
-        <div class="cycle-meta">4 features &middot; Concurrency limiter, gzip, circuit breakers, system metrics</div>
-      </div>
-      <span class="cycle-status status-complete">Complete</span>
+
+    <div class="card decision-card">
+      <div class="action">Triage orphan</div>
+      <h4>go-client-sdk (Draft)</h4>
+      <p>Spec exists in Draft; deferred per PRD until API stabilizes + consumer demand. No action required — intentional defer.</p>
+      <code>— (deferred)</code>
     </div>
   </div>
-</div>
+</section>
 
-<!-- PANEL 4: DECISION QUEUE -->
-<div class="card">
-  <div class="card-header">
-    <span class="card-title">Decision Queue</span>
-  </div>
+<section class="panel" id="intel">
+  <div class="panel-title">Panel 5 / Project Intelligence</div>
+  <div class="panel-headline">Knowledge captured, throughput, maturity</div>
 
-  <div class="decision-item ready">
-    <div class="decision-title">GA Promotion Eligible 2026-04-04</div>
-    <div class="decision-desc">Beta since 2026-03-07. 30-day stability gate on 2026-04-04. M13 5/6 items complete (production monitoring pending). M14 complete.</div>
-  </div>
-
-  <div class="decision-item warn">
-    <div class="decision-title">M13: Production Monitoring Not Verified</div>
-    <div class="decision-desc">Prometheus scraping and alerting rules deployed but not manually verified in production. Required for GA.</div>
-  </div>
-
-  <div class="decision-item warn">
-    <div class="decision-title">M14: Alert Rule Testing Pending</div>
-    <div class="decision-desc">7 Prometheus alerting rules shipped in docs/grafana/alerts.yml. Manual trigger verification not yet done.</div>
-  </div>
-
-  <div class="decision-item">
-    <div class="decision-title">M15: Consumer Value Ready for Planning</div>
-    <div class="decision-desc">4 specs shaped: Bulk Query API, Rich Endpoint Discovery, Go Client SDK, Per-Slug Metadata. Ready for cycle 8.</div>
-  </div>
-
-  <div class="decision-item">
-    <div class="decision-title">Next Milestone Decision</div>
-    <div class="decision-desc">M15 (Consumer Value) and M16 (Operational Resilience) can overlap. M17 (Intelligent Data Layer) waits for both.</div>
-  </div>
-</div>
-</div>
-
-<!-- PANEL 5: PROJECT INTELLIGENCE -->
-<div class="card full-width">
-  <div class="card-header">
-    <span class="card-title">Project Intelligence</span>
-  </div>
-
-  <div class="maturity-timeline">
-    <div class="mat-stage done">POC</div>
-    <div class="mat-stage done">Alpha</div>
-    <div class="mat-stage current">Beta</div>
-    <div class="mat-stage">GA</div>
-  </div>
-  <div style="text-align:center; font-size:12px; color:var(--text-muted); margin-bottom:24px;">
-    Promoted Alpha &rarr; Beta on 2026-03-07 &middot; GA eligible 2026-04-04 (14 days remaining)
-  </div>
-
-  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-    <div>
-      <div style="font-size:13px; font-weight:600; color:var(--text-muted); margin-bottom:14px; text-transform:uppercase; letter-spacing:1.5px;">Learnings by Category</div>
-      <div class="learning-bar-row">
-        <div class="learning-bar-label">Architecture</div>
-        <div class="learning-bar-track"><div class="learning-bar-fill" style="width:35%; background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid));"></div></div>
-        <div class="learning-bar-count">8</div>
-      </div>
-      <div class="learning-bar-row">
-        <div class="learning-bar-label">Technical</div>
-        <div class="learning-bar-track"><div class="learning-bar-fill" style="width:30%; background: linear-gradient(90deg, #0ea5e9, #6366f1);"></div></div>
-        <div class="learning-bar-count">7</div>
-      </div>
-      <div class="learning-bar-row">
-        <div class="learning-bar-label">Process</div>
-        <div class="learning-bar-track"><div class="learning-bar-fill" style="width:25%; background: linear-gradient(90deg, #6366f1, #818cf8);"></div></div>
-        <div class="learning-bar-count">6</div>
-      </div>
-      <div class="learning-bar-row">
-        <div class="learning-bar-label">Performance</div>
-        <div class="learning-bar-track"><div class="learning-bar-fill" style="width:15%; background: linear-gradient(90deg, #22c55e, #10b981);"></div></div>
-        <div class="learning-bar-count">3</div>
-      </div>
-      <div class="learning-bar-row">
-        <div class="learning-bar-label">Anti-Pattern</div>
-        <div class="learning-bar-track"><div class="learning-bar-fill" style="width:15%; background: linear-gradient(90deg, #ef4444, #f87171);"></div></div>
-        <div class="learning-bar-count">3</div>
-      </div>
-      <div class="learning-bar-row">
-        <div class="learning-bar-label">Collaboration</div>
-        <div class="learning-bar-track"><div class="learning-bar-fill" style="width:5%; background: linear-gradient(90deg, #eab308, #facc15);"></div></div>
-        <div class="learning-bar-count">1</div>
-      </div>
+  <div class="intelligence-grid">
+    <div class="card metric-card">
+      <div class="metric-value">31</div>
+      <div class="metric-label">Learnings Captured</div>
     </div>
-    <div>
-      <div style="font-size:13px; font-weight:600; color:var(--text-muted); margin-bottom:14px; text-transform:uppercase; letter-spacing:1.5px;">Milestones by Status</div>
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-        <div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); border-radius:12px; padding:16px; text-align:center;">
-          <div style="font-size:28px; font-weight:700; color:#22c55e;">12</div>
-          <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Done</div>
-        </div>
-        <div style="background:rgba(234,179,8,0.08); border:1px solid rgba(234,179,8,0.2); border-radius:12px; padding:16px; text-align:center;">
-          <div style="font-size:28px; font-weight:700; color:#eab308;">2</div>
-          <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">In Progress</div>
-        </div>
-        <div style="background:rgba(14,165,233,0.08); border:1px solid rgba(14,165,233,0.2); border-radius:12px; padding:16px; text-align:center;">
-          <div style="font-size:28px; font-weight:700; color:#0ea5e9;">1</div>
-          <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Next</div>
-        </div>
-        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--card-border); border-radius:12px; padding:16px; text-align:center;">
-          <div style="font-size:28px; font-weight:700; color:var(--text-muted);">2</div>
-          <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">Later</div>
-        </div>
-      </div>
-      <div style="margin-top:16px; font-size:12px; color:var(--text-muted);">
-        <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
-          <span>Releases tagged</span><span style="font-family:var(--mono); color:var(--accent-light);">9</span>
-        </div>
-        <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
-          <span>Latest version</span><span style="font-family:var(--mono); color:var(--accent-light);">v0.10.1</span>
-        </div>
-        <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
-          <span>Project age</span><span style="font-family:var(--mono); color:var(--accent-light);">16 days</span>
-        </div>
-        <div style="display:flex; justify-content:space-between; padding:4px 0;">
-          <span>Changelog versions</span><span style="font-family:var(--mono); color:var(--accent-light);">12</span>
-        </div>
-      </div>
+    <div class="card metric-card">
+      <div class="metric-value">6</div>
+      <div class="metric-label">Retrospectives</div>
+    </div>
+    <div class="card metric-card">
+      <div class="metric-value">6</div>
+      <div class="metric-label">Cycles Completed</div>
+    </div>
+    <div class="card metric-card">
+      <div class="metric-value">24</div>
+      <div class="metric-label">Specs Shipped</div>
     </div>
   </div>
-</div>
 
-<!-- PANEL 6: TIMELINE -->
-<div class="card full-width">
-  <div class="card-header">
-    <span class="card-title">Project Timeline</span>
-    <div class="filters">
-      <button class="filter-btn active" onclick="filterTimeline('all', this)">All</button>
-      <button class="filter-btn" onclick="filterTimeline('tag', this)">Releases</button>
-      <button class="filter-btn" onclick="filterTimeline('milestone', this)">Milestones</button>
-      <button class="filter-btn" onclick="filterTimeline('commit', this)">Commits</button>
-    </div>
+  <div class="maturity-track">
+    <div class="maturity-step past">✓ POC</div>
+    <div class="maturity-connector done"></div>
+    <div class="maturity-step past">✓ Alpha</div>
+    <div class="maturity-connector done"></div>
+    <div class="maturity-step current"><span class="pulse"></span>Beta <span style="font-size:10px;opacity:0.7;">(steady state)</span></div>
+    <div class="maturity-connector"></div>
+    <div class="maturity-step">GA <span style="font-size:10px;opacity:0.5;">(available, not pursued)</span></div>
   </div>
-  <div class="timeline scroll-y" id="timeline">
 
-    <div class="tl-event" data-type="commit">
-      <div class="tl-dot"></div>
-      <div class="tl-date">2026-03-21</div>
-      <div class="tl-text">fix: k6 load test uses correct param names</div>
-    </div>
-
-    <div class="tl-event" data-type="commit">
-      <div class="tl-dot"></div>
-      <div class="tl-date">2026-03-21</div>
-      <div class="tl-text">fix: 5 critical bugs from swarm bug-finder audit</div>
-    </div>
-
-    <div class="tl-event" data-type="milestone">
-      <div class="tl-dot milestone"></div>
-      <div class="tl-date">2026-03-20</div>
-      <div class="tl-text"><strong>M14 Complete</strong> &mdash; Observability &amp; Operational Foundation</div>
-    </div>
-
-    <div class="tl-event" data-type="commit">
-      <div class="tl-dot"></div>
-      <div class="tl-date">2026-03-20</div>
-      <div class="tl-text">feat: M13 GA readiness + M14 observability &amp; operational foundation</div>
-    </div>
-
-    <div class="tl-event" data-type="commit">
-      <div class="tl-dot"></div>
-      <div class="tl-date">2026-03-20</div>
-      <div class="tl-text">docs: M15 specs + test coverage 93.8% &rarr; 95.4%</div>
-    </div>
-
-    <div class="tl-event" data-type="commit">
-      <div class="tl-dot"></div>
-      <div class="tl-date">2026-03-20</div>
-      <div class="tl-text">perf: pre-allocate slices, skip LRU for bulk, skip bg revalidation for scheduled</div>
-    </div>
-
-    <div class="tl-event" data-type="tag">
-      <div class="tl-dot tag"></div>
-      <div class="tl-date">2026-03-18</div>
-      <div class="tl-text"><span class="tl-tag">v0.10.1</span> &mdash; Hotfix release</div>
-    </div>
-
-    <div class="tl-event" data-type="tag">
-      <div class="tl-dot tag"></div>
-      <div class="tl-date">2026-03-18</div>
-      <div class="tl-text"><span class="tl-tag">v0.10.0</span> &mdash; M12: Upstream 404 Handling + Quality Fixes</div>
-    </div>
-
-    <div class="tl-event" data-type="milestone">
-      <div class="tl-dot milestone"></div>
-      <div class="tl-date">2026-03-18</div>
-      <div class="tl-text"><strong>M12 Complete</strong> &mdash; Client Enhancements (upstream 404, negative cache)</div>
-    </div>
-
-    <div class="tl-event" data-type="tag">
-      <div class="tl-dot tag"></div>
-      <div class="tl-date">2026-03-17</div>
-      <div class="tl-text"><span class="tl-tag">v0.9.0</span> &mdash; M11: RxNorm + Parameterized Warmup + Multi-Instance</div>
-    </div>
-
-    <div class="tl-event" data-type="milestone">
-      <div class="tl-dot milestone"></div>
-      <div class="tl-date">2026-03-16</div>
-      <div class="tl-text"><strong>M11 Complete</strong> &mdash; RxNorm, warmup-queries.yaml, multi-instance LB</div>
-    </div>
-
-    <div class="tl-event" data-type="tag">
-      <div class="tl-dot tag"></div>
-      <div class="tl-date">2026-03-15</div>
-      <div class="tl-text"><span class="tl-tag">v0.8.0</span> &mdash; M10: Performance Optimization (5 features, 68 ACs)</div>
-    </div>
-
-    <div class="tl-event" data-type="milestone">
-      <div class="tl-dot milestone"></div>
-      <div class="tl-date">2026-03-15</div>
-      <div class="tl-text"><strong>M10 Complete</strong> &mdash; MongoDB indexes, LRU sharding, parallel fetches</div>
-    </div>
-
-    <div class="tl-event" data-type="tag">
-      <div class="tl-dot tag"></div>
-      <div class="tl-date">2026-03-14</div>
-      <div class="tl-text"><span class="tl-tag">v0.7.1</span> &mdash; Performance Quick Wins (LRU heuristic, gzip pool)</div>
-    </div>
-
-    <div class="tl-event" data-type="tag">
-      <div class="tl-dot tag"></div>
-      <div class="tl-date">2026-03-14</div>
-      <div class="tl-text"><span class="tl-tag">v0.7.0</span> &mdash; M9: Performance &amp; Resilience (62 ACs)</div>
-    </div>
-
-    <div class="tl-event" data-type="milestone">
-      <div class="tl-dot milestone"></div>
-      <div class="tl-date">2026-03-14</div>
-      <div class="tl-text"><strong>M9 Complete</strong> &mdash; Concurrency limiter, gzip, circuit breakers, system metrics</div>
-    </div>
-
-    <div class="tl-event" data-type="tag">
-      <div class="tl-dot tag"></div>
-      <div class="tl-date">2026-03-14</div>
-      <div class="tl-text"><span class="tl-tag">v0.6.0</span> &mdash; M8: Prometheus Metrics</div>
-    </div>
-
-    <div class="tl-event" data-type="milestone">
-      <div class="tl-dot milestone"></div>
-      <div class="tl-date">2026-03-14</div>
-      <div class="tl-text"><strong>M8 Complete</strong> &mdash; Prometheus /metrics endpoint, Grafana dashboard</div>
-    </div>
-
-    <div class="tl-event" data-type="milestone">
-      <div class="tl-dot milestone"></div>
-      <div class="tl-date">2026-03-07</div>
-      <div class="tl-text"><strong>Alpha &rarr; Beta Promotion</strong> &mdash; Feature specs, 50%+ coverage, PR workflow, 2+ envs</div>
-    </div>
-
-    <div class="tl-event" data-type="tag">
-      <div class="tl-dot tag"></div>
-      <div class="tl-date">2026-03-07</div>
-      <div class="tl-text"><span class="tl-tag">v0.5.0</span> &mdash; FDA API Integration (6 endpoints, offset pagination)</div>
-    </div>
-
-    <div class="tl-event" data-type="milestone">
-      <div class="tl-dot milestone"></div>
-      <div class="tl-date">2026-03-07</div>
-      <div class="tl-text"><strong>M1&ndash;M6 Complete</strong> &mdash; Core functionality, docs, logging, FDA, Docker publish</div>
-    </div>
-
-    <div class="tl-event" data-type="milestone">
-      <div class="tl-dot milestone"></div>
-      <div class="tl-date">2026-03-05</div>
-      <div class="tl-text"><strong>Project Created</strong> &mdash; cash-drugs initialized with ADD methodology</div>
-    </div>
-
+  <div class="card">
+    <div style="font-size:13px; color:var(--text-muted); margin-bottom:12px; letter-spacing:1px; text-transform:uppercase;">Retro score trend</div>
+    <svg width="100%" viewBox="0 0 700 260" preserveAspectRatio="xMidYMid meet">
+      <g stroke="rgba(255,255,255,0.05)" stroke-width="1">
+        <line x1="50" y1="40" x2="680" y2="40"/>
+        <line x1="50" y1="100" x2="680" y2="100"/>
+        <line x1="50" y1="160" x2="680" y2="160"/>
+        <line x1="50" y1="220" x2="680" y2="220"/>
+      </g>
+      <g fill="#6b7280" font-family="SF Mono, monospace" font-size="10">
+        <text x="40" y="44" text-anchor="end">9</text>
+        <text x="40" y="104" text-anchor="end">6</text>
+        <text x="40" y="164" text-anchor="end">3</text>
+        <text x="40" y="224" text-anchor="end">0</text>
+      </g>
+      <g fill="#6b7280" font-family="SF Mono, monospace" font-size="10" text-anchor="middle">
+        <text x="80" y="245">03-07</text>
+        <text x="220" y="245">03-14</text>
+        <text x="360" y="245">03-18</text>
+        <text x="500" y="245">03-21</text>
+        <text x="640" y="245">03-25</text>
+      </g>
+      <polyline fill="none" stroke="#0ea5e9" stroke-width="2.5"
+        points="80,60 220,40 360,60 500,50 640,80"/>
+      <g fill="#0ea5e9">
+        <circle cx="80" cy="60" r="5"><title>Collab 8.0 · 2026-03-07</title></circle>
+        <circle cx="220" cy="40" r="5"><title>Collab 9.0 · 2026-03-14</title></circle>
+        <circle cx="360" cy="60" r="5"><title>Collab 8.0 · 2026-03-18</title></circle>
+        <circle cx="500" cy="50" r="5"><title>Collab 8.5 · 2026-03-21</title></circle>
+        <circle cx="640" cy="80" r="5"><title>Collab 7.0 · 2026-03-25</title></circle>
+      </g>
+      <polyline fill="none" stroke="#b00149" stroke-width="2.5"
+        points="80,130 220,90 360,70 500,76 640,90"/>
+      <g fill="#b00149">
+        <circle cx="80" cy="130" r="5"><title>ADD 4.5 · 2026-03-07</title></circle>
+        <circle cx="220" cy="90" r="5"><title>ADD 6.5 · 2026-03-14</title></circle>
+        <circle cx="360" cy="70" r="5"><title>ADD 7.5 · 2026-03-18</title></circle>
+        <circle cx="500" cy="76" r="5"><title>ADD 7.2 · 2026-03-21</title></circle>
+        <circle cx="640" cy="90" r="5"><title>ADD 6.5 · 2026-03-25</title></circle>
+      </g>
+      <polyline fill="none" stroke="#22c55e" stroke-width="2.5"
+        points="80,160 220,120 360,100 500,50 640,120"/>
+      <g fill="#22c55e">
+        <circle cx="80" cy="160" r="5"><title>Swarm 3.0 · 2026-03-07</title></circle>
+        <circle cx="220" cy="120" r="5"><title>Swarm 5.0 · 2026-03-14</title></circle>
+        <circle cx="360" cy="100" r="5"><title>Swarm 6.0 · 2026-03-18</title></circle>
+        <circle cx="500" cy="50" r="5"><title>Swarm 8.5 · 2026-03-21</title></circle>
+        <circle cx="640" cy="120" r="5"><title>Swarm 5.0 · 2026-03-25</title></circle>
+      </g>
+      <g font-family="system-ui" font-size="11">
+        <rect x="60" y="12" width="10" height="10" fill="#0ea5e9"/>
+        <text x="76" y="22" fill="#e4e4e4">Collab</text>
+        <rect x="140" y="12" width="10" height="10" fill="#b00149"/>
+        <text x="156" y="22" fill="#e4e4e4">ADD effectiveness</text>
+        <rect x="280" y="12" width="10" height="10" fill="#22c55e"/>
+        <text x="296" y="22" fill="#e4e4e4">Swarm effectiveness</text>
+      </g>
+    </svg>
   </div>
-</div>
+</section>
 
-<!-- FOOTER -->
-<div style="text-align:center; padding:24px 0 12px; color:var(--text-muted); font-size:12px;">
-  Generated 2026-03-21 &middot; Agent Driven Development &middot; cash-drugs @ Beta maturity
-</div>
+<section class="panel" id="timeline">
+  <div class="panel-title">Panel 6 / Project Timeline</div>
+  <div class="panel-headline">Chronological project events</div>
+  <div class="timeline-filters">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="milestone">Milestones</button>
+    <button class="filter-btn" data-filter="release">Releases</button>
+    <button class="filter-btn" data-filter="retro">Retros</button>
+    <button class="filter-btn" data-filter="decision">Decisions</button>
+  </div>
+  <div class="timeline-scroll">
+    <div class="timeline-track" id="timeline-track"></div>
+  </div>
+</section>
 
-</div>
+</main>
 
 <script>
-function filterTimeline(type, btn) {
-  document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
-  btn.classList.add('active');
-  document.querySelectorAll('.tl-event').forEach(function(el) {
-    el.style.display = (type === 'all' || el.getAttribute('data-type') === type) ? '' : 'none';
+  document.getElementById('gen-timestamp').textContent = 'Generated: ' + new Date().toISOString().replace('T',' ').split('.')[0] + 'Z';
+
+  const events = [
+    { date: '2026-03-05', type: 'milestone', title: 'M1 DONE', desc: 'Config + Fetch + Store — first end-to-end flow' },
+    { date: '2026-03-05', type: 'release',   title: 'v0.1.0',  desc: 'Initial release — M1 functionality' },
+    { date: '2026-03-07', type: 'milestone', title: 'M2–M5 DONE', desc: 'Scheduling, docs, logging, FDA APIs' },
+    { date: '2026-03-07', type: 'release',   title: 'v0.5.0',  desc: 'FDA openFDA integration' },
+    { date: '2026-03-07', type: 'retro',     title: 'Retro 03-07', desc: 'Scores: Collab 8.0 · ADD 4.5 · Swarm 3.0' },
+    { date: '2026-03-07', type: 'decision',  title: 'Promoted to Beta', desc: 'Alpha → Beta promotion' },
+    { date: '2026-03-14', type: 'milestone', title: 'M8 + M9 DONE', desc: 'Prometheus + Performance/Resilience' },
+    { date: '2026-03-14', type: 'release',   title: 'v0.6.0 / v0.7.0', desc: 'M8 Prometheus + M9 perf' },
+    { date: '2026-03-14', type: 'retro',     title: 'Retro 03-14', desc: 'Scores: Collab 9.0 · ADD 6.5 · Swarm 5.0' },
+    { date: '2026-03-15', type: 'milestone', title: 'M10 DONE', desc: 'Performance Optimization — Mongo queries, LRU shards, parallel fetches' },
+    { date: '2026-03-15', type: 'release',   title: 'v0.8.0',  desc: 'M10 Perf Optimization' },
+    { date: '2026-03-17', type: 'release',   title: 'v0.9.0',  desc: 'M11 RxNorm + parameterized warmup' },
+    { date: '2026-03-18', type: 'milestone', title: 'M11 + M12 DONE', desc: 'RxNorm + Client enhancements' },
+    { date: '2026-03-18', type: 'release',   title: 'v0.10.0', desc: 'M12 Upstream 404 + quality fixes' },
+    { date: '2026-03-18', type: 'retro',     title: 'Retro 03-18', desc: 'Scores: Collab 8.0 · ADD 7.5 · Swarm 6.0' },
+    { date: '2026-03-20', type: 'release',   title: 'v0.11.0', desc: 'M13 GA Readiness + M14 Observability' },
+    { date: '2026-03-21', type: 'milestone', title: 'M14 + M15 + M16 DONE', desc: 'Observability, Consumer Value, Op Resilience' },
+    { date: '2026-03-21', type: 'retro',     title: 'Retro 03-21', desc: 'Scores: Collab 8.5 · ADD 7.2 · Swarm 8.5' },
+    { date: '2026-03-22', type: 'milestone', title: 'M17 DONE', desc: 'Intelligent Data Layer — search, autocomplete, fields, pprof' },
+    { date: '2026-03-25', type: 'milestone', title: 'M18 DONE', desc: 'Landing page at drug-cash.calebdunn.tech' },
+    { date: '2026-03-25', type: 'retro',     title: 'Retro 03-25', desc: 'Scores: Collab 7.0 · ADD 6.5 · Swarm 5.0' },
+    { date: '2026-04-04', type: 'milestone', title: 'M19 DONE', desc: 'rx-dag NDC migration — 3 new slugs, generic headers' },
+    { date: '2026-04-04', type: 'decision',  title: 'Beta stability window elapsed', desc: 'GA eligibility reached; decision deferred' },
+    { date: '2026-04-11', type: 'milestone', title: 'M20 code merged', desc: 'Stack-wide /health + /version contract (PR #24)' },
+    { date: '2026-04-18', type: 'milestone', title: 'M13 COMPLETE', desc: 'GA Readiness closed — Alertmanager descoped' },
+    { date: '2026-04-18', type: 'decision',  title: 'Stay at Beta', desc: 'No GA promotion planned; current release cadence meets business needs' },
+    { date: '2026-04-18', type: 'milestone', title: 'M20 COMPLETE', desc: 'k6 smoke passing on staging beta-7ac3a98; coverage 91.4% on internal packages' }
+  ];
+
+  const track = document.getElementById('timeline-track');
+  events.forEach(e => {
+    const node = document.createElement('div');
+    node.className = 'tl-event';
+    node.dataset.type = e.type;
+    node.innerHTML = `
+      <div class="tl-card">
+        <span class="tl-tag ${e.type}">${e.type}</span>
+        <div class="tl-date">${e.date}</div>
+        <div class="tl-title">${e.title}</div>
+        <div class="tl-desc">${e.desc}</div>
+      </div>
+      <div class="tl-dot ${e.type}"></div>
+    `;
+    track.appendChild(node);
   });
-}
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const filter = btn.dataset.filter;
+      document.querySelectorAll('.tl-event').forEach(ev => {
+        ev.style.display = (filter === 'all' || ev.dataset.type === filter) ? '' : 'none';
+      });
+    });
+  });
 </script>
+
 </body>
 </html>
