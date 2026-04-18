@@ -13,7 +13,51 @@
 
 - `pprof` on internal port `:6060` (M17)
 - Benchmark suite: `go test -bench . -benchmem ./internal/cache ./internal/handler`
-- Committed baselines: `tests/benchmarks/baseline-{cache,handler}.txt` (captured at cycle 11, commit `fafeb0a`, 2026-03-21, Apple M4 Pro / darwin-arm64)
+- Committed baselines: `tests/benchmarks/baseline-{cache,handler}.txt` (re-snapshotted 2026-04-18 post-M17 + M20, Apple M4 Pro / darwin-arm64)
+
+## Measuring Coverage
+
+Always use **`make test-coverage`** for the canonical number. It brings up
+`docker-compose.test.yml` (MongoDB on port 27018), runs the full suite against
+the live test DB, and excludes `cmd/server/main.go` (untestable) and the
+generated `docs` package from the total.
+
+```bash
+$ make test-coverage
+...
+total:                                       (statements)            92.5%
+```
+
+Three ways of measuring produce three different numbers — pick the right tool:
+
+| Command | Coverage | What it measures |
+|---------|--------:|------------------|
+| `make test-coverage` | **92.5%** | Canonical — includes MongoDB integration tests, excludes cmd/server + generated docs |
+| `go test ./internal/... -short` | 91.4% | Unit only — skips MongoDB, skips cmd/server, skips E2E |
+| `go test ./...` | 83.5% | Raw — includes cmd/server (drags average down) and fails if MongoDB isn't running |
+
+If someone quotes a figure outside of `make test-coverage` context, double-check
+which command they ran. A "coverage regression" against `go test ./...` is often
+a MongoDB-not-running artifact, not a real gap.
+
+### Per-package coverage (via `make test-coverage`, 2026-04-18)
+
+| Package | Coverage |
+|---------|---------:|
+| `internal/fetchlock` | 100.0% |
+| `internal/logging` | 100.0% |
+| `internal/middleware` | 98.8% |
+| `internal/scheduler` | 98.8% |
+| `internal/upstream` | 95.1% |
+| `internal/cache` | 94.3% |
+| `internal/metrics` | 92.2% |
+| `internal/handler` | 91.0% |
+| `internal/config` | 90.5% |
+| `internal/model` | no statements (pure types) |
+| `cmd/server` | (excluded — untestable glue code) |
+| `tests/e2e` | (no statements — tests only) |
+
+Project threshold is **85%**. All packages above it; no action needed.
 
 ## Baseline Drift — 2026-04-18 (post-M19, branch `feature/stack-health-version-spec`)
 
@@ -54,3 +98,5 @@ Added `BenchmarkHealthHandler` and `BenchmarkHealthHandler_Unhealthy` in `intern
 - **2026-03-14** — M9: concurrency limiter (503 + Retry-After), gzip, singleflight, circuit breakers, 256 MB LRU
 - **2026-03-21** — M17: pprof on `:6060`, `tests/benchmarks/baseline-*.txt` committed, MongoDB TTL indexes, field filtering
 - **2026-04-18** — M20 `/health` benchmark added; baseline drift attributed to M17 field filtering (not a regression)
+- **2026-04-18** — Baselines re-snapshotted post-M17 + M20 (PR #25)
+- **2026-04-18** — Coverage measurement documented; canonical `make test-coverage` = 92.5% project-wide, 94.3% on `internal/cache` (PR #35)
