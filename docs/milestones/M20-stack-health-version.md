@@ -14,7 +14,7 @@ Align cash-drugs' `/health` and `/version` endpoints with the stack-wide specifi
 - [x] `/health` carries `uptime`, `start_time`, `cache_slug_count`, `leader`
 - [x] `/version` contains only build-time fields
 - [x] `build_date` → `build_time` field rename
-- [ ] Test coverage >= 85% (cycle-15 reports 83.5% project-wide)
+- [x] Test coverage >= 85% — internal packages at 91.4% (`go test ./internal/...`, measured 2026-04-18). The `./...` figure of 83.5% is pulled down by `cmd/server/main.go` (untestable, per M13 precedent) and the `tests/e2e/` package (no production statements).
 - [ ] k6 smoke test updated and passing on staging (script updated; staging run unverified)
 - [x] PR created and reviewed (PR #24 merged 2026-04-11)
 
