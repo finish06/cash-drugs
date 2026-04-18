@@ -1,6 +1,6 @@
 # cash-drugs — Product Requirements Document
 
-**Version:** 0.12.0
+**Version:** 0.13.0
 **Created:** 2026-03-05
 **Author:** calebdunn
 **Status:** Active
@@ -115,6 +115,8 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M16: Operational Resilience & Runtime Management | Runbooks, chaos tests, hot config reload, test-fetch, config validate | ga | DONE | Runbook per alert, 8 chaos tests, fsnotify reload, test-fetch, config validate |
 | M17: Intelligent Data Layer | Cross-slug search, autocomplete, field filtering, pprof, TTL indexes | ga | DONE | Cross-slug search <100ms, autocomplete <20ms, field filtering, pprof, TTL expiry |
 | M18: Landing Page | Public landing page on GitHub Pages (`drug-cash.calebdunn.tech`), optional `LANDING_URL` redirect | ga | DONE | GitHub Pages at custom domain, hero + API examples + quick-start, responsive, env-var redirect |
+| M19: rx-dag NDC Integration | Migrate `fda-ndc` to internal rx-dag ndc-loader; add search/lookup/packages slugs; generic `headers` config with env-var interpolation | beta | DONE | Transparent `fda-ndc` swap, 3 new rx-dag slugs, `${ENV_VAR}` headers, backward compatible |
+| M20: Stack-Wide Health & Version | Align `/health` and `/version` with stack-wide contract shared by rx-dag, drug-gate, drugs-quiz BFF | beta | IN_PROGRESS | Structured dependencies array with latency, `uptime`/`start_time`/`cache_slug_count`/`leader`, `/version` build-only fields, `build_time` field rename, k6 smoke updated |
 
 ### Milestone Detail
 
@@ -389,19 +391,64 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [x] No conflicts with existing API routes when redirect is active
 - [x] Single `index.html` with inline CSS, < 50KB, ocean palette branding
 
+#### M19: rx-dag NDC Integration [DONE]
+**Goal:** Migrate the `fda-ndc` slug from the public openFDA API to the internal rx-dag ndc-loader service. Add three new slugs for rx-dag's richer query endpoints (full-text search, direct NDC lookup, package listing). Introduce a generic `headers` config field for upstream auth.
+
+**Appetite:** 2 days
+
+**Target maturity:** beta
+
+**Features:**
+- Generic `headers` config field with `${ENV_VAR}` interpolation on any endpoint
+- `fda-ndc` upstream swap — transparent switch to `192.168.1.145:8081/api/openfda/ndc.json`
+- `rx-dag-ndc-search` slug — full-text search via `GET /api/ndc/search?q=...`
+- `rx-dag-ndc-lookup` slug — direct lookup via `GET /api/ndc/{NDC}`
+- `rx-dag-ndc-packages` slug — package listing via `GET /api/ndc/{NDC}/packages`
+
+**Success criteria:**
+- [x] `fda-ndc` slug transparently swapped to rx-dag (no consumer-facing changes)
+- [x] 3 new rx-dag slugs operational (search, lookup, packages)
+- [x] Generic `headers` config with `${ENV_VAR}` interpolation working
+- [x] All existing slugs unaffected (backward compatible)
+- [x] Test coverage ≥ 85%
+- [x] PR #23 created, reviewed, and merged
+
+#### M20: Stack-Wide Health & Version Compliance [IN_PROGRESS]
+**Goal:** Align cash-drugs' `/health` and `/version` endpoints with the stack-wide specification so that all services (rx-dag, cash-drugs, drug-gate, drugs-quiz BFF) return identical response shapes. Enables reusable dashboards, alerts, and smoke tests across the stack.
+
+**Appetite:** 1 day
+
+**Target maturity:** beta
+
+**Features:**
+- `/health` stack-compliant shape — structured `dependencies` array with measured latency, `uptime`, `start_time`, `cache_slug_count`, `leader`
+- `/version` cleanup — build-time fields only; `build_date` → `build_time` field rename
+- k6 smoke test updates — staging smoke verifies new response shape
+
+**Success criteria:**
+- [ ] `/health` returns structured dependencies array with measured latency
+- [ ] `/health` carries `uptime`, `start_time`, `cache_slug_count`, `leader`
+- [ ] `/version` contains only build-time fields
+- [ ] `build_date` → `build_time` field rename
+- [ ] Test coverage ≥ 85%
+- [ ] k6 smoke test updated and passing on staging
+- [ ] PR created and reviewed
+
 ### Milestone Sequencing
 
 ```
-M13 (GA Readiness) ── 5/6 done, waiting 30-day stability (2026-04-04)
+M13 (GA Readiness) ── 5/6 done, waiting 30-day stability (eligible 2026-04-04)
     │
 M14: Observability ── DONE
 M15: Consumer Value ── DONE (SDK deferred)
 M16: Operational Resilience ── DONE
 M17: Intelligent Data Layer ── DONE
 M18: Landing Page ── DONE
+M19: rx-dag NDC Integration ── DONE
+M20: Stack-Wide Health & Version ── IN_PROGRESS (current branch: feature/stack-health-version-spec)
 ```
 
-**GA promotion gate:** M14 + M16 complete — service has SLAs, alerts, runbooks, chaos tests, tracing, and hot reload. Blocked only by 30-day stability window (eligible 2026-04-04). M18 is a post-GA polish milestone.
+**GA promotion gate:** M14 + M16 complete — service has SLAs, alerts, runbooks, chaos tests, tracing, and hot reload. Blocked only by 30-day stability window (eligible 2026-04-04). M18 is a post-GA polish milestone. M19 migrates `fda-ndc` to the internal rx-dag service; M20 aligns the health/version contract with the rest of the stack.
 
 ### Deferred Items (Future Milestones)
 
@@ -479,3 +526,4 @@ All open questions resolved.
 | 2026-03-16 | 0.5.0 | calebdunn | M11 DONE (RxNorm, parameterized warmup, multi-instance, nginx LB), M12 IN_PROGRESS, added NFRs for scalability |
 | 2026-03-20 | 0.7.0 | calebdunn | Added M14–M17 roadmap (observability, consumer value, operational resilience, intelligent data layer), deferred items, milestone sequencing, updated Out of Scope |
 | 2026-03-21 | 0.12.0 | calebdunn | M14 DONE, M15 DONE (SDK deferred), M16 DONE. Added staging to environments. Updated all milestone success criteria. Added features 7-9. Fixed duplicate out-of-scope entry. Updated sequencing diagram. |
+| 2026-04-18 | 0.13.0 | calebdunn | Added M19 (rx-dag NDC Integration) as DONE and M20 (Stack-Wide Health & Version) as IN_PROGRESS to roadmap. Added detail blocks and updated milestone sequencing. |

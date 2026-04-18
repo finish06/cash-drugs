@@ -22,9 +22,9 @@ Align cash-drugs' `/health` and `/version` endpoints with the stack-wide specifi
 
 | Feature | Position | PR |
 |---------|----------|----|
-| /health stack-compliant shape | PLANNED | — |
-| /version cleanup | PLANNED | — |
-| k6 smoke updates | PLANNED | — |
+| /health stack-compliant shape | DONE | branch (d13f35b) |
+| /version cleanup | DONE | branch (d13f35b) |
+| k6 smoke updates | DONE | branch (d13f35b) |
 
 ## Dependencies
 
