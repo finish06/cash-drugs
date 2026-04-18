@@ -1,6 +1,6 @@
 # cash-drugs — Product Requirements Document
 
-**Version:** 0.14.1
+**Version:** 0.14.2
 **Created:** 2026-03-05
 **Author:** calebdunn
 **Status:** Active
@@ -116,7 +116,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 | M17: Intelligent Data Layer | Cross-slug search, autocomplete, field filtering, pprof, TTL indexes | ga | DONE | Cross-slug search <100ms, autocomplete <20ms, field filtering, pprof, TTL expiry |
 | M18: Landing Page | Public landing page on GitHub Pages (`drug-cash.calebdunn.tech`), optional `LANDING_URL` redirect | ga | DONE | GitHub Pages at custom domain, hero + API examples + quick-start, responsive, env-var redirect |
 | M19: rx-dag NDC Integration | Migrate `fda-ndc` to internal rx-dag ndc-loader; add search/lookup/packages slugs; generic `headers` config with env-var interpolation | beta | DONE | Transparent `fda-ndc` swap, 3 new rx-dag slugs, `${ENV_VAR}` headers, backward compatible |
-| M20: Stack-Wide Health & Version | Align `/health` and `/version` with stack-wide contract shared by rx-dag, drug-gate, drugs-quiz BFF | beta | IN_PROGRESS | Structured dependencies array with latency, `uptime`/`start_time`/`cache_slug_count`/`leader`, `/version` build-only fields, `build_time` field rename, k6 smoke updated |
+| M20: Stack-Wide Health & Version | Align `/health` and `/version` with stack-wide contract shared by rx-dag, drug-gate, drugs-quiz BFF | beta | DONE | Structured dependencies array with latency, `uptime`/`start_time`/`cache_slug_count`/`leader`, `/version` build-only fields, `build_time` field rename, k6 smoke passing on staging |
 
 ### Milestone Detail
 
@@ -413,7 +413,7 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [x] Test coverage ≥ 85%
 - [x] PR #23 created, reviewed, and merged
 
-#### M20: Stack-Wide Health & Version Compliance [IN_PROGRESS]
+#### M20: Stack-Wide Health & Version Compliance [DONE]
 **Goal:** Align cash-drugs' `/health` and `/version` endpoints with the stack-wide specification so that all services (rx-dag, cash-drugs, drug-gate, drugs-quiz BFF) return identical response shapes. Enables reusable dashboards, alerts, and smoke tests across the stack.
 
 **Appetite:** 1 day
@@ -430,9 +430,9 @@ Internal microservices frequently need data from external REST APIs. Each servic
 - [ ] `/health` carries `uptime`, `start_time`, `cache_slug_count`, `leader`
 - [ ] `/version` contains only build-time fields
 - [ ] `build_date` → `build_time` field rename
-- [ ] Test coverage ≥ 85%
-- [ ] k6 smoke test updated and passing on staging
-- [ ] PR created and reviewed
+- [x] Test coverage ≥ 85% (internal packages at 91.4%)
+- [x] k6 smoke test updated and passing on staging (2026-04-18, beta-7ac3a98)
+- [x] PR created and reviewed (PR #24 merged 2026-04-11)
 
 ### Milestone Sequencing
 
@@ -445,7 +445,7 @@ M16: Operational Resilience ── DONE
 M17: Intelligent Data Layer ── DONE
 M18: Landing Page ── DONE
 M19: rx-dag NDC Integration ── DONE
-M20: Stack-Wide Health & Version ── IN_PROGRESS (current branch: feature/stack-health-version-spec)
+M20: Stack-Wide Health & Version ── DONE 2026-04-18 (k6 smoke passing on staging beta-7ac3a98)
 ```
 
 **GA readiness (not currently pursued):** M13 + M14 + M16 complete as of 2026-04-18 — service has SLAs, runbooks, chaos tests, tracing, hot reload, and verified prod Prometheus scrape. 30-day Beta stability window elapsed 2026-04-04. Alertmanager routing moved to Deferred Items (rules file exists; delivery channel not yet wired). M18 is a polish milestone; M19 migrates `fda-ndc` to the internal rx-dag service; M20 aligns the health/version contract with the rest of the stack. On paper the GA criteria are satisfied, but the project is intentionally staying at Beta — the current release cadence (push to main → `:beta` on staging; git tag `v*` → `:latest` in prod) meets business needs. Revisit GA promotion only if a new driver for GA-level rigor emerges.
@@ -530,3 +530,4 @@ All open questions resolved.
 | 2026-04-18 | 0.13.0 | calebdunn | Added M19 (rx-dag NDC Integration) as DONE and M20 (Stack-Wide Health & Version) as IN_PROGRESS to roadmap. Added detail blocks and updated milestone sequencing. |
 | 2026-04-18 | 0.14.0 | calebdunn | M13 (GA Readiness) marked DONE — prod Prometheus scrape verified via grafana.calebdunn.tech. Alertmanager wiring descoped and moved to Deferred Items. GA promotion gate unblocked. |
 | 2026-04-18 | 0.14.1 | calebdunn | Softened GA promotion language in Section 6 and M13 retrospective — project intentionally staying at Beta; current release cadence meets business needs. |
+| 2026-04-18 | 0.14.2 | calebdunn | M20 (Stack-Wide Health & Version) marked DONE — k6 smoke passing on staging (beta-7ac3a98), coverage 91.4% on internal packages. |
