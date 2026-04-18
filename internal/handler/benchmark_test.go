@@ -168,6 +168,50 @@ func BenchmarkCacheHandler_LargeResponse(b *testing.B) {
 	}
 }
 
+// BenchmarkHealthHandler measures the M20 stack-compliant /health path with a
+// healthy MongoDB ping (2ms simulated latency — typical localhost).
+func BenchmarkHealthHandler(b *testing.B) {
+	b.ReportAllocs()
+
+	h := handler.NewHealthHandler(
+		&mockPinger{healthy: true, latency: 2 * time.Millisecond},
+		handler.WithVersion("v1.0.0"),
+		handler.WithHealthStartTime(time.Now().Add(-1*time.Hour)),
+		handler.WithCacheSlugCount(20),
+		handler.WithHealthLeader(true),
+	)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+	}
+}
+
+// BenchmarkHealthHandler_Unhealthy measures the /health error path (MongoDB
+// disconnected). Hot-looped load balancers must still get fast 503s.
+func BenchmarkHealthHandler_Unhealthy(b *testing.B) {
+	b.ReportAllocs()
+
+	h := handler.NewHealthHandler(
+		&mockPinger{healthy: false},
+		handler.WithVersion("v1.0.0"),
+		handler.WithHealthStartTime(time.Now().Add(-1*time.Hour)),
+		handler.WithCacheSlugCount(20),
+		handler.WithHealthLeader(true),
+	)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+	}
+}
+
 // BenchmarkJSONEncode_APIResponse isolates JSON encoding cost for the response envelope.
 func BenchmarkJSONEncode_APIResponse(b *testing.B) {
 	b.ReportAllocs()
