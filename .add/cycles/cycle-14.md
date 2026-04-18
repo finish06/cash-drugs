@@ -2,9 +2,9 @@
 
 **Milestone:** M19 — rx-dag NDC Integration
 **Maturity:** Beta
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Started:** 2026-04-04
-**Completed:** TBD
+**Completed:** 2026-04-04
 **Duration Budget:** 1 day (away mode, ~6-8 hours)
 
 ## Work Items
@@ -46,12 +46,12 @@ Single-threaded execution (solo agent, away mode).
 - Tests: all new + existing tests pass, coverage >= 85%
 
 ### Cycle Success Criteria
-- [ ] All work items reach VERIFIED
-- [ ] All existing tests pass (no regressions)
-- [ ] Coverage >= 85%
-- [ ] go vet clean
-- [ ] Feature branch committed
-- [ ] PR created
+- [x] All work items reach VERIFIED
+- [x] All existing tests pass (no regressions)
+- [x] Coverage >= 85%
+- [x] go vet clean
+- [x] Feature branch committed
+- [x] PR created (PR #23 merged 2026-04-04)
 
 ## Agent Autonomy (Away Mode)
 
