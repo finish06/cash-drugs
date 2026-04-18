@@ -10,21 +10,21 @@ Align cash-drugs' `/health` and `/version` endpoints with the stack-wide specifi
 
 ## Success Criteria
 
-- [ ] `/health` returns structured dependencies array with measured latency
-- [ ] `/health` carries `uptime`, `start_time`, `cache_slug_count`, `leader`
-- [ ] `/version` contains only build-time fields
-- [ ] `build_date` → `build_time` field rename
-- [ ] Test coverage >= 85%
-- [ ] k6 smoke test updated and passing on staging
-- [ ] PR created and reviewed
+- [x] `/health` returns structured dependencies array with measured latency
+- [x] `/health` carries `uptime`, `start_time`, `cache_slug_count`, `leader`
+- [x] `/version` contains only build-time fields
+- [x] `build_date` → `build_time` field rename
+- [ ] Test coverage >= 85% (cycle-15 reports 83.5% project-wide)
+- [ ] k6 smoke test updated and passing on staging (script updated; staging run unverified)
+- [x] PR created and reviewed (PR #24 merged 2026-04-11)
 
 ## Hill Chart
 
 | Feature | Position | PR |
 |---------|----------|----|
-| /health stack-compliant shape | DONE | branch (d13f35b) |
-| /version cleanup | DONE | branch (d13f35b) |
-| k6 smoke updates | DONE | branch (d13f35b) |
+| /health stack-compliant shape | DONE | #24 |
+| /version cleanup | DONE | #24 |
+| k6 smoke updates | DONE | #24 |
 
 ## Dependencies
 

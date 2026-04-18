@@ -6,29 +6,29 @@
 
 **Target Maturity:** Beta
 
-**Status:** NOW
+**Status:** DONE
 
 ## Success Criteria
 
-- [ ] `/metrics` endpoint serves Prometheus-compatible metrics
-- [ ] MongoDB health and size metrics are exported
-- [ ] Cache hit/miss/stale counters are tracked per slug
-- [ ] Upstream fetch duration, count, and error rate are tracked per slug
-- [ ] Request throughput and latency histograms are available per slug and status code
-- [ ] Scheduler job execution metrics are tracked
-- [ ] Go runtime metrics (goroutines, memory, GC) are included
-- [ ] Existing functionality and tests remain unaffected
+- [x] `/metrics` endpoint serves Prometheus-compatible metrics
+- [x] MongoDB health and size metrics are exported
+- [x] Cache hit/miss/stale counters are tracked per slug
+- [x] Upstream fetch duration, count, and error rate are tracked per slug
+- [x] Request throughput and latency histograms are available per slug and status code
+- [x] Scheduler job execution metrics are tracked
+- [x] Go runtime metrics (goroutines, memory, GC) are included
+- [x] Existing functionality and tests remain unaffected
 
 ## Hill Chart
 
 | Feature | Position |
 |---------|----------|
-| Prometheus endpoint & Go runtime | SHAPED |
-| Request metrics (throughput, latency, status codes) | SHAPED |
-| Cache performance metrics (hit/miss/stale) | SHAPED |
-| Upstream fetch metrics (duration, errors, pages) | SHAPED |
-| MongoDB health & size metrics | SHAPED |
-| Scheduler job metrics | SHAPED |
+| Prometheus endpoint & Go runtime | DONE |
+| Request metrics (throughput, latency, status codes) | DONE |
+| Cache performance metrics (hit/miss/stale) | DONE |
+| Upstream fetch metrics (duration, errors, pages) | DONE |
+| MongoDB health & size metrics | DONE |
+| Scheduler job metrics | DONE |
 
 ## Features
 
