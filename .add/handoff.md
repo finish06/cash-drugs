@@ -1,38 +1,35 @@
 # Session Handoff
-**Written:** 2026-04-18
+**Written:** 2026-04-21 (after `/add:back`)
 
 ## In Progress
-- M20 — Stack-Wide Health & Version Compliance (branch: feature/stack-health-version-spec, commit d13f35b)
-  - Implementation commit landed; hill chart still PLANNED — needs sync before PR
-  - Success criteria unchecked; verify and check before marking DONE
+- Nothing actively in progress. Working tree clean apart from the away-log archive move being staged.
 
-## Completed This Session
-- Roadmap sync: added M19 (DONE) and M20 (IN_PROGRESS) to PRD Section 6 (v0.12.0 → v0.13.0)
-- M19 milestone file: Status → COMPLETE, all 5 hill-chart features → DONE (PR #23), all 6 success criteria checked
-- `.add/config.json`: `planning.current_milestone` "M18" → "M20"
+## Completed Prior Session (2026-04-18)
+Autonomous away-mode day shipped 5 docs/test PRs to `main`:
+- #31 — sync lingering workspace state post-M20 (dashboard, cycle-14, away-log init)
+- #32 — mark shipped specs Complete + clear `planning.*` pointers
+- #33 — CHANGELOG 2026-04-18 tracking-state hygiene entries
+- #34 — skip E2E endpoints with missing header env vars (fixes fda-ndc 401 without `RXDAG_API_KEY`)
+- #35 — document canonical coverage measurement (`make test-coverage` = 92.5%)
 
-## Prior Session (2026-04-04)
-- Spec: `specs/rxdag-ndc-migration.md` (16 ACs, 8 TCs)
-- Plan: `docs/plans/rxdag-ndc-migration-plan.md` (18 tasks, 4 phases)
-- Milestone: `docs/milestones/M19-rxdag-ndc-integration.md` created
-- Cycle 14: all code changes implemented, tested, committed
-- PR #23: `feature/rxdag-ndc-migration` merged to main (commit c72bdb3)
+Earlier that same day, closed out: M13 (#27), M8/M20 milestone file sync (#26), GA language softened (#28), M20 coverage criterion checked (#29), M20 DONE (#30).
 
-## Decisions Made
-- `fda-ndc` transparently swapped to rx-dag (same slug, same consumer contract)
-- Generic `headers` config field with `${ENV_VAR}` interpolation (not rx-dag-specific)
-- `doRequest()` helper replaces `Client.Get()` at all 3 call sites in fetcher
-- `fetchJSONPage` signature changed to accept full `Endpoint` (for header access)
+## Milestones
+- **19 / 20 DONE.** M1–M6, M8–M20.
+- **M7 — Auth + Transforms:** LATER (intentional defer, target maturity GA).
+- **No IN_PROGRESS milestone.** `.add/config.json` `planning.current_milestone` and `current_cycle` are both `null`.
+
+## Decisions Made This Session
+- Stay at Beta — no GA promotion planned. Current release cadence meets needs.
+- Alertmanager wiring descoped out of M13 to PRD Deferred Items (delivery channel TBD).
+- Coverage measurement canonicalized on `make test-coverage` (92.5%), documented in `docs/performance.md`.
 
 ## Blockers
-- E2E tests need `RXDAG_API_KEY` env var set against live rx-dag at 192.168.1.145:8081
-- **M13 remaining:** Production monitoring verification (1/6 criteria)
-- **GA promotion:** 30-day stability window eligible today (2026-04-04)
+None code-side. Pending human decisions only (see Next Steps).
 
-## Next Steps
-1. Review PR #23 (finish06/cash-drugs#23)
-2. Set `RXDAG_API_KEY` env var and run E2E tests against live rx-dag
-3. Merge to main
-4. Deploy to staging
-5. Verify production monitoring (M13 final criterion)
-6. GA promotion retro
+## Next Steps (queued for human)
+1. **Alertmanager delivery channel** — email / Slack / PagerDuty / Ntfy? Unblocks promoting Alertmanager from Deferred → milestone.
+2. **M7 scoping** — `/add:spec` interview for upstream auth approach.
+3. **Deferred-items triage** — 6 items ready to revisit (multi-tenancy, response diffing, pre-materialized responses, consistent hash routing, Go client SDK, built-in HTML dashboard).
+4. **CI secret for `RXDAG_API_KEY`** — add to GitHub Actions, or keep local-only?
+5. **Beta cadence confirmation** — stay in maintenance mode, or pick something from Next Steps above to start?
