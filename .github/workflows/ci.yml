@@ -45,6 +45,18 @@ jobs:
           MONGO_URI: mongodb://localhost:27017/drugs_test
         run: go tool cover -func=coverage.out | tail -1
 
+      - name: Swagger docs are in sync
+        run: |
+          go run github.com/swaggo/swag/cmd/swag@v1.16.6 init \
+            --generalInfo cmd/server/main.go \
+            --output docs \
+            --parseDependency --parseInternal
+          if ! git diff --quiet -- docs/swagger.json docs/swagger.yaml docs/docs.go; then
+            echo "::error::Swagger docs are stale. Run 'swag init --generalInfo cmd/server/main.go --output docs --parseDependency --parseInternal' and commit the result."
+            git --no-pager diff -- docs/swagger.json docs/swagger.yaml docs/docs.go
+            exit 1
+          fi
+
       - name: Build
         run: go build ./cmd/server
 
