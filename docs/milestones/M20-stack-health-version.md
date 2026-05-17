@@ -4,7 +4,7 @@
 
 Align cash-drugs' `/health` and `/version` endpoints with the stack-wide specification so that all services (rx-dag, cash-drugs, drug-gate, drugs-quiz BFF) return identical response shapes. Enables reusable dashboards, alerts, and smoke tests across the stack.
 
-## Status: COMPLETE
+## Status: DONE
 
 ## Appetite: 1 day
 

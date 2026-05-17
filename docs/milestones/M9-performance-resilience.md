@@ -1,12 +1,14 @@
 # M9 — Performance & Resilience
 
-**Goal:** Prevent service collapse under concurrent load, reduce response latency and bandwidth, protect against upstream API instability, and export container-level system metrics — addressing all findings from the 2026-03-14 stress test.
+## Goal
 
-**Appetite:** Medium-Large — 4 features across middleware, cache, upstream, and metrics layers
+Prevent service collapse under concurrent load, reduce response latency and bandwidth, protect against upstream API instability, and export container-level system metrics — addressing all findings from the 2026-03-14 stress test.
 
-**Target Maturity:** Beta
+## Status: DONE
 
-**Status:** NOW
+## Appetite: Medium-Large — 4 features across middleware, cache, upstream, and metrics layers
+
+## Target Maturity: Beta
 
 ## Success Criteria
 

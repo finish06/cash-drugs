@@ -4,7 +4,7 @@
 
 Migrate NDC queries from the public openFDA API to the internal rx-dag ndc-loader service. Add richer query endpoints (full-text search, direct NDC lookup, package listing). Introduce generic upstream auth headers.
 
-## Status: COMPLETE
+## Status: DONE
 
 ## Appetite: 2 days
 

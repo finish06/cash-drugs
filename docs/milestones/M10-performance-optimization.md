@@ -1,12 +1,14 @@
 # M10 — Performance Optimization
 
-**Goal:** Address remaining performance bottlenecks, API usability gaps, and operational visibility: MongoDB query efficiency, LRU cache contention, upstream fetch parallelism, empty upstream result handling, and build/deployment info endpoint.
+## Goal
 
-**Appetite:** Small-Medium — 5 targeted improvements
+Address remaining performance bottlenecks, API usability gaps, and operational visibility: MongoDB query efficiency, LRU cache contention, upstream fetch parallelism, empty upstream result handling, and build/deployment info endpoint.
 
-**Target Maturity:** Beta
+## Status: DONE
 
-**Status:** LATER
+## Appetite: Small-Medium — 5 targeted improvements
+
+## Target Maturity: Beta
 
 ## Success Criteria
 
