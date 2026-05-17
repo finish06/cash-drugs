@@ -2,7 +2,7 @@
 
 **Spec:** specs/scheduled-fetch.md
 **Created:** 2026-03-07
-**Status:** Active
+**Status:** Complete
 
 ## Task Breakdown
 

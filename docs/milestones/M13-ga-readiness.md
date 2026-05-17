@@ -4,7 +4,7 @@
 
 Address all remaining gaps from the Beta → GA promotion check. Prepare the project for General Availability maturity promotion on 2026-04-04 (30-day stability date).
 
-## Status: COMPLETE
+## Status: DONE
 
 ## Appetite: 1 day
 

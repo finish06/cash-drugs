@@ -117,6 +117,17 @@ definitions:
       total_slugs:
         type: integer
     type: object
+  internal_handler.Dependency:
+    properties:
+      error:
+        type: string
+      latency_ms:
+        type: number
+      name:
+        type: string
+      status:
+        type: string
+    type: object
   internal_handler.EndpointInfo:
     properties:
       cache_status:
@@ -140,6 +151,25 @@ definitions:
       slug:
         type: string
       ttl:
+        type: string
+    type: object
+  internal_handler.HealthResponse:
+    properties:
+      cache_slug_count:
+        type: integer
+      dependencies:
+        items:
+          $ref: '#/definitions/internal_handler.Dependency'
+        type: array
+      leader:
+        type: boolean
+      start_time:
+        type: string
+      status:
+        type: string
+      uptime:
+        type: string
+      version:
         type: string
     type: object
   internal_handler.ParamInfo:
@@ -234,28 +264,16 @@ definitions:
     properties:
       arch:
         type: string
-      build_date:
+      build_time:
         type: string
-      endpoint_count:
-        type: integer
       git_branch:
         type: string
       git_commit:
         type: string
       go_version:
         type: string
-      gomaxprocs:
-        type: integer
-      hostname:
-        type: string
-      leader:
-        type: boolean
       os:
         type: string
-      start_time:
-        type: string
-      uptime_seconds:
-        type: number
       version:
         type: string
     type: object
@@ -671,22 +689,19 @@ paths:
       - system
   /health:
     get:
-      description: Returns service health status including database connectivity.
+      description: 'Returns structured service health per stack-wide contract: status,
+        version, uptime, start_time, dependencies, and domain fields.'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_handler.HealthResponse'
         "503":
-          description: Degraded
+          description: Critical dependency unavailable
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_handler.HealthResponse'
       summary: Health check
       tags:
       - system
@@ -726,8 +741,8 @@ paths:
       - system
   /version:
     get:
-      description: Returns build metadata, runtime info, and uptime for deployment
-        verification.
+      description: Returns compile-time build metadata (version, git commit/branch,
+        Go version, target OS/arch, build time). Runtime fields are exposed via /health.
       produces:
       - application/json
       responses:

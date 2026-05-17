@@ -61,7 +61,7 @@ cash-drugs/
 ├── docs/
 │   ├── prd.md             # Product Requirements Document
 │   ├── plans/             # Implementation plans
-│   ├── milestones/        # Milestone tracking (M1-M19)
+│   ├── milestones/        # Milestone tracking (M1-M20)
 │   ├── grafana/           # Grafana dashboard JSON + alerting rules (alerts.yml, alertmanager-template.yml)
 │   ├── runbooks/          # Operational runbooks (7 runbooks + index) — MongoDB down, circuit breaker, high latency, upstream errors, high memory, concurrency exhaustion, scheduler stalled
 │   ├── sequence-diagram.md # Mermaid sequence diagrams for all flows
@@ -76,13 +76,13 @@ cash-drugs/
 ├── internal/
 │   ├── cache/             # MongoDB cache layer + sharded LRU (16-shard FNV-1a)
 │   ├── config/            # YAML config loader + staleness/TTL helpers + headers with ${ENV_VAR} interpolation
-│   ├── handler/           # HTTP handlers + warmup orchestrator + warmup state tracker + cache status (status.go) + per-slug metadata (meta.go) + bulk query (bulk.go) + test-fetch dry-run (testfetch.go) + cross-slug search (search.go) + autocomplete (autocomplete.go) + LANDING_URL redirect (landing.go)
+│   ├── handler/           # HTTP handlers + warmup orchestrator + warmup state tracker + cache status (status.go) + per-slug metadata (meta.go) + bulk query (bulk.go) + test-fetch dry-run (testfetch.go) + cross-slug search (search.go) + autocomplete (autocomplete.go) + LANDING_URL redirect (landing.go) + config validate (configvalidate.go) + stack-wide /health + /version (M20)
 │   ├── upstream/          # Upstream API fetcher + circuit breaker + cooldown + 404 detection + parallel page fetches + custom headers
 │   ├── scheduler/         # Cron-based refresh (endpoints with refresh, no path params)
 │   ├── fetchlock/         # Dedup concurrent fetches (sync.Mutex per slug)
 │   ├── logging/           # Structured logging setup (slog)
 │   ├── metrics/           # Prometheus metrics + MongoDB collector + system collector (procfs)
-│   ├── middleware/         # RequestID (outermost, UUID v4) + concurrency limiter (default 50, 503+Retry-After:1) + gzip compression + AllowMethods (POST for /bulk, /test-fetch, /warmup; GET for all others)
+│   ├── middleware/         # RequestID (outermost, UUID v4) + concurrency limiter (default 50, 503+Retry-After:1) + gzip compression + AllowMethods (POST for /bulk, /test-fetch, /warmup, /config/validate; GET for all others)
 │   └── model/             # Response models (APIResponse, CachedResponse, ErrorResponse) + error codes (errors.go: CD-H001..H005, CD-U001..U003, CD-S001)
 ├── landing/
 │   ├── index.html              # Public landing page (drug-cash.calebdunn.tech)

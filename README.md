@@ -43,6 +43,8 @@ Service starts at **http://localhost:8080**. Explore:
 - **Cache status:** http://localhost:8080/api/cache/status
 - **Slug metadata:** http://localhost:8080/api/cache/{slug}/_meta
 - **Bulk lookup:** `POST` http://localhost:8080/api/cache/{slug}/bulk
+- **Search:** http://localhost:8080/api/search?q=aspirin
+- **Autocomplete:** http://localhost:8080/api/autocomplete?q=asp
 - **Test fetch:** `POST` http://localhost:8080/api/test-fetch
 - **Health:** http://localhost:8080/health
 - **Readiness:** http://localhost:8080/ready
@@ -236,7 +238,7 @@ environment:
   ENABLE_SCHEDULER: "false"
 ```
 
-`GET /version` returns `"leader": true/false` to identify which instance is the scheduler leader. The `cashdrugs_instance_leader` Prometheus gauge (1=leader, 0=replica) enables alerting when no leader is active.
+`GET /health` returns `"leader": true/false` to identify which instance is the scheduler leader (per the stack-wide health contract). The `cashdrugs_instance_leader` Prometheus gauge (1=leader, 0=replica) enables alerting when no leader is active.
 
 ## How It Works
 

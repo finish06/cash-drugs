@@ -421,7 +421,7 @@ const docTemplate = `{
         },
         "/health": {
             "get": {
-                "description": "Returns service health status including database connectivity.",
+                "description": "Returns structured service health per stack-wide contract: status, version, uptime, start_time, dependencies, and domain fields.",
                 "produces": [
                     "application/json"
                 ],
@@ -433,19 +433,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/internal_handler.HealthResponse"
                         }
                     },
                     "503": {
-                        "description": "Degraded",
+                        "description": "Critical dependency unavailable",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/internal_handler.HealthResponse"
                         }
                     }
                 }
@@ -505,7 +499,7 @@ const docTemplate = `{
         },
         "/version": {
             "get": {
-                "description": "Returns build metadata, runtime info, and uptime for deployment verification.",
+                "description": "Returns compile-time build metadata (version, git commit/branch, Go version, target OS/arch, build time). Runtime fields are exposed via /health.",
                 "produces": [
                     "application/json"
                 ],
@@ -703,6 +697,23 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.Dependency": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "latency_ms": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.EndpointInfo": {
             "type": "object",
             "properties": {
@@ -737,6 +748,35 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ttl": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "cache_slug_count": {
+                    "type": "integer"
+                },
+                "dependencies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handler.Dependency"
+                    }
+                },
+                "leader": {
+                    "type": "boolean"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "uptime": {
+                    "type": "string"
+                },
+                "version": {
                     "type": "string"
                 }
             }
@@ -876,11 +916,8 @@ const docTemplate = `{
                 "arch": {
                     "type": "string"
                 },
-                "build_date": {
+                "build_time": {
                     "type": "string"
-                },
-                "endpoint_count": {
-                    "type": "integer"
                 },
                 "git_branch": {
                     "type": "string"
@@ -891,23 +928,8 @@ const docTemplate = `{
                 "go_version": {
                     "type": "string"
                 },
-                "gomaxprocs": {
-                    "type": "integer"
-                },
-                "hostname": {
-                    "type": "string"
-                },
-                "leader": {
-                    "type": "boolean"
-                },
                 "os": {
                     "type": "string"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "uptime_seconds": {
-                    "type": "number"
                 },
                 "version": {
                     "type": "string"

@@ -1,12 +1,14 @@
 # M11 — RxNorm API Integration
 
-**Goal:** Integrate NLM RxNorm REST API endpoints and add parameterized query warmup for top 100 drugs — config-driven endpoints plus pre-caching popular lookups on startup.
+## Goal
 
-**Appetite:** Small-Medium — config-driven endpoints + warmup infrastructure
+Integrate NLM RxNorm REST API endpoints and add parameterized query warmup for top 100 drugs — config-driven endpoints plus pre-caching popular lookups on startup.
 
-**Target Maturity:** Beta
+## Status: DONE
 
-**Status:** DONE
+## Appetite: Small-Medium — config-driven endpoints + warmup infrastructure
+
+## Target Maturity: Beta
 
 ## Success Criteria
 

@@ -4,7 +4,7 @@
 
 Eliminate consumer friction — bulk queries, richer discovery, Go SDK, per-slug metadata. Make adoption effortless for internal microservice teams.
 
-## Status: NOT_STARTED
+## Status: DONE
 
 ## Appetite: 2 weeks
 

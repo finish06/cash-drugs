@@ -1,7 +1,7 @@
 {
   "$schema": "https://github.com/MountainUnicorn/add/docs-manifest.schema.json",
-  "version": "1.1.0",
-  "generated": "2026-03-25T18:00:00Z",
+  "version": "1.2.0",
+  "generated": "2026-05-16T22:30:00Z",
   "stack": {
     "language": "go",
     "framework": "net/http",
@@ -64,6 +64,15 @@
       "middleware": ["RequestIDMiddleware", "GzipMiddleware", "ConcurrencyLimiter", "AllowMethods"],
       "tags": ["test"],
       "response_model": "testFetchResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/validate",
+      "handler_file": "internal/handler/configvalidate.go",
+      "handler_function": "ConfigValidateHandler.ServeHTTP",
+      "middleware": ["RequestIDMiddleware", "GzipMiddleware", "ConcurrencyLimiter", "AllowMethods"],
+      "tags": ["config"],
+      "response_model": "configValidateResponse"
     },
     {
       "method": "GET",
@@ -134,8 +143,8 @@
       "handler_file": "internal/handler/health.go",
       "handler_function": "HealthHandler.ServeHTTP",
       "middleware": ["RequestIDMiddleware", "GzipMiddleware"],
-      "tags": ["ops"],
-      "response_model": null
+      "tags": ["system"],
+      "response_model": "HealthResponse"
     },
     {
       "method": "GET",
@@ -152,7 +161,7 @@
       "handler_file": "internal/handler/version.go",
       "handler_function": "VersionHandler.ServeHTTP",
       "middleware": ["RequestIDMiddleware", "GzipMiddleware"],
-      "tags": ["ops"],
+      "tags": ["system"],
       "response_model": "VersionInfo"
     },
     {
@@ -161,8 +170,18 @@
       "handler_file": "internal/handler/ready.go",
       "handler_function": "ReadyHandler.ServeHTTP",
       "middleware": ["RequestIDMiddleware", "GzipMiddleware"],
-      "tags": ["ops"],
+      "tags": ["system"],
       "response_model": null
+    },
+    {
+      "method": "GET",
+      "path": "/debug/pprof/*",
+      "handler_file": "cmd/server/main.go (net/http/pprof)",
+      "handler_function": "pprof.Index/Cmdline/Profile/Symbol/Trace",
+      "middleware": [],
+      "tags": ["debug"],
+      "response_model": null,
+      "notes": "Bound to PPROF_ADDR (default :6060) on a separate HTTP server. Not exposed on the main mux."
     }
   ],
   "middleware_chain": [
@@ -243,7 +262,21 @@
     {
       "name": "VersionInfo",
       "file": "internal/handler/version.go",
-      "field_count": 13,
+      "field_count": 7,
+      "relationships": [],
+      "notes": "M20 stripped runtime fields — now build-time metadata only (version, git_commit, git_branch, go_version, os, arch, build_time). Runtime info moved to HealthResponse."
+    },
+    {
+      "name": "HealthResponse",
+      "file": "internal/handler/health.go",
+      "field_count": 7,
+      "relationships": ["Dependency"],
+      "notes": "M20 stack-wide health contract shared with rx-dag, drug-gate, drugs-quiz BFF."
+    },
+    {
+      "name": "Dependency",
+      "file": "internal/handler/health.go",
+      "field_count": 4,
       "relationships": []
     },
     {
@@ -313,6 +346,30 @@
       "relationships": []
     },
     {
+      "name": "configValidateRequest",
+      "file": "internal/handler/configvalidate.go",
+      "field_count": 1,
+      "relationships": []
+    },
+    {
+      "name": "configValidateResponse",
+      "file": "internal/handler/configvalidate.go",
+      "field_count": 5,
+      "relationships": ["configValidateEndpoint"]
+    },
+    {
+      "name": "configValidateEndpoint",
+      "file": "internal/handler/configvalidate.go",
+      "field_count": 7,
+      "relationships": []
+    },
+    {
+      "name": "configValidateErrorResponse",
+      "file": "internal/handler/configvalidate.go",
+      "field_count": 4,
+      "relationships": []
+    },
+    {
       "name": "Endpoint",
       "file": "internal/config/loader.go",
       "field_count": 18,
@@ -329,7 +386,17 @@
     {
       "name": "cache (MongoRepository)",
       "file": "internal/cache/mongo.go",
-      "public_functions": ["NewMongoRepository", "Get", "Upsert", "FetchedAt", "Ping", "Client", "Database", "Names", "Close"]
+      "public_functions": ["NewMongoRepository", "Get", "Upsert", "FetchedAt", "Ping", "PingWithLatency", "Client", "Database", "Names", "Close"]
+    },
+    {
+      "name": "cache (Repository interface + key helper)",
+      "file": "internal/cache/repository.go",
+      "public_functions": ["BuildCacheKey"]
+    },
+    {
+      "name": "cache (Collection adapter)",
+      "file": "internal/cache/collection.go",
+      "public_functions": []
     },
     {
       "name": "cache (LRUCache)",
@@ -339,7 +406,13 @@
     {
       "name": "upstream (HTTPFetcher)",
       "file": "internal/upstream/fetcher.go",
-      "public_functions": ["NewHTTPFetcher", "Fetch"]
+      "public_functions": ["NewHTTPFetcher", "Fetch"],
+      "notes": "M19 added support for generic headers config with ${ENV_VAR} interpolation."
+    },
+    {
+      "name": "upstream (dotpath helpers)",
+      "file": "internal/upstream/dotpath.go",
+      "public_functions": []
     },
     {
       "name": "upstream (CircuitRegistry)",
@@ -395,6 +468,16 @@
       "name": "metrics (SystemCollector)",
       "file": "internal/metrics/system_collector.go",
       "public_functions": ["NewSystemCollector", "Start", "Stop"]
+    },
+    {
+      "name": "metrics (system + procfs adapters)",
+      "file": "internal/metrics/system.go, internal/metrics/system_procfs.go",
+      "public_functions": []
+    },
+    {
+      "name": "config (hot-reload watcher)",
+      "file": "internal/config/watcher.go",
+      "public_functions": ["NewWatcher"]
     }
   ],
   "existing_docs": [
@@ -421,6 +504,16 @@
     {
       "path": "docs/staging-deployment.md",
       "topic": "deployment",
+      "type": "other"
+    },
+    {
+      "path": "docs/performance.md",
+      "topic": "performance",
+      "type": "other"
+    },
+    {
+      "path": "docs/sla.md",
+      "topic": "operations",
       "type": "other"
     },
     {
@@ -524,7 +617,11 @@
       "Method enforcement (405 — CD-H004)",
       "GET /api/search (cross-slug search)",
       "GET /api/autocomplete (prefix autocomplete)",
-      "GET / (LANDING_URL redirect)"
+      "GET / (LANDING_URL redirect)",
+      "POST /api/config/validate (M16 — YAML validation, no upstream fetch)",
+      "GET /debug/pprof/* (separate :6060 server)",
+      "GET /health (M20 stack-wide contract — dependencies, leader, uptime)",
+      "GET /version (M20 — build-time metadata only)"
     ],
     "undocumented": [],
     "stale": []
@@ -565,6 +662,16 @@
     "internal/model/errors.go": "noted",
     "internal/handler/search.go": "noted",
     "internal/handler/autocomplete.go": "noted",
-    "internal/handler/landing.go": "noted"
+    "internal/handler/landing.go": "noted",
+    "internal/handler/configvalidate.go": "noted",
+    "internal/handler/fetchlocks.go": "noted",
+    "internal/cache/collection.go": "noted",
+    "internal/cache/repository.go": "noted",
+    "internal/config/watcher.go": "noted",
+    "internal/config/staleness.go": "noted",
+    "internal/upstream/dotpath.go": "noted",
+    "internal/metrics/system.go": "noted",
+    "internal/metrics/system_procfs.go": "noted",
+    "internal/model/config.go": "noted"
   }
 }

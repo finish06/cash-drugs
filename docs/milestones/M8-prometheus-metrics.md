@@ -1,12 +1,14 @@
 # M8 — Prometheus Metrics & Observability
 
-**Goal:** Expose a `/metrics` Prometheus endpoint that provides full operational visibility — MongoDB health, cache performance, upstream API behavior, and request throughput.
+## Goal
 
-**Appetite:** Medium — new package, instrumentation across handler/cache/upstream/scheduler layers
+Expose a `/metrics` Prometheus endpoint that provides full operational visibility — MongoDB health, cache performance, upstream API behavior, and request throughput.
 
-**Target Maturity:** Beta
+## Status: DONE
 
-**Status:** DONE
+## Appetite: Medium — new package, instrumentation across handler/cache/upstream/scheduler layers
+
+## Target Maturity: Beta
 
 ## Success Criteria
 
