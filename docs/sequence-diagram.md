@@ -9,8 +9,8 @@ sequenceDiagram
     participant GZ as Gzip Middleware
     participant LIM as Concurrency Limiter
     participant CH as CacheHandler
-    participant LRU as Sharded LRU Cache<br/>(16 shards, FNV-1a)
-    participant DB as MongoDB<br/>(cached_responses)
+    participant LRU as "Sharded LRU Cache<br/>(16 shards, FNV-1a)"
+    participant DB as "MongoDB<br/>(cached_responses)"
 
     Client->>RID: GET /api/cache/{slug}?param=value
     Note over RID: Preserve X-Request-ID or generate UUID v4
@@ -169,7 +169,7 @@ sequenceDiagram
     actor Client as Internal Service
     participant RID as RequestID Middleware
     participant GZ as Gzip Middleware
-    participant LIM as Concurrency Limiter<br/>(max 50 in-flight)
+    participant LIM as "Concurrency Limiter<br/>(max 50 in-flight)"
     participant MUX as ServeMux
 
     Client->>RID: GET /api/cache/{slug}
@@ -201,7 +201,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant CH as CacheHandler
-    participant CB as Circuit Breaker<br/>(per endpoint)
+    participant CB as "Circuit Breaker<br/>(per endpoint)"
     participant UF as HTTPFetcher
     participant API as Upstream API
     participant DB as MongoDB
@@ -264,7 +264,7 @@ sequenceDiagram
 sequenceDiagram
     actor Client as Internal Service
     participant CH as CacheHandler
-    participant CD as CooldownTracker<br/>(30s per slug)
+    participant CD as "CooldownTracker<br/>(30s per slug)"
     participant UF as HTTPFetcher
     participant API as Upstream API
 
@@ -295,7 +295,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant SC as SystemCollector<br/>(background)
+    participant SC as "SystemCollector<br/>(background)"
     participant PROC as /proc filesystem
     participant CG as cgroup
     participant REG as prometheus.Registry
@@ -333,8 +333,8 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant UF as HTTPFetcher<br/>(FetchConcurrency: 3)
-    participant SEM as Semaphore<br/>(cap 3)
+    participant UF as "HTTPFetcher<br/>(FetchConcurrency: 3)"
+    participant SEM as "Semaphore<br/>(cap 3)"
     participant API as Upstream API
 
     Note over UF,API: Page-style pagination (parallel)
@@ -390,7 +390,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant CRON as Scheduler<br/>(robfig/cron)
+    participant CRON as "Scheduler<br/>(robfig/cron)"
     participant FL as FetchLock
     participant UF as HTTPFetcher
     participant API as Upstream API
@@ -427,23 +427,26 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor Client as Internal Service
-    participant GW as cash-drugs<br/>:8080
+    participant GW as "cash-drugs<br/>:8080"
     participant HC as HealthHandler
     participant DB as MongoDB
 
     Client->>GW: GET /health
+    Note over GW: Outer mux — bypasses concurrency limiter
     GW->>HC: ServeHTTP(w, r)
-    HC->>DB: Ping(ctx)
+    HC->>DB: PingWithLatency(ctx)
 
     alt MongoDB reachable
-        DB-->>HC: ok
-        HC-->>Client: 200 {"status": "ok", "db": "connected", "version": "v0.10.1"}
+        DB-->>HC: ok + latency
+        HC-->>Client: 200 {status: "ok", version, uptime, start_time,<br/>dependencies: [{name: "mongodb", status: "connected", latency_ms}],<br/>cache_slug_count, leader}
     end
 
     alt MongoDB unreachable
         DB-->>HC: error
-        HC-->>Client: 503 {"status": "degraded", "db": "disconnected", "version": "v0.10.1"}
+        HC-->>Client: 503 {status: "error", version, uptime, start_time,<br/>dependencies: [{name: "mongodb", status: "disconnected", error, latency_ms: 0}],<br/>cache_slug_count, leader}
     end
+
+    Note over HC: Stack-wide contract shared across rx-dag,<br/>cash-drugs, drug-gate, and drugs-quiz BFF (M20)
 ```
 
 ## Endpoint Discovery Flow
@@ -451,7 +454,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor Client as Internal Service
-    participant GW as cash-drugs<br/>:8080
+    participant GW as "cash-drugs<br/>:8080"
     participant EH as EndpointsHandler
     participant DB as MongoDB
 
@@ -471,11 +474,11 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor Prom as Prometheus
-    participant GW as cash-drugs<br/>:8080
+    participant GW as "cash-drugs<br/>:8080"
     participant MH as promhttp.Handler
     participant REG as prometheus.Registry
-    participant MC as MongoCollector<br/>(background)
-    participant SC as SystemCollector<br/>(background)
+    participant MC as "MongoCollector<br/>(background)"
+    participant SC as "SystemCollector<br/>(background)"
     participant DB as MongoDB
 
     Note over MC,DB: Every 30 seconds
@@ -502,16 +505,17 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor Client as Internal Service
-    participant GW as cash-drugs<br/>:8080
+    participant GW as "cash-drugs<br/>:8080"
     participant VH as VersionHandler
 
     Client->>GW: GET /version
-    Note over GW: Exempt from concurrency limiter
+    Note over GW: Outer mux — bypasses concurrency limiter
     GW->>VH: ServeHTTP(w, r)
-    VH->>VH: Collect runtime info<br/>(version, git_commit, git_branch,<br/>build_date, go_version, os, arch,<br/>hostname, GOMAXPROCS, uptime)
-    VH-->>Client: 200 {"version": "v0.10.1", "git_commit": "abc1234",<br/>"uptime_seconds": 3600, "endpoint_count": 17, ...}
+    VH->>VH: Read injected build-time vars<br/>(version, git_commit, git_branch, build_time)<br/>+ runtime.Version/GOOS/GOARCH
+    VH-->>Client: 200 {version, git_commit, git_branch,<br/>go_version, os, arch, build_time}
 
-    Note over VH: Prometheus gauges updated independently:<br/>cashdrugs_build_info (labels: version, commit, go, date)<br/>cashdrugs_uptime_seconds (updated every 15s)
+    Note over VH: M20: build-time metadata ONLY.<br/>Runtime fields (uptime, start_time, leader,<br/>dependencies) live on /health.
+    Note over VH: Prometheus gauges populated independently:<br/>cashdrugs_build_info (labels: version, commit, go, build_time)
 ```
 
 ## Empty Upstream Result Flow
@@ -548,7 +552,7 @@ sequenceDiagram
     participant LRU as Sharded LRU Cache
     participant DB as MongoDB
     participant SF as Singleflight
-    participant RX as RxNorm API<br/>(rxnav.nlm.nih.gov)
+    participant RX as "RxNorm API<br/>(rxnav.nlm.nih.gov)"
 
     Client->>CH: GET /api/cache/{rxnorm-slug}?name=aspirin
 
@@ -594,7 +598,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor Client as Internal Service
-    participant GW as cash-drugs<br/>:8080
+    participant GW as "cash-drugs<br/>:8080"
     participant RH as ReadyHandler
     participant WS as WarmupState
 
@@ -623,7 +627,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor Client as Internal Service
-    participant GW as cash-drugs<br/>:8080
+    participant GW as "cash-drugs<br/>:8080"
     participant WH as WarmupHandler
     participant WS as WarmupState
     participant UF as HTTPFetcher
@@ -1004,7 +1008,7 @@ sequenceDiagram
     participant GZ as Gzip Middleware
     participant LIM as Concurrency Limiter
     participant SH as SearchHandler
-    participant DB as MongoDB<br/>(cached_responses)
+    participant DB as "MongoDB<br/>(cached_responses)"
 
     Client->>RID: GET /api/search?q=metformin&limit=50
     RID->>GZ: pass through (ID in context)
@@ -1039,7 +1043,7 @@ sequenceDiagram
     participant GZ as Gzip Middleware
     participant LIM as Concurrency Limiter
     participant AC as AutocompleteHandler
-    participant DB as MongoDB<br/>(cached_responses)
+    participant DB as "MongoDB<br/>(cached_responses)"
 
     Client->>RID: GET /api/autocomplete?q=met&limit=10
     RID->>GZ: pass through (ID in context)
@@ -1106,6 +1110,57 @@ sequenceDiagram
     end
 ```
 
+## Config Validation Flow
+
+```mermaid
+sequenceDiagram
+    actor Dev as Developer / CI
+    participant GW as "cash-drugs<br/>:8080"
+    participant CV as ConfigValidateHandler
+
+    Dev->>GW: POST /api/config/validate<br/>{"yaml": "endpoints:\n  - slug: foo\n    ..."}
+    GW->>CV: ServeHTTP (request body limited to 1 MB)
+
+    alt Body missing / non-JSON
+        CV-->>Dev: 400 {valid: false, error_code: CD-H003, error}
+    end
+
+    CV->>CV: yaml.Unmarshal into []config.Endpoint
+    alt YAML parse fails or no endpoints
+        CV-->>Dev: 200 {valid: false, error_code: CD-H003, error}
+    end
+
+    loop For each endpoint
+        CV->>CV: Validate required fields (slug, base_url, path, format)
+        CV->>CV: Reject duplicate slugs, invalid format,<br/>invalid cron, invalid pagination type
+    end
+
+    Note over CV: Pure validation — no upstream fetch.<br/>Schedule warnings (refresh without TTL),<br/>large pagesize warnings collected.
+
+    CV-->>Dev: 200 {valid: true, endpoint_count,<br/>endpoints: [{slug, base_url, path, format,<br/>params, has_schedule, has_pagination}],<br/>warnings: [...], request_id}
+```
+
+## pprof Debug Endpoints
+
+```mermaid
+sequenceDiagram
+    actor Dev as Developer / SRE
+    participant DBG as "cash-drugs pprof<br/>:6060 (separate server)"
+    participant PPROF as net/http/pprof
+
+    Note over DBG: Bound to PPROF_ADDR (default :6060).<br/>Separate HTTP server — NOT on the main mux.<br/>NEVER exposed publicly in production.
+
+    Dev->>DBG: GET /debug/pprof/
+    DBG->>PPROF: pprof.Index
+    PPROF-->>Dev: 200 (HTML index of available profiles)
+
+    Dev->>DBG: GET /debug/pprof/profile?seconds=30
+    DBG->>PPROF: pprof.Profile
+    PPROF-->>Dev: 200 (binary CPU profile)
+
+    Note over DBG: Other endpoints: /cmdline, /symbol, /trace,<br/>/heap, /goroutine, /threadcreate, /allocs, /block.
+```
+
 ## System Overview
 
 ```mermaid
@@ -1117,8 +1172,8 @@ sequenceDiagram
     participant RID as RequestID
     participant GZ as Gzip
     participant LIM as Limiter
-    participant CD as cash-drugs<br/>:8080
-    participant LRU as Sharded LRU Cache<br/>(16 shards)
+    participant CD as "cash-drugs<br/>:8080"
+    participant LRU as "Sharded LRU Cache<br/>(16 shards)"
     participant DB as MongoDB
     participant API1 as DailyMed API
     participant API2 as openFDA API
@@ -1179,11 +1234,11 @@ sequenceDiagram
 
     Svc->>CD: GET /version
     Note over LIM: Exempt — bypasses limiter
-    CD-->>Svc: {"version": "...", "uptime_seconds": 3600, "leader": true, ...}
+    CD-->>Svc: {version, git_commit, git_branch, go_version, os, arch, build_time}
 
     Svc->>CD: GET /health
     Note over LIM: Exempt — bypasses limiter
-    CD-->>Svc: {"status": "ok", "db": "connected", "version": "..."}
+    CD-->>Svc: {status, version, uptime, start_time,<br/>dependencies: [{name: "mongodb", status, latency_ms}],<br/>cache_slug_count, leader}
 
     Svc->>RID: GET /api/cache/status
     RID->>GZ: pass through
@@ -1221,3 +1276,7 @@ sequenceDiagram
     Note over LIM: Exempt — bypasses limiter
     CD-->>Prom: cashdrugs_* + build_info + uptime + errors_total + system metrics
 ```
+
+---
+
+*Last updated: 2026-05-16 — regenerated by `/add:docs`. Reflects M19 (rx-dag NDC + generic headers) and M20 (stack-wide /health and /version contract).*

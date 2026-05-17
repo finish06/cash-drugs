@@ -460,6 +460,19 @@
       "date": "2026-03-25",
       "classified_by": "agent",
       "checkpoint_type": "post-deploy"
+    },
+    {
+      "id": "L-032",
+      "title": "Docs drift survives milestone close-out — manifest needs touch on every feature merge",
+      "body": "Manifest last regenerated 2026-03-25 (post-M17/M18). M19 (rx-dag NDC headers) and M20 (stack-wide /health + /version contract) both shipped without manifest/diagram updates. Result: 7+ weeks of drift in docs/sequence-diagram.md (showing pre-M20 /health and /version response shapes) and docs/swagger.* (regenerated Mar 25 from older swag annotations, then went stale). Even though CLAUDE.md says deploys must update sequence-diagram.md, that ran only for routes — model-shape changes slipped through. Fix: also re-run `swag init` + `/add:docs` whenever a response struct shape changes, not just when a new route is added.",
+      "scope": "project",
+      "stack": ["go", "swaggo"],
+      "category": "process",
+      "severity": "medium",
+      "source": "drugs",
+      "date": "2026-05-16",
+      "classified_by": "agent",
+      "checkpoint_type": "post-verify"
     }
   ]
 }

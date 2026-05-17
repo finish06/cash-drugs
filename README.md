@@ -236,7 +236,7 @@ environment:
   ENABLE_SCHEDULER: "false"
 ```
 
-`GET /version` returns `"leader": true/false` to identify which instance is the scheduler leader. The `cashdrugs_instance_leader` Prometheus gauge (1=leader, 0=replica) enables alerting when no leader is active.
+`GET /health` returns `"leader": true/false` to identify which instance is the scheduler leader (per the stack-wide health contract). The `cashdrugs_instance_leader` Prometheus gauge (1=leader, 0=replica) enables alerting when no leader is active.
 
 ## How It Works
 
