@@ -43,6 +43,8 @@ Service starts at **http://localhost:8080**. Explore:
 - **Cache status:** http://localhost:8080/api/cache/status
 - **Slug metadata:** http://localhost:8080/api/cache/{slug}/_meta
 - **Bulk lookup:** `POST` http://localhost:8080/api/cache/{slug}/bulk
+- **Search:** http://localhost:8080/api/search?q=aspirin
+- **Autocomplete:** http://localhost:8080/api/autocomplete?q=asp
 - **Test fetch:** `POST` http://localhost:8080/api/test-fetch
 - **Health:** http://localhost:8080/health
 - **Readiness:** http://localhost:8080/ready
