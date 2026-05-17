@@ -2,7 +2,7 @@
 
 **Spec:** specs/upstream-api-config.md
 **Created:** 2026-03-05
-**Status:** Active
+**Status:** Complete
 
 ## Task Breakdown
 
